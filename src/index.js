@@ -2,13 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const prisma = require('./db');
 const authRoutes = require('./auth');
+const moduleRoutes = require('./modules');
 const requireAuth = require('./requireAuth');
+const { startScheduler } = require('./scheduler');
 
 const app = express();
 app.use(express.json()); // lets the app read JSON sent in requests
 
 // Public routes - no login required
 app.use('/auth', authRoutes);
+
+// Module routes - require login (checked inside modules.js)
+app.use('/modules', moduleRoutes);
 
 // --------------------------------------------------------------
 // EXAMPLE PROTECTED ROUTE
@@ -39,4 +44,5 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  startScheduler(); // begin checking for overdue modules every 5 minutes
 });
