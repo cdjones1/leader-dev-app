@@ -83,6 +83,7 @@ model DevelopmentPlan {
   createdAt DateTime   @default(now())
 
   modules   Module[]
+  assessments Assessment[]
 }
 
 // ------------------------------------------------------------
@@ -130,4 +131,56 @@ model ModuleEvent {
   eventType ModuleEventType
   actorId   String?         // the user who did this; null means "the system did it automatically"
   timestamp DateTime        @default(now())
+}
+
+// ------------------------------------------------------------
+// ASSESSMENTS — the midterm (after module 4) and final (after module 8) gates.
+// Each allows up to 3 attempts before requiring escalation.
+// ------------------------------------------------------------
+enum GatePosition {
+  AFTER_MODULE_4
+  AFTER_MODULE_8
+}
+
+enum AssessmentStatus {
+  PENDING              // not started yet - module 4 (or 8) isn't complete yet
+  IN_PROGRESS          // at least one attempt made, more attempts still available
+  LOCKED_NEEDS_MEETING // failed twice - developer must hold a meeting, then reopen
+  LOCKED_FINAL         // failed the 3rd and final attempt - needs admin
+  PASSED
+}
+
+model Assessment {
+  id           String           @id @default(uuid())
+  planId       String
+  plan         DevelopmentPlan  @relation(fields: [planId], references: [id])
+  gatePosition GatePosition
+  status       AssessmentStatus @default(PENDING)
+  attemptCount Int              @default(0)
+  createdAt    DateTime         @default(now())
+
+  attempts     AssessmentAttempt[]
+
+  @@unique([planId, gatePosition]) // only one midterm and one final per plan
+}
+
+model AssessmentAttempt {
+  id            String     @id @default(uuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id])
+  attemptNumber Int        // 1, 2, or 3
+  overallResult String     // "PASS" or "FAIL"
+  gradedBy      String     // the developer's user id who graded it
+  gradedAt      DateTime   @default(now())
+
+  itemScores    AssessmentItemScore[]
+}
+
+model AssessmentItemScore {
+  id        String            @id @default(uuid())
+  attemptId String
+  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id])
+  moduleId  String            // which of the 4 modules in this block this score is for
+  score     Int
+  comments  String?
 }

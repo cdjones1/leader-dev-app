@@ -3,6 +3,7 @@ const express = require('express');
 const prisma = require('./db');
 const authRoutes = require('./auth');
 const moduleRoutes = require('./modules');
+const assessmentRoutes = require('./assessments');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
 
@@ -12,8 +13,9 @@ app.use(express.json()); // lets the app read JSON sent in requests
 // Public routes - no login required
 app.use('/auth', authRoutes);
 
-// Module routes - require login (checked inside modules.js)
+// Module and assessment routes - require login (checked inside each file)
 app.use('/modules', moduleRoutes);
+app.use('/assessments', assessmentRoutes);
 
 // --------------------------------------------------------------
 // EXAMPLE PROTECTED ROUTE

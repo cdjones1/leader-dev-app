@@ -70,6 +70,16 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     data: { moduleId, eventType: 'COMPLETED', actorId: req.user.userId },
   });
 
+  // Modules 4 and 8 are gated by an assessment - don't auto-open the
+  // next module. Instead, create the assessment and wait for grading.
+  if (module.sequenceOrder === 4 || module.sequenceOrder === 8) {
+    const gatePosition = module.sequenceOrder === 4 ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+    const assessment = await prisma.assessment.create({
+      data: { planId: module.planId, gatePosition, status: 'PENDING' },
+    });
+    return res.json({ completedModule: updated, assessmentCreated: assessment });
+  }
+
   // Find and open the next module in this plan, if there is one
   const nextModule = await prisma.module.findFirst({
     where: { planId: module.planId, sequenceOrder: module.sequenceOrder + 1 },
