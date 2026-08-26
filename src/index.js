@@ -4,6 +4,7 @@ const prisma = require('./db');
 const authRoutes = require('./auth');
 const moduleRoutes = require('./modules');
 const assessmentRoutes = require('./assessments');
+const testRoutes = require('./testRoutes');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
 
@@ -16,6 +17,7 @@ app.use('/auth', authRoutes);
 // Module and assessment routes - require login (checked inside each file)
 app.use('/modules', moduleRoutes);
 app.use('/assessments', assessmentRoutes);
+app.use('/test', testRoutes);
 
 // --------------------------------------------------------------
 // EXAMPLE PROTECTED ROUTE
