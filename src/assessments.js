@@ -9,6 +9,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const { checkPlanAccess, checkIsDeveloperOnPlan } = require('./access');
 
 const router = express.Router();
 
@@ -31,6 +32,7 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
   if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
     return res.status(400).json({
       error: `Cannot grade an assessment with status ${assessment.status}`,
@@ -126,6 +128,7 @@ router.post('/:id/reopen-after-meeting', requireAuth, async (req, res) => {
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
+  if (!(await checkIsDeveloperOnPlan(req, res, assessment.planId))) return;
   if (assessment.status !== 'LOCKED_NEEDS_MEETING') {
     return res.status(400).json({
       error: `Can only reopen from LOCKED_NEEDS_MEETING, current status is ${assessment.status}`,
@@ -182,6 +185,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
   res.json(assessment);
 });
 

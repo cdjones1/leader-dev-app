@@ -6,6 +6,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const { checkPlanAccess } = require('./access');
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ router.post('/:id/open', requireAuth, async (req, res) => {
   if (!module) {
     return res.status(404).json({ error: 'Module not found' });
   }
+  if (!(await checkPlanAccess(req, res, module.planId))) return;
   if (module.status !== 'NOT_STARTED') {
     return res.status(400).json({ error: `Cannot open a module with status ${module.status}` });
   }
@@ -55,6 +57,7 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
   if (!module) {
     return res.status(404).json({ error: 'Module not found' });
   }
+  if (!(await checkPlanAccess(req, res, module.planId))) return;
   if (module.status !== 'OPEN') {
     return res.status(400).json({ error: `Cannot complete a module with status ${module.status}` });
   }
@@ -111,6 +114,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   if (!module) {
     return res.status(404).json({ error: 'Module not found' });
   }
+  if (!(await checkPlanAccess(req, res, module.planId))) return;
   res.json(module);
 });
 

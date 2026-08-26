@@ -24,6 +24,12 @@ router.post('/seed-assessment', requireAuth, async (req, res) => {
 
   const plan = await prisma.developmentPlan.create({ data: { pairingId: pairing.id } });
 
+  // Add the user as both developer and developee on this test plan,
+  // so they can access it under the new access-control rules.
+  await prisma.planParticipant.create({
+    data: { planId: plan.id, userId, participantRole: 'DEVELOPER' },
+  });
+
   const module4 = await prisma.module.create({
     data: { planId: plan.id, sequenceOrder: 4, status: 'COMPLETED', completedAt: new Date() },
   });

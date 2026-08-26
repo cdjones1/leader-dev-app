@@ -84,6 +84,28 @@ model DevelopmentPlan {
 
   modules   Module[]
   assessments Assessment[]
+  participants PlanParticipant[]
+}
+
+// ------------------------------------------------------------
+// PLAN PARTICIPANTS — the explicit access list for each plan.
+// This is the whole access-control model: if you're not listed
+// here (and you're not an admin), you can't see or act on this plan.
+// ------------------------------------------------------------
+enum ParticipantRole {
+  DEVELOPER
+  DEVELOPEE
+  ESCALATION_APPROVER
+}
+
+model PlanParticipant {
+  id              String          @id @default(uuid())
+  planId          String
+  plan            DevelopmentPlan @relation(fields: [planId], references: [id])
+  userId          String
+  participantRole ParticipantRole
+
+  @@unique([planId, userId]) // one role per person per plan
 }
 
 // ------------------------------------------------------------
