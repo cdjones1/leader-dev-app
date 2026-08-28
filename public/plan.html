@@ -72,8 +72,18 @@
       return data;
     }
 
-    function moduleRowHtml(module) {
-      const canOpen = module.status === 'NOT_STARTED';
+    function moduleRowHtml(module, planAssessments) {
+      let canOpen = module.status === 'NOT_STARTED';
+
+      // Module 5 stays locked-looking until the midterm has actually passed,
+      // matching the same rule the server enforces.
+      if (module.sequenceOrder === 5 && canOpen) {
+        const midterm = planAssessments.find((a) => a.gatePosition === 'AFTER_MODULE_4');
+        if (!midterm || midterm.status !== 'PASSED') {
+          canOpen = false;
+        }
+      }
+
       const canComplete = module.status === 'OPEN';
       return `
         <div class="module-row">
@@ -128,7 +138,7 @@
         document.getElementById('pageTitle').textContent =
           `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
 
-        document.getElementById('modulesList').innerHTML = plan.modules.map(moduleRowHtml).join('');
+        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => moduleRowHtml(m, plan.assessments)).join('');
 
         // Find the assessment that's currently relevant (not yet PASSED)
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');

@@ -29,6 +29,21 @@ router.post('/:id/open', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `Cannot open a module with status ${module.status}` });
   }
 
+  // Module 5 is gated by the midterm assessment (after module 4).
+  // Even though it's "NOT_STARTED" and would otherwise be openable,
+  // it must stay blocked until that assessment has actually PASSED -
+  // otherwise someone could open it manually and skip the gate entirely.
+  if (module.sequenceOrder === 5) {
+    const midterm = await prisma.assessment.findUnique({
+      where: { planId_gatePosition: { planId: module.planId, gatePosition: 'AFTER_MODULE_4' } },
+    });
+    if (!midterm || midterm.status !== 'PASSED') {
+      return res.status(400).json({
+        error: 'Module 5 is locked until the midterm assessment (after module 4) has passed',
+      });
+    }
+  }
+
   const now = new Date();
   const dueAt = new Date(now.getTime() + FIVE_DAYS_IN_MS);
 
