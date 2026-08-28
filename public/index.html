@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Leadership Development Tracker - Login</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #16213e;
+      padding: 40px;
+      border-radius: 12px;
+      width: 320px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 20px; margin-top: 0; }
+    label { display: block; margin-top: 16px; font-size: 14px; color: #aaa; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #0f172a;
+      color: #eee;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      margin-top: 24px;
+      padding: 12px;
+      background: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:hover { background: #4338ca; }
+    #error {
+      color: #f87171;
+      margin-top: 12px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Leadership Development Tracker</h1>
+    <form id="loginForm">
+      <label>Email</label>
+      <input type="email" id="email" required>
+      <label>Password</label>
+      <input type="password" id="password" required>
+      <button type="submit">Log In</button>
+      <div id="error"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorDiv = document.getElementById('error');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorDiv.style.display = 'none';
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorDiv.textContent = data.error || 'Login failed';
+          errorDiv.style.display = 'block';
+          return;
+        }
+
+        // Save the login token and user info so other pages can use them
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        window.location.href = '/dashboard.html';
+      } catch (err) {
+        errorDiv.textContent = 'Could not reach the server. Please try again.';
+        errorDiv.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>

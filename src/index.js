@@ -11,6 +11,7 @@ const { startScheduler } = require('./scheduler');
 
 const app = express();
 app.use(express.json()); // lets the app read JSON sent in requests
+app.use(express.static('public')); // serves the login page and dashboard
 
 // Public routes - no login required
 app.use('/auth', authRoutes);
