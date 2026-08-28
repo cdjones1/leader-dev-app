@@ -144,6 +144,35 @@ router.post('/:id/reopen-after-meeting', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
+// ADMIN REOPEN FOR RETRY — grants exactly one more attempt from
+// LOCKED_FINAL, without automatically passing it. If that attempt
+// also fails, the existing 3-attempt logic naturally sends it right
+// back to LOCKED_FINAL - admin decides again from there.
+// --------------------------------------------------------------
+router.post('/:id/admin-reopen-for-retry', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only an admin can reopen a LOCKED_FINAL assessment' });
+  }
+
+  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  if (!assessment) {
+    return res.status(404).json({ error: 'Assessment not found' });
+  }
+  if (assessment.status !== 'LOCKED_FINAL') {
+    return res.status(400).json({
+      error: `Can only reopen from LOCKED_FINAL, current status is ${assessment.status}`,
+    });
+  }
+
+  const updated = await prisma.assessment.update({
+    where: { id: assessment.id },
+    data: { status: 'IN_PROGRESS' }, // attemptCount is NOT reset - the next grade continues the real count
+  });
+
+  res.json(updated);
+});
+
+// --------------------------------------------------------------
 // ADMIN RESOLUTION — only valid from LOCKED_FINAL. For now this
 // gives admin one option: override to PASS and unlock the next step.
 // (We flagged this as an open decision earlier - easy to add more

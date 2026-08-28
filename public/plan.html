@@ -121,9 +121,10 @@
           <div class="assessment-box">
             <h3>${label}</h3>
             <p>Status: <strong>Locked - Needs Admin</strong></p>
-            <p>All 3 attempts have failed. This has reached the final attempt limit and now requires admin resolution.</p>
+            <p>All attempts have failed. This requires admin resolution.</p>
             ${isAdmin
-              ? `<button onclick="adminOverridePass('${assessment.id}')">Admin: Override to Pass</button>`
+              ? `<button onclick="adminReopenForRetry('${assessment.id}')">Grant One More Attempt</button>
+                 <button style="margin-left:8px; background:#7f1d1d;" onclick="adminOverridePass('${assessment.id}')">Override to Pass</button>`
               : `<p style="color:#888;">Only an admin can resolve this.</p>`}
           </div>
         `;
@@ -223,6 +224,18 @@
       }
       try {
         await apiCall('/assessments/' + assessmentId + '/admin-override-pass', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminReopenForRetry(assessmentId) {
+      if (!confirm('This will allow one more real attempt - they will need to actually pass it. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/admin-reopen-for-retry', { method: 'POST' });
         loadPlan();
       } catch (err) {
         alert(err.message);
