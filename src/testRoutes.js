@@ -16,6 +16,10 @@ const router = express.Router();
 // Uses YOUR OWN logged-in user id automatically, no copy-pasting needed.
 // --------------------------------------------------------------
 router.post('/seed-assessment', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'This test-only route is restricted to admins' });
+  }
+
   const userId = req.user.userId;
 
   const pairing = await prisma.developerPairing.create({

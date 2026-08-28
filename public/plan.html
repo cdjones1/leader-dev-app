@@ -103,14 +103,37 @@
       if (!assessment) return '';
       const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
       const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
+      const isAdmin = JSON.parse(localStorage.getItem('user')).isAdmin;
+
+      if (assessment.status === 'LOCKED_NEEDS_MEETING') {
+        return `
+          <div class="assessment-box">
+            <h3>${label}</h3>
+            <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
+            <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
+            <button onclick="reopenAfterMeeting('${assessment.id}')">I've held the meeting - Reopen for attempt 3</button>
+          </div>
+        `;
+      }
+
+      if (assessment.status === 'LOCKED_FINAL') {
+        return `
+          <div class="assessment-box">
+            <h3>${label}</h3>
+            <p>Status: <strong>Locked - Needs Admin</strong></p>
+            <p>All 3 attempts have failed. This has reached the final attempt limit and now requires admin resolution.</p>
+            ${isAdmin
+              ? `<button onclick="adminOverridePass('${assessment.id}')">Admin: Override to Pass</button>`
+              : `<p style="color:#888;">Only an admin can resolve this.</p>`}
+          </div>
+        `;
+      }
 
       if (!gradeable) {
         return `
           <div class="assessment-box">
             <h3>${label}</h3>
             <p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>
-            ${assessment.status === 'LOCKED_NEEDS_MEETING' ? '<p>A developer meeting is required before this can continue.</p>' : ''}
-            ${assessment.status === 'LOCKED_FINAL' ? '<p>This has reached the final attempt limit. An admin must resolve it.</p>' : ''}
           </div>
         `;
       }
@@ -179,6 +202,27 @@
             itemScores: [{ moduleId: 'combined', score, comments }],
           }),
         });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function reopenAfterMeeting(assessmentId) {
+      try {
+        await apiCall('/assessments/' + assessmentId + '/reopen-after-meeting', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminOverridePass(assessmentId) {
+      if (!confirm('This will mark the assessment as PASSED and unlock the next step, bypassing normal grading. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/admin-override-pass', { method: 'POST' });
         loadPlan();
       } catch (err) {
         alert(err.message);
