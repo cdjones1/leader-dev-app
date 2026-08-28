@@ -1,0 +1,111 @@
+// ============================================================
+// PLAN ROUTES
+// Creating a real development plan for a pairing (8 modules,
+// correctly set up with access-control participants from the
+// start) and viewing your own plans.
+// ============================================================
+const express = require('express');
+const prisma = require('./db');
+const requireAuth = require('./requireAuth');
+const { checkPlanAccess } = require('./access');
+
+const router = express.Router();
+
+// --------------------------------------------------------------
+// CREATE a plan for a pairing. Admin-only for now, since assigning
+// pairings and starting plans are both deliberate admin actions
+// in our design.
+// Creates: the plan, all 8 modules (not started), and the two
+// participant records (developer + developee) that access control
+// depends on.
+// --------------------------------------------------------------
+router.post('/', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only an admin can start a new development plan' });
+  }
+
+  const { pairingId } = req.body;
+  if (!pairingId) {
+    return res.status(400).json({ error: 'pairingId is required' });
+  }
+
+  const pairing = await prisma.developerPairing.findUnique({ where: { id: pairingId } });
+  if (!pairing) {
+    return res.status(404).json({ error: 'Pairing not found' });
+  }
+
+  const plan = await prisma.developmentPlan.create({ data: { pairingId } });
+
+  // Create all 8 modules up front, in NOT_STARTED status.
+  // Module 1 is the exception - it opens immediately since the
+  // process starts right away.
+  const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
+  const now = new Date();
+
+  for (let seq = 1; seq <= 8; seq++) {
+    const isFirst = seq === 1;
+    await prisma.module.create({
+      data: {
+        planId: plan.id,
+        sequenceOrder: seq,
+        status: isFirst ? 'OPEN' : 'NOT_STARTED',
+        openedAt: isFirst ? now : null,
+        dueAt: isFirst ? new Date(now.getTime() + FIVE_DAYS_IN_MS) : null,
+      },
+    });
+  }
+
+  // Set up access control: the developer and developee on this
+  // pairing become participants on this specific plan.
+  await prisma.planParticipant.createMany({
+    data: [
+      { planId: plan.id, userId: pairing.developerId, participantRole: 'DEVELOPER' },
+      { planId: plan.id, userId: pairing.developeeId, participantRole: 'DEVELOPEE' },
+    ],
+    skipDuplicates: true, // handles the self-paired test case (same user, one row)
+  });
+
+  res.status(201).json(plan);
+});
+
+// --------------------------------------------------------------
+// LIST plans the logged-in user is a participant on.
+// --------------------------------------------------------------
+router.get('/mine', requireAuth, async (req, res) => {
+  const participantRows = await prisma.planParticipant.findMany({
+    where: { userId: req.user.userId },
+    include: { plan: { include: { pairing: { include: { developer: true, developee: true } } } } },
+  });
+
+  const plans = participantRows.map((row) => ({
+    planId: row.plan.id,
+    myRole: row.participantRole,
+    status: row.plan.status,
+    developer: row.plan.pairing.developer.name,
+    developee: row.plan.pairing.developee.name,
+  }));
+
+  res.json(plans);
+});
+
+// --------------------------------------------------------------
+// VIEW one plan in full: all 8 modules and any assessments.
+// --------------------------------------------------------------
+router.get('/:id', requireAuth, async (req, res) => {
+  const plan = await prisma.developmentPlan.findUnique({
+    where: { id: req.params.id },
+    include: {
+      modules: { orderBy: { sequenceOrder: 'asc' } },
+      assessments: true,
+      pairing: { include: { developer: true, developee: true } },
+    },
+  });
+  if (!plan) {
+    return res.status(404).json({ error: 'Plan not found' });
+  }
+  if (!(await checkPlanAccess(req, res, plan.id))) return;
+
+  res.json(plan);
+});
+
+module.exports = router;

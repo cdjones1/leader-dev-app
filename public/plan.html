@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Development Plan</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h1 { font-size: 22px; margin: 0; }
+    a { color: #93c5fd; text-decoration: none; }
+    button {
+      padding: 8px 16px; background: #4f46e5; color: white; border: none;
+      border-radius: 6px; cursor: pointer; font-size: 14px;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #374151; cursor: not-allowed; }
+    .module-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #16213e; padding: 16px 20px; border-radius: 8px; margin-bottom: 8px;
+    }
+    .module-name { font-weight: 600; }
+    .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 10px; }
+    .tag-NOT_STARTED { background: #374151; color: #d1d5db; }
+    .tag-OPEN { background: #1e3a8a; color: #bfdbfe; }
+    .tag-COMPLETED { background: #14532d; color: #bbf7d0; }
+    .tag-LOCKED { background: #7f1d1d; color: #fecaca; }
+    .assessment-box {
+      background: #16213e; padding: 20px; border-radius: 8px; margin-top: 16px;
+      border: 1px solid #4f46e5;
+    }
+    .assessment-box h3 { margin-top: 0; }
+    label { display: block; margin-top: 12px; font-size: 14px; color: #aaa; }
+    input, select, textarea {
+      width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
+      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+    }
+    #message { color: #aaa; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 id="pageTitle">Development Plan</h1>
+    <a href="/dashboard.html">&larr; Back to Dashboard</a>
+  </div>
+
+  <div id="modulesList"></div>
+  <div id="assessmentSection"></div>
+  <div id="message"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const planId = params.get('id');
+
+    if (!planId) {
+      document.getElementById('message').textContent = 'No plan specified. Go back to the dashboard and pick a plan.';
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+          ...(options.headers || {}),
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function moduleRowHtml(module) {
+      const canOpen = module.status === 'NOT_STARTED';
+      const canComplete = module.status === 'OPEN';
+      return `
+        <div class="module-row">
+          <div>
+            <span class="module-name">Module ${module.sequenceOrder}</span>
+            <span class="tag tag-${module.status}">${module.status.replace('_', ' ')}</span>
+          </div>
+          <div>
+            <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
+            <button ${canComplete ? '' : 'disabled'} onclick="completeModule('${module.id}')">Mark Complete</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function assessmentBoxHtml(assessment) {
+      if (!assessment) return '';
+      const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
+      const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
+
+      if (!gradeable) {
+        return `
+          <div class="assessment-box">
+            <h3>${label}</h3>
+            <p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>
+            ${assessment.status === 'LOCKED_NEEDS_MEETING' ? '<p>A developer meeting is required before this can continue.</p>' : ''}
+            ${assessment.status === 'LOCKED_FINAL' ? '<p>This has reached the final attempt limit. An admin must resolve it.</p>' : ''}
+          </div>
+        `;
+      }
+
+      return `
+        <div class="assessment-box">
+          <h3>${label} - Attempt ${assessment.attemptCount + 1} of 3</h3>
+          <label>Score (1-10)</label>
+          <input type="number" id="score" min="1" max="10" value="5">
+          <label>Comments</label>
+          <textarea id="comments" rows="3"></textarea>
+          <label>Overall Result</label>
+          <select id="overallResult">
+            <option value="PASS">Pass</option>
+            <option value="FAIL">Fail</option>
+          </select>
+          <button style="margin-top:16px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
+        </div>
+      `;
+    }
+
+    async function loadPlan() {
+      try {
+        const plan = await apiCall('/plans/' + planId);
+        document.getElementById('pageTitle').textContent =
+          `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
+
+        document.getElementById('modulesList').innerHTML = plan.modules.map(moduleRowHtml).join('');
+
+        // Find the assessment that's currently relevant (not yet PASSED)
+        const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
+        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment);
+      } catch (err) {
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function openModule(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/open', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function completeModule(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function gradeAssessment(assessmentId) {
+      const score = parseInt(document.getElementById('score').value, 10);
+      const comments = document.getElementById('comments').value;
+      const overallResult = document.getElementById('overallResult').value;
+
+      try {
+        await apiCall('/assessments/' + assessmentId + '/grade', {
+          method: 'POST',
+          body: JSON.stringify({
+            overallResult,
+            itemScores: [{ moduleId: 'combined', score, comments }],
+          }),
+        });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    if (planId) loadPlan();
+  </script>
+</body>
+</html>

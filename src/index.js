@@ -6,6 +6,7 @@ const moduleRoutes = require('./modules');
 const assessmentRoutes = require('./assessments');
 const testRoutes = require('./testRoutes');
 const { router: adminRoutes } = require('./admin');
+const planRoutes = require('./plans');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
 
@@ -21,6 +22,7 @@ app.use('/modules', moduleRoutes);
 app.use('/assessments', assessmentRoutes);
 app.use('/test', testRoutes);
 app.use('/admin', adminRoutes);
+app.use('/plans', planRoutes);
 
 // --------------------------------------------------------------
 // EXAMPLE PROTECTED ROUTE
