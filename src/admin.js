@@ -39,7 +39,7 @@ function buildQueue({ stalledModules, overduePlans, dueSoonPlans, needsMeetingAs
   for (const p of overduePlans) {
     queue.push({
       reason: 'plan_overdue',
-      since: p.createdAt,
+      since: p.startedAt,
       planId: p.id,
       developer: p.pairing.developer.name,
       developee: p.pairing.developee.name,
@@ -49,7 +49,7 @@ function buildQueue({ stalledModules, overduePlans, dueSoonPlans, needsMeetingAs
   for (const p of dueSoonPlans) {
     queue.push({
       reason: 'plan_due_soon',
-      since: p.createdAt,
+      since: p.startedAt,
       planId: p.id,
       developer: p.pairing.developer.name,
       developee: p.pairing.developee.name,
@@ -116,15 +116,17 @@ router.get('/needs-attention', requireAuth, async (req, res) => {
       include: includePairingPeople,
     }),
     prisma.developmentPlan.findMany({
-      where: { status: 'IN_PROGRESS', createdAt: { lt: fortyDaysAgo } },
+      where: { status: 'IN_PROGRESS', startedAt: { not: null, lt: fortyDaysAgo } },
       include: { pairing: { include: { developer: true, developee: true } } },
     }),
     // Due soon: past the 30-day mark, but NOT yet past 40 (those already
     // show up as plan_overdue above - no need to show the same plan twice).
+    // A plan that hasn't been started yet (startedAt is null) never
+    // shows up here - its clock literally hasn't begun.
     prisma.developmentPlan.findMany({
       where: {
         status: 'IN_PROGRESS',
-        createdAt: { lt: thirtyDaysAgo, gte: fortyDaysAgo },
+        startedAt: { not: null, lt: thirtyDaysAgo, gte: fortyDaysAgo },
       },
       include: { pairing: { include: { developer: true, developee: true } } },
     }),

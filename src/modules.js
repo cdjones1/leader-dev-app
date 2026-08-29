@@ -71,6 +71,16 @@ router.post('/:id/open', requireAuth, async (req, res) => {
     data: { moduleId, eventType: 'OPENED', actorId: req.user.userId },
   });
 
+  // Module 1 opening is what actually starts the plan's real clock -
+  // this is the moment the 40-day window begins, distinct from
+  // whenever the plan/pairing was administratively created.
+  if (module.sequenceOrder === 1) {
+    await prisma.developmentPlan.update({
+      where: { id: module.planId },
+      data: { startedAt: now },
+    });
+  }
+
   res.json(updated);
 });
 

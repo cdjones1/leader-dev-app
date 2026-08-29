@@ -81,6 +81,7 @@ model DevelopmentPlan {
   pairing   DeveloperPairing @relation(fields: [pairingId], references: [id])
   status    PlanStatus @default(IN_PROGRESS)
   createdAt DateTime   @default(now())
+  startedAt DateTime?  // set the moment module 1 is actually opened - this is when the real 40-day clock begins, not when the plan record was created
 
   modules   Module[]
   assessments Assessment[]

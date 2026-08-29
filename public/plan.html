@@ -39,6 +39,7 @@
       margin-bottom: 16px; font-weight: 600;
     }
     #message { color: #aaa; margin-top: 16px; }
+    .date-info { color: #93c5fd; font-size: 14px; margin-bottom: 16px; }
   </style>
 </head>
 <body>
@@ -47,6 +48,7 @@
     <a href="/dashboard.html">&larr; Back to Dashboard</a>
   </div>
 
+  <div id="dateInfo" class="date-info"></div>
   <div id="dayBanner"></div>
   <div id="modulesList"></div>
   <div id="assessmentSection"></div>
@@ -192,19 +194,32 @@
         document.getElementById('pageTitle').textContent =
           `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
 
-        // Show a banner based on how many days into the 40-day window this plan is.
+        // Start/due dates and the reminder banner all key off startedAt -
+        // the moment module 1 was actually opened, not when the plan
+        // record itself was created.
+        const dateInfoDiv = document.getElementById('dateInfo');
         const bannerDiv = document.getElementById('dayBanner');
-        if (plan.status === 'IN_PROGRESS') {
-          const daysElapsed = Math.floor((Date.now() - new Date(plan.createdAt)) / (1000 * 60 * 60 * 24));
-          if (daysElapsed >= 40) {
-            bannerDiv.innerHTML = `<div class="day-banner" style="background:#7f1d1d; color:#fecaca;">This plan is past its 40-day mark (day ${daysElapsed}) and is not yet complete.</div>`;
-          } else if (daysElapsed >= 30) {
-            bannerDiv.innerHTML = `<div class="day-banner">Reminder: this development plan is due within ${40 - daysElapsed} day(s) (day ${daysElapsed} of 40).</div>`;
+
+        if (!plan.startedAt) {
+          dateInfoDiv.textContent = 'Not started yet - the 40-day clock begins once Module 1 is opened.';
+          bannerDiv.innerHTML = '';
+        } else {
+          const startDate = new Date(plan.startedAt);
+          const dueDate = new Date(startDate.getTime() + 40 * 24 * 60 * 60 * 1000);
+          dateInfoDiv.textContent = `Start Date: ${startDate.toLocaleDateString()}  |  Due Date: ${dueDate.toLocaleDateString()}`;
+
+          if (plan.status === 'IN_PROGRESS') {
+            const daysElapsed = Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
+            if (daysElapsed >= 40) {
+              bannerDiv.innerHTML = `<div class="day-banner" style="background:#7f1d1d; color:#fecaca;">This plan is past its 40-day mark (day ${daysElapsed}) and is not yet complete.</div>`;
+            } else if (daysElapsed >= 30) {
+              bannerDiv.innerHTML = `<div class="day-banner">Reminder: this development plan is due within ${40 - daysElapsed} day(s) (day ${daysElapsed} of 40).</div>`;
+            } else {
+              bannerDiv.innerHTML = '';
+            }
           } else {
             bannerDiv.innerHTML = '';
           }
-        } else {
-          bannerDiv.innerHTML = '';
         }
 
         document.getElementById('modulesList').innerHTML = plan.modules.map((m) => {

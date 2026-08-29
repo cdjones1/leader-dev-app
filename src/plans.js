@@ -36,22 +36,12 @@ router.post('/', requireAuth, async (req, res) => {
 
   const plan = await prisma.developmentPlan.create({ data: { pairingId } });
 
-  // Create all 8 modules up front, in NOT_STARTED status.
-  // Module 1 is the exception - it opens immediately since the
-  // process starts right away.
-  const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
-  const now = new Date();
-
+  // All 8 modules are created NOT_STARTED, including module 1 - nothing
+  // auto-opens anymore. The plan's real clock (startedAt) only begins
+  // once someone actually clicks to open module 1.
   for (let seq = 1; seq <= 8; seq++) {
-    const isFirst = seq === 1;
     await prisma.module.create({
-      data: {
-        planId: plan.id,
-        sequenceOrder: seq,
-        status: isFirst ? 'OPEN' : 'NOT_STARTED',
-        openedAt: isFirst ? now : null,
-        dueAt: isFirst ? new Date(now.getTime() + FIVE_DAYS_IN_MS) : null,
-      },
+      data: { planId: plan.id, sequenceOrder: seq, status: 'NOT_STARTED' },
     });
   }
 
