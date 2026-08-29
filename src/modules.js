@@ -41,22 +41,29 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
   res.json(stripAnswerIfUnsubmitted(updated));
 });
 
-// --------------------------------------------------------------
-// A single task's own page. This is the ONLY place the correct
-// answer is ever included in a response - and even then, only
-// once the person has already locked in their own answer. Before
-// that, correctAnswer is stripped out entirely so it never reaches
-// the browser, not even hidden in the page source.
-// --------------------------------------------------------------
-function stripAnswerIfUnsubmitted(task) {
+// Shared answer-hiding rule - same as the one in plans.js. Never
+// include an answer before it's meant to be revealed.
+function stripHiddenAnswers(task) {
+  let safeTask = task;
   if (task.taskType === 'QUESTION' && !task.submittedAt) {
-    const { correctAnswer, ...safeTask } = task;
-    return safeTask;
+    const { correctAnswer, ...rest } = safeTask;
+    safeTask = rest;
   }
-  return task;
+  if (task.taskType === 'MULTIPLE_CHOICE' && !task.selectedOptionId && task.choiceOptions) {
+    safeTask = {
+      ...safeTask,
+      choiceOptions: task.choiceOptions.map(({ isCorrect, ...optRest }) => optRest),
+    };
+  }
+  return safeTask;
 }
 
-router.get('/tasks/:taskId', requireAuth, async (req, res) => {
+// --------------------------------------------------------------
+// TOGGLE a task's checked state. Only for READING tasks - the
+// other three types complete themselves in their own specific way
+// (submitting an answer, checking off every sub-item, picking an option).
+// --------------------------------------------------------------
+router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
     include: { module: true },
@@ -65,15 +72,44 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (task.taskType !== 'READING') {
+    return res.status(400).json({ error: 'Only reading tasks can be toggled directly' });
+  }
 
-  res.json(stripAnswerIfUnsubmitted(task));
+  const updated = await prisma.moduleTask.update({
+    where: { id: task.id },
+    data: {
+      completed: !task.completed,
+      completedAt: !task.completed ? new Date() : null,
+    },
+  });
+
+  res.json(stripHiddenAnswers(updated));
 });
 
 // --------------------------------------------------------------
-// SUBMIT an answer to a QUESTION task. Locks in permanently -
-// once submittedAt is set, this can never be called again for
-// this task. The response includes the correct answer now, since
-// submission is exactly the moment it's supposed to be revealed.
+// A single task's own page - includes checklist items and choice
+// options, with hidden answers stripped per stripHiddenAnswers above.
+// --------------------------------------------------------------
+router.get('/tasks/:taskId', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: {
+      module: true,
+      checklistItems: { orderBy: { order: 'asc' } },
+      choiceOptions: { orderBy: { order: 'asc' } },
+    },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+
+  res.json(stripHiddenAnswers(task));
+});
+
+// --------------------------------------------------------------
+// SUBMIT an answer to a QUESTION task. Locks in permanently.
 // --------------------------------------------------------------
 router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
@@ -103,6 +139,82 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   });
 
   res.json(updated); // safe to include correctAnswer now - this IS the reveal moment
+});
+
+// --------------------------------------------------------------
+// TOGGLE one checklist item within a CHECKLIST task. Whenever this
+// changes, the parent task's own "completed" status is recomputed:
+// complete only once every sub-item is checked.
+// --------------------------------------------------------------
+router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, res) => {
+  const item = await prisma.taskChecklistItem.findUnique({
+    where: { id: req.params.itemId },
+    include: { moduleTask: { include: { module: true } } },
+  });
+  if (!item) {
+    return res.status(404).json({ error: 'Checklist item not found' });
+  }
+  if (!(await checkPlanAccess(req, res, item.moduleTask.module.planId))) return;
+
+  const now = new Date();
+  await prisma.taskChecklistItem.update({
+    where: { id: item.id },
+    data: { completed: !item.completed, completedAt: !item.completed ? now : null },
+  });
+
+  // Recompute the parent task's completed status from all its items.
+  const allItems = await prisma.taskChecklistItem.findMany({ where: { moduleTaskId: item.moduleTaskId } });
+  const allDone = allItems.every((i) => i.completed);
+
+  const updatedTask = await prisma.moduleTask.update({
+    where: { id: item.moduleTaskId },
+    data: { completed: allDone, completedAt: allDone ? now : null },
+    include: { checklistItems: { orderBy: { order: 'asc' } } },
+  });
+
+  res.json(updatedTask);
+});
+
+// --------------------------------------------------------------
+// SUBMIT a choice for a MULTIPLE_CHOICE task. Locks in permanently
+// and is graded automatically right at submission time - no
+// separate grading step, no waiting on a person to review it.
+// --------------------------------------------------------------
+router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: { module: true, choiceOptions: true },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (task.taskType !== 'MULTIPLE_CHOICE') {
+    return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
+  }
+  if (task.selectedOptionId) {
+    return res.status(400).json({ error: 'This choice was already submitted and is locked - it cannot be changed' });
+  }
+
+  const { optionId } = req.body;
+  const chosenOption = task.choiceOptions.find((o) => o.id === optionId);
+  if (!chosenOption) {
+    return res.status(400).json({ error: 'optionId does not match one of this task\'s choices' });
+  }
+
+  const now = new Date();
+  const updated = await prisma.moduleTask.update({
+    where: { id: task.id },
+    data: {
+      selectedOptionId: optionId,
+      isCorrect: chosenOption.isCorrect, // graded automatically, right now, from the stored correct option
+      completed: true,
+      completedAt: now,
+    },
+    include: { choiceOptions: { orderBy: { order: 'asc' } } },
+  });
+
+  res.json(updated); // safe to include every option's isCorrect now - this IS the reveal moment
 });
 
 // --------------------------------------------------------------

@@ -99,14 +99,102 @@
       `;
     }
 
+    function checklistTaskHtml(task) {
+      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      const itemsHtml = task.checklistItems.map((item) => `
+        <label style="display:flex; align-items:center; gap:8px; padding:6px 0; ${item.completed ? 'color:#6b7280; text-decoration:line-through;' : ''}">
+          <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem('${item.id}')">
+          ${item.text}
+        </label>
+      `).join('');
+      return `
+        ${contentHtml}
+        <div>${itemsHtml}</div>
+        ${task.completed ? '<p style="color:#86efac; margin-top:12px;">All items checked - task complete.</p>' : ''}
+      `;
+    }
+
+    function multipleChoiceTaskHtml(task) {
+      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+
+      if (!task.selectedOptionId) {
+        const optionsHtml = task.choiceOptions.map((opt) => `
+          <label style="display:flex; align-items:center; gap:8px; padding:6px 0;">
+            <input type="radio" name="mcOption" value="${opt.id}">
+            ${opt.text}
+          </label>
+        `).join('');
+        return `
+          ${contentHtml}
+          <div>${optionsHtml}</div>
+          <div class="locked-note">Once you submit, your choice is locked and cannot be changed.</div>
+          <button style="margin-top:10px;" onclick="submitChoice('${task.id}')">Submit Answer</button>
+        `;
+      }
+
+      // Already answered - show every option, marking their pick and the correct one.
+      const resultHtml = task.choiceOptions.map((opt) => {
+        const isMine = opt.id === task.selectedOptionId;
+        const style = opt.isCorrect
+          ? 'color:#86efac; font-weight:600;'
+          : (isMine ? 'color:#f87171;' : 'color:#9ca3af;');
+        return `<div style="padding:6px 0; ${style}">${isMine ? '→ ' : '　 '}${opt.text}${opt.isCorrect ? ' (correct)' : ''}${isMine && !opt.isCorrect ? ' (your answer)' : ''}</div>`;
+      }).join('');
+
+      return `
+        ${contentHtml}
+        <div>${resultHtml}</div>
+        <p style="margin-top:12px; font-weight:600; color:${task.isCorrect ? '#86efac' : '#f87171'};">
+          ${task.isCorrect ? 'Correct!' : 'Incorrect.'}
+        </p>
+      `;
+    }
+
     async function loadTask() {
       try {
         const task = await apiCall('/modules/tasks/' + taskId);
         document.getElementById('pageTitle').textContent = task.text;
         const card = document.getElementById('taskCard');
-        card.innerHTML = task.taskType === 'QUESTION' ? questionTaskHtml(task) : readingTaskHtml(task);
+        if (task.taskType === 'QUESTION') {
+          card.innerHTML = questionTaskHtml(task);
+        } else if (task.taskType === 'CHECKLIST') {
+          card.innerHTML = checklistTaskHtml(task);
+        } else if (task.taskType === 'MULTIPLE_CHOICE') {
+          card.innerHTML = multipleChoiceTaskHtml(task);
+        } else {
+          card.innerHTML = readingTaskHtml(task);
+        }
       } catch (err) {
         document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function toggleChecklistItem(itemId) {
+      try {
+        await apiCall('/modules/tasks/checklist-items/' + itemId + '/toggle', { method: 'POST' });
+        loadTask();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function submitChoice(taskId) {
+      const selected = document.querySelector('input[name="mcOption"]:checked');
+      if (!selected) {
+        alert('Please select an answer before submitting.');
+        return;
+      }
+      if (!confirm('Once submitted, your choice is locked and cannot be changed. Submit now?')) {
+        return;
+      }
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/submit-choice', {
+          method: 'POST',
+          body: JSON.stringify({ optionId: selected.value }),
+        });
+        loadTask();
+      } catch (err) {
+        alert(err.message);
       }
     }
 

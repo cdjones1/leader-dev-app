@@ -11,6 +11,25 @@ const { checkPlanAccess } = require('./access');
 
 const router = express.Router();
 
+// Shared answer-hiding rule, used everywhere a task might be sent
+// to the browser: never include an answer before it's meant to be
+// revealed. QUESTION tasks hide correctAnswer until submitted;
+// MULTIPLE_CHOICE tasks hide every option's isCorrect until answered.
+function stripHiddenAnswers(task) {
+  let safeTask = task;
+  if (task.taskType === 'QUESTION' && !task.submittedAt) {
+    const { correctAnswer, ...rest } = safeTask;
+    safeTask = rest;
+  }
+  if (task.taskType === 'MULTIPLE_CHOICE' && !task.selectedOptionId && task.choiceOptions) {
+    safeTask = {
+      ...safeTask,
+      choiceOptions: task.choiceOptions.map(({ isCorrect, ...optRest }) => optRest),
+    };
+  }
+  return safeTask;
+}
+
 // --------------------------------------------------------------
 // CREATE a plan for a pairing. Admin-only for now, since assigning
 // pairings and starting plans are both deliberate admin actions
@@ -45,7 +64,15 @@ router.post('/', requireAuth, async (req, res) => {
   for (let seq = 1; seq <= 8; seq++) {
     const template = await prisma.moduleTemplate.findUnique({
       where: { sequenceOrder: seq },
-      include: { taskTemplates: { orderBy: { order: 'asc' } } },
+      include: {
+        taskTemplates: {
+          orderBy: { order: 'asc' },
+          include: {
+            checklistItemTemplates: { orderBy: { order: 'asc' } },
+            choiceOptionTemplates: { orderBy: { order: 'asc' } },
+          },
+        },
+      },
     });
 
     const module = await prisma.module.create({
@@ -60,7 +87,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     if (template) {
       for (const taskTemplate of template.taskTemplates) {
-        await prisma.moduleTask.create({
+        const moduleTask = await prisma.moduleTask.create({
           data: {
             moduleId: module.id,
             order: taskTemplate.order,
@@ -70,6 +97,23 @@ router.post('/', requireAuth, async (req, res) => {
             correctAnswer: taskTemplate.correctAnswer,
           },
         });
+
+        for (const item of taskTemplate.checklistItemTemplates) {
+          await prisma.taskChecklistItem.create({
+            data: { moduleTaskId: moduleTask.id, order: item.order, text: item.text },
+          });
+        }
+
+        for (const option of taskTemplate.choiceOptionTemplates) {
+          await prisma.taskChoiceOption.create({
+            data: {
+              moduleTaskId: moduleTask.id,
+              order: option.order,
+              text: option.text,
+              isCorrect: option.isCorrect,
+            },
+          });
+        }
       }
     }
   }
@@ -114,7 +158,18 @@ router.get('/:id', requireAuth, async (req, res) => {
   const plan = await prisma.developmentPlan.findUnique({
     where: { id: req.params.id },
     include: {
-      modules: { orderBy: { sequenceOrder: 'asc' }, include: { tasks: { orderBy: { order: 'asc' } } } },
+      modules: {
+        orderBy: { sequenceOrder: 'asc' },
+        include: {
+          tasks: {
+            orderBy: { order: 'asc' },
+            include: {
+              checklistItems: { orderBy: { order: 'asc' } },
+              choiceOptions: { orderBy: { order: 'asc' } },
+            },
+          },
+        },
+      },
       assessments: true,
       reviewSteps: true,
       pairing: { include: { developer: true, developee: true } },
@@ -125,17 +180,11 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
   if (!(await checkPlanAccess(req, res, plan.id))) return;
 
-  // Never send a QUESTION task's correct answer until that specific
-  // task has actually been submitted - same rule as the task's own
-  // page, applied here too since this route also carries task data.
+  // Never send an answer before it's meant to be revealed:
+  // - QUESTION: strip correctAnswer until submittedAt is set
+  // - MULTIPLE_CHOICE: strip each option's isCorrect until selectedOptionId is set
   for (const module of plan.modules) {
-    module.tasks = module.tasks.map((task) => {
-      if (task.taskType === 'QUESTION' && !task.submittedAt) {
-        const { correctAnswer, ...safeTask } = task;
-        return safeTask;
-      }
-      return task;
-    });
+    module.tasks = module.tasks.map((task) => stripHiddenAnswers(task));
   }
 
   res.json(plan);

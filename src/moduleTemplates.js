@@ -20,12 +20,48 @@ function requireAdmin(req, res) {
   return true;
 }
 
+const VALID_TYPES = ['READING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
+
+// Checks that the sub-content for a task actually matches its type,
+// and returns a clear error if not - used by both create and update.
+function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
+  if (taskType && !VALID_TYPES.includes(taskType)) {
+    return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
+  }
+  if (taskType === 'QUESTION' && !correctAnswer) {
+    return 'A QUESTION task needs a correctAnswer for it to be gradeable';
+  }
+  if (taskType === 'CHECKLIST' && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
+    return 'A CHECKLIST task needs at least one checklist item';
+  }
+  if (taskType === 'MULTIPLE_CHOICE') {
+    if (!Array.isArray(choiceOptions) || choiceOptions.length < 2) {
+      return 'A MULTIPLE_CHOICE task needs at least 2 options';
+    }
+    if (!choiceOptions.some((o) => o.isCorrect)) {
+      return 'A MULTIPLE_CHOICE task needs exactly one option marked correct';
+    }
+    if (choiceOptions.filter((o) => o.isCorrect).length > 1) {
+      return 'A MULTIPLE_CHOICE task can only have ONE correct option';
+    }
+  }
+  return null;
+}
+
 // List all 8 templates (however many exist so far) with their tasks.
 router.get('/', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const templates = await prisma.moduleTemplate.findMany({
-    include: { taskTemplates: { orderBy: { order: 'asc' } } },
+    include: {
+      taskTemplates: {
+        orderBy: { order: 'asc' },
+        include: {
+          checklistItemTemplates: { orderBy: { order: 'asc' } },
+          choiceOptionTemplates: { orderBy: { order: 'asc' } },
+        },
+      },
+    },
     orderBy: { sequenceOrder: 'asc' },
   });
 
@@ -33,8 +69,6 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 // Create or update the template for a given sequence position (1-8).
-// This is an "upsert" - if a template for this slot already exists,
-// its title/description are replaced; otherwise a new one is created.
 router.put('/:sequenceOrder', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
@@ -57,20 +91,18 @@ router.put('/:sequenceOrder', requireAuth, async (req, res) => {
   res.json(template);
 });
 
-// Add one task to a template's checklist.
+// Add one task to a template. checklistItems: [{text}], choiceOptions: [{text, isCorrect}].
 router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { text, content, taskType, correctAnswer } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
-  if (taskType && !['READING', 'QUESTION'].includes(taskType)) {
-    return res.status(400).json({ error: 'taskType must be READING or QUESTION' });
-  }
-  if (taskType === 'QUESTION' && !correctAnswer) {
-    return res.status(400).json({ error: 'A QUESTION task needs a correctAnswer for it to be gradeable' });
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  if (shapeError) {
+    return res.status(400).json({ error: shapeError });
   }
 
   const template = await prisma.moduleTemplate.findUnique({ where: { sequenceOrder } });
@@ -91,7 +123,87 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
     },
   });
 
+  if (taskType === 'CHECKLIST') {
+    for (let i = 0; i < checklistItems.length; i++) {
+      await prisma.checklistItemTemplate.create({
+        data: { taskTemplateId: task.id, order: i + 1, text: checklistItems[i].text },
+      });
+    }
+  }
+
+  if (taskType === 'MULTIPLE_CHOICE') {
+    for (let i = 0; i < choiceOptions.length; i++) {
+      await prisma.choiceOptionTemplate.create({
+        data: {
+          taskTemplateId: task.id,
+          order: i + 1,
+          text: choiceOptions[i].text,
+          isCorrect: !!choiceOptions[i].isCorrect,
+        },
+      });
+    }
+  }
+
   res.status(201).json(task);
+});
+
+// Update an existing task. Sub-items (checklist items / choice options)
+// are fully replaced on every update, matching the "edit reloads the
+// whole form, resubmit replaces it" pattern already used for the main
+// task fields.
+router.put('/tasks/:taskId', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  if (shapeError) {
+    return res.status(400).json({ error: shapeError });
+  }
+
+  const existing = await prisma.moduleTaskTemplate.findUnique({ where: { id: req.params.taskId } });
+  if (!existing) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  const updated = await prisma.moduleTaskTemplate.update({
+    where: { id: req.params.taskId },
+    data: {
+      text,
+      content: content || '',
+      taskType: taskType || 'READING',
+      correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
+    },
+  });
+
+  // Replace all sub-items with whatever was just submitted.
+  await prisma.checklistItemTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
+  await prisma.choiceOptionTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
+
+  if (taskType === 'CHECKLIST') {
+    for (let i = 0; i < checklistItems.length; i++) {
+      await prisma.checklistItemTemplate.create({
+        data: { taskTemplateId: updated.id, order: i + 1, text: checklistItems[i].text },
+      });
+    }
+  }
+
+  if (taskType === 'MULTIPLE_CHOICE') {
+    for (let i = 0; i < choiceOptions.length; i++) {
+      await prisma.choiceOptionTemplate.create({
+        data: {
+          taskTemplateId: updated.id,
+          order: i + 1,
+          text: choiceOptions[i].text,
+          isCorrect: !!choiceOptions[i].isCorrect,
+        },
+      });
+    }
+  }
+
+  res.json(updated);
 });
 
 // Remove one task from a template's checklist.

@@ -163,29 +163,59 @@ model Module {
 }
 
 // ------------------------------------------------------------
-// MODULE TASKS — each one is its own page: reading content, and
-// optionally an open-ended question. Copied from the template
-// when the plan is created.
+// MODULE TASKS — each one is its own page. Four types:
+// READING (just content), QUESTION (open-ended, locks on submit,
+// reveals reference answer), CHECKLIST (a set of sub-items to
+// check off), MULTIPLE_CHOICE (auto-graded on submit).
+// Copied from the template when the plan is created.
 // ------------------------------------------------------------
 enum TaskType {
-  READING   // just content to read, marked complete when done
-  QUESTION  // open-ended - answer locks in permanently on submit,
-            // then the reference answer is revealed alongside it
+  READING
+  QUESTION
+  CHECKLIST
+  MULTIPLE_CHOICE
 }
 
 model ModuleTask {
-  id            String    @id @default(uuid())
-  moduleId      String
-  module        Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  order         Int
-  text          String    // short title shown in the checklist
-  content       String    @default("") // the actual reading material for this task's page
-  taskType      TaskType  @default(READING)
-  correctAnswer String?   // only relevant for QUESTION tasks - NEVER sent to the browser until after submission
-  completed     Boolean   @default(false)
-  completedAt   DateTime?
-  submittedAnswer String? // the developee's locked-in answer, once submitted
-  submittedAt     DateTime? // once set, the answer can never be changed again
+  id              String    @id @default(uuid())
+  moduleId        String
+  module          Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  order           Int
+  text            String    // short title shown in the checklist
+  content         String    @default("") // reading material / the question itself
+  taskType        TaskType  @default(READING)
+  correctAnswer   String?   // QUESTION only - NEVER sent to the browser until submitted
+  completed       Boolean   @default(false)
+  completedAt     DateTime?
+  submittedAnswer String?   // QUESTION - the developee's locked-in answer
+  submittedAt     DateTime? // QUESTION - once set, can never be changed again
+  selectedOptionId String?  // MULTIPLE_CHOICE - which option they picked, locked in
+  isCorrect        Boolean? // MULTIPLE_CHOICE - computed and stored at submission time
+
+  checklistItems TaskChecklistItem[]
+  choiceOptions  TaskChoiceOption[]
+}
+
+// CHECKLIST sub-items - the actual checkboxes inside a checklist task.
+model TaskChecklistItem {
+  id          String    @id @default(uuid())
+  moduleTaskId String
+  moduleTask  ModuleTask @relation(fields: [moduleTaskId], references: [id], onDelete: Cascade)
+  order       Int
+  text        String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+}
+
+// MULTIPLE_CHOICE options - isCorrect must NEVER be sent to the
+// browser until the task has actually been answered.
+model TaskChoiceOption {
+  id           String     @id @default(uuid())
+  moduleTaskId String
+  moduleTask   ModuleTask @relation(fields: [moduleTaskId], references: [id], onDelete: Cascade)
+  order        Int
+  text         String
+  isCorrect    Boolean
 }
 
 // ------------------------------------------------------------
@@ -213,6 +243,26 @@ model ModuleTaskTemplate {
   content          String   @default("")
   taskType         TaskType @default(READING)
   correctAnswer    String?
+
+  checklistItemTemplates ChecklistItemTemplate[]
+  choiceOptionTemplates  ChoiceOptionTemplate[]
+}
+
+model ChecklistItemTemplate {
+  id               String             @id @default(uuid())
+  taskTemplateId   String
+  taskTemplate     ModuleTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  order            Int
+  text             String
+}
+
+model ChoiceOptionTemplate {
+  id               String             @id @default(uuid())
+  taskTemplateId   String
+  taskTemplate     ModuleTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  order            Int
+  text             String
+  isCorrect        Boolean
 }
 
 // ------------------------------------------------------------
