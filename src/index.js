@@ -4,7 +4,6 @@ const prisma = require('./db');
 const authRoutes = require('./auth');
 const moduleRoutes = require('./modules');
 const assessmentRoutes = require('./assessments');
-const testRoutes = require('./testRoutes');
 const { router: adminRoutes } = require('./admin');
 const planRoutes = require('./plans');
 const pairingRoutes = require('./pairings');
@@ -21,7 +20,6 @@ app.use('/auth', authRoutes);
 // Module and assessment routes - require login (checked inside each file)
 app.use('/modules', moduleRoutes);
 app.use('/assessments', assessmentRoutes);
-app.use('/test', testRoutes);
 app.use('/admin', adminRoutes);
 app.use('/plans', planRoutes);
 app.use('/pairings', pairingRoutes);
