@@ -85,6 +85,30 @@ model DevelopmentPlan {
   modules   Module[]
   assessments Assessment[]
   participants PlanParticipant[]
+  reviewSteps ReviewStep[]
+}
+
+// ------------------------------------------------------------
+// REVIEW STEPS — "Study and Review" between a 4-module block and
+// its assessment. Opens automatically when module 4 (or 8) completes;
+// must be marked complete before the assessment becomes gradeable.
+// ------------------------------------------------------------
+enum ReviewStepStatus {
+  NOT_STARTED
+  OPEN
+  COMPLETED
+}
+
+model ReviewStep {
+  id           String           @id @default(uuid())
+  planId       String
+  plan         DevelopmentPlan  @relation(fields: [planId], references: [id])
+  gatePosition GatePosition     // reusing AFTER_MODULE_4 / AFTER_MODULE_8
+  status       ReviewStepStatus @default(NOT_STARTED)
+  openedAt     DateTime?
+  completedAt  DateTime?
+
+  @@unique([planId, gatePosition])
 }
 
 // ------------------------------------------------------------

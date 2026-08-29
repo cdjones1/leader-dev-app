@@ -97,6 +97,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     include: {
       modules: { orderBy: { sequenceOrder: 'asc' } },
       assessments: true,
+      reviewSteps: true,
       pairing: { include: { developer: true, developee: true } },
     },
   });

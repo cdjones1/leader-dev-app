@@ -187,7 +187,18 @@
         document.getElementById('pageTitle').textContent =
           `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
 
-        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => moduleRowHtml(m, plan.assessments, plan.modules)).join('');
+        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => {
+          let row = moduleRowHtml(m, plan.assessments, plan.modules);
+          if (m.sequenceOrder === 4) {
+            const review = plan.reviewSteps.find((r) => r.gatePosition === 'AFTER_MODULE_4');
+            row += reviewStepHtml(review, 'Study and Review (Modules 1-4)');
+          }
+          if (m.sequenceOrder === 8) {
+            const review = plan.reviewSteps.find((r) => r.gatePosition === 'AFTER_MODULE_8');
+            row += reviewStepHtml(review, 'Study and Review (Modules 5-8)');
+          }
+          return row;
+        }).join('');
 
         // Find the assessment that's currently relevant (not yet PASSED)
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
@@ -196,6 +207,32 @@
         document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere);
       } catch (err) {
         document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    function reviewStepHtml(reviewStep, label) {
+      if (!reviewStep) return '';
+      if (reviewStep.status === 'COMPLETED') {
+        return `
+          <div class="module-row">
+            <div><span class="module-name">${label}</span> <span class="tag tag-COMPLETED">COMPLETED</span></div>
+          </div>
+        `;
+      }
+      return `
+        <div class="module-row">
+          <div><span class="module-name">${label}</span> <span class="tag tag-OPEN">OPEN</span></div>
+          <div><button onclick="completeReviewStep('${reviewStep.id}')">Mark Reviewed</button></div>
+        </div>
+      `;
+    }
+
+    async function completeReviewStep(reviewStepId) {
+      try {
+        await apiCall('/review-steps/' + reviewStepId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
       }
     }
 

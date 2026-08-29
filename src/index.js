@@ -7,6 +7,7 @@ const assessmentRoutes = require('./assessments');
 const { router: adminRoutes } = require('./admin');
 const planRoutes = require('./plans');
 const pairingRoutes = require('./pairings');
+const reviewStepRoutes = require('./reviewSteps');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
 
@@ -23,6 +24,7 @@ app.use('/assessments', assessmentRoutes);
 app.use('/admin', adminRoutes);
 app.use('/plans', planRoutes);
 app.use('/pairings', pairingRoutes);
+app.use('/review-steps', reviewStepRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
