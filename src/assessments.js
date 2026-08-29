@@ -32,7 +32,7 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
-  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+  if (!(await checkIsDeveloperOnPlan(req, res, assessment.planId))) return;
   if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
     return res.status(400).json({
       error: `Cannot grade an assessment with status ${assessment.status}`,

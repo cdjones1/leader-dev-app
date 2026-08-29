@@ -107,7 +107,7 @@
       `;
     }
 
-    function assessmentBoxHtml(assessment) {
+    function assessmentBoxHtml(assessment, isDeveloperHere) {
       if (!assessment) return '';
       const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
       const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
@@ -119,7 +119,9 @@
             <h3>${label}</h3>
             <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
             <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
-            <button onclick="reopenAfterMeeting('${assessment.id}')">I've held the meeting - Reopen for attempt 3</button>
+            ${isDeveloperHere || isAdmin
+              ? `<button onclick="reopenAfterMeeting('${assessment.id}')">I've held the meeting - Reopen for attempt 3</button>`
+              : `<p style="color:#888;">Your developer needs to confirm the meeting happened before this can continue.</p>`}
           </div>
         `;
       }
@@ -143,6 +145,17 @@
           <div class="assessment-box">
             <h3>${label}</h3>
             <p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>
+          </div>
+        `;
+      }
+
+      // It's gradeable, but only the developer (or an admin) actually
+      // grades it - a developee just sees that it's waiting on them.
+      if (!isDeveloperHere && !isAdmin) {
+        return `
+          <div class="assessment-box">
+            <h3>${label}</h3>
+            <p>Status: <strong>Waiting on your developer to grade this</strong></p>
           </div>
         `;
       }
@@ -178,7 +191,9 @@
 
         // Find the assessment that's currently relevant (not yet PASSED)
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
-        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment);
+        const currentUserId = JSON.parse(localStorage.getItem('user')).id;
+        const isDeveloperHere = plan.pairing.developer.id === currentUserId;
+        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere);
       } catch (err) {
         document.getElementById('message').textContent = err.message;
       }
