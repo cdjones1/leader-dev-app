@@ -94,6 +94,7 @@ router.post('/', requireAuth, async (req, res) => {
             text: taskTemplate.text,
             content: taskTemplate.content,
             taskType: taskTemplate.taskType,
+            assignedTo: taskTemplate.assignedTo,
             correctAnswer: taskTemplate.correctAnswer,
           },
         });

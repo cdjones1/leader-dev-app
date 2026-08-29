@@ -110,7 +110,7 @@
         <div class="task-checklist">
           ${module.tasks.map((t) => `
             <a class="task-item ${t.completed ? 'done' : ''}" href="/task.html?id=${t.id}&planId=${planId}" style="text-decoration:none; display:block;">
-              ${t.completed ? '✓' : '○'} ${t.text} ${t.taskType === 'QUESTION' ? '(question)' : ''}
+              ${t.completed ? '✓' : '○'} ${t.text} <span style="color:#6b7280; font-size:12px;">(${t.taskType === 'QUESTION' ? 'question' : t.taskType.toLowerCase()} - ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
             </a>
           `).join('')}
         </div>

@@ -66,7 +66,7 @@
       const taskRows = tasks.map((t) => `
         <div class="task-row">
           <div>
-            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType})</span>
+            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType}, assigned to ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
             ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
@@ -96,6 +96,11 @@
             <div id="formLabel-${seq}" style="color:#93c5fd; font-size:13px; margin-bottom:4px;">New Task</div>
             <label>Task Title</label>
             <input type="text" id="newTaskText-${seq}" placeholder="e.g. Read Chapter 1">
+            <label>Assigned To</label>
+            <select id="newTaskAssignedTo-${seq}">
+              <option value="DEVELOPEE">Developee (the person being developed)</option>
+              <option value="DEVELOPER">Developer (the one doing the developing)</option>
+            </select>
             <label>Task Type</label>
             <select id="newTaskType-${seq}" onchange="onTypeChange(${seq})">
               <option value="READING">Reading (just read/mark complete)</option>
@@ -179,6 +184,7 @@
       editingTaskId[seq] = task.id;
       document.getElementById(`newTaskText-${seq}`).value = task.text;
       document.getElementById(`newTaskType-${seq}`).value = task.taskType;
+      document.getElementById(`newTaskAssignedTo-${seq}`).value = task.assignedTo || 'DEVELOPEE';
       document.getElementById(`newTaskContent-${seq}`).value = task.content || '';
       document.getElementById(`newTaskAnswer-${seq}`).value = task.correctAnswer || '';
 
@@ -197,6 +203,7 @@
     function cancelEdit(seq) {
       editingTaskId[seq] = null;
       document.getElementById(`newTaskText-${seq}`).value = '';
+      document.getElementById(`newTaskAssignedTo-${seq}`).value = 'DEVELOPEE';
       document.getElementById(`newTaskContent-${seq}`).value = '';
       document.getElementById(`newTaskAnswer-${seq}`).value = '';
       document.getElementById(`newTaskType-${seq}`).value = 'READING';
@@ -240,6 +247,7 @@
     async function addTask(seq) {
       const text = document.getElementById(`newTaskText-${seq}`).value.trim();
       const taskType = document.getElementById(`newTaskType-${seq}`).value;
+      const assignedTo = document.getElementById(`newTaskAssignedTo-${seq}`).value;
       const content = document.getElementById(`newTaskContent-${seq}`).value;
       const correctAnswer = document.getElementById(`newTaskAnswer-${seq}`).value;
       const checklistItems = readChecklistRows(seq);
@@ -266,7 +274,7 @@
       }
 
       const editingId = editingTaskId[seq];
-      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions };
+      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo };
 
       try {
         if (editingId) {

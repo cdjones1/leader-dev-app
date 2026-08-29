@@ -24,9 +24,12 @@ const VALID_TYPES = ['READING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
 
 // Checks that the sub-content for a task actually matches its type,
 // and returns a clear error if not - used by both create and update.
-function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
+function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
+  }
+  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
+    return 'assignedTo must be DEVELOPER or DEVELOPEE';
   }
   if (taskType === 'QUESTION' && !correctAnswer) {
     return 'A QUESTION task needs a correctAnswer for it to be gradeable';
@@ -96,11 +99,11 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -119,6 +122,7 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
       text,
       content: content || '',
       taskType: taskType || 'READING',
+      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });
@@ -154,11 +158,11 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -174,6 +178,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       text,
       content: content || '',
       taskType: taskType || 'READING',
+      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });

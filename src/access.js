@@ -42,4 +42,20 @@ async function checkIsDeveloperOnPlan(req, res, planId) {
   return true;
 }
 
-module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan };
+// Checks that the logged-in user matches the SPECIFIC role a task
+// is assigned to (DEVELOPER or DEVELOPEE) - an admin can always act
+// as an override, same as everywhere else.
+async function checkIsAssignedRole(req, res, planId, assignedTo) {
+  if (req.user.isAdmin) return true;
+
+  const role = await getParticipantRole(req.user.userId, planId);
+  if (role !== assignedTo) {
+    res.status(403).json({
+      error: `This task is assigned to the ${assignedTo.toLowerCase()} on this plan, not you`,
+    });
+    return false;
+  }
+  return true;
+}
+
+module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole };

@@ -63,19 +63,40 @@
       return data;
     }
 
+    let currentPlan = null;
+
+    function isMyTask(task) {
+      const user = JSON.parse(localStorage.getItem('user'));
+      if (user.isAdmin) return true;
+      if (!currentPlan) return true; // can't determine - fail open to viewing, server still enforces the real rule
+      const myId = user.id;
+      if (task.assignedTo === 'DEVELOPER') return currentPlan.pairing.developer.id === myId;
+      return currentPlan.pairing.developee.id === myId; // default DEVELOPEE
+    }
+
+    function notYoursNotice(task) {
+      const role = (task.assignedTo || 'DEVELOPEE').toLowerCase();
+      return `<p style="color:#f59e0b; margin-top:12px;">This task is assigned to the ${role} on this plan - you can view it, but only they (or an admin) can complete it.</p>`;
+    }
+
     function readingTaskHtml(task) {
+      const mine = isMyTask(task);
       return `
         <div class="content-box">${task.content || '(No content written for this task yet.)'}</div>
-        <button ${task.completed ? 'disabled' : ''} onclick="markComplete('${task.id}')">
-          ${task.completed ? 'Completed' : 'Mark as Read / Complete'}
-        </button>
+        ${mine
+          ? `<button ${task.completed ? 'disabled' : ''} onclick="markComplete('${task.id}')">${task.completed ? 'Completed' : 'Mark as Read / Complete'}</button>`
+          : (task.completed ? '<p style="color:#86efac;">Completed</p>' : notYoursNotice(task))}
       `;
     }
 
     function questionTaskHtml(task) {
       const contentHtml = `<div class="content-box">${task.content || ''}</div>`;
+      const mine = isMyTask(task);
 
       if (!task.submittedAt) {
+        if (!mine) {
+          return `${contentHtml}${notYoursNotice(task)}`;
+        }
         return `
           ${contentHtml}
           <label>Your Answer</label>
@@ -89,7 +110,7 @@
       return `
         ${contentHtml}
         <div class="answer-box your-answer">
-          <div class="label">Your Submitted Answer</div>
+          <div class="label">Submitted Answer</div>
           ${task.submittedAnswer}
         </div>
         <div class="answer-box correct-answer">
@@ -100,24 +121,30 @@
     }
 
     function checklistTaskHtml(task) {
+      const mine = isMyTask(task);
       const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
       const itemsHtml = task.checklistItems.map((item) => `
         <label style="display:flex; align-items:center; gap:8px; padding:6px 0; ${item.completed ? 'color:#6b7280; text-decoration:line-through;' : ''}">
-          <input type="checkbox" ${item.completed ? 'checked' : ''} onchange="toggleChecklistItem('${item.id}')">
+          <input type="checkbox" ${item.completed ? 'checked' : ''} ${mine ? '' : 'disabled'} onchange="toggleChecklistItem('${item.id}')">
           ${item.text}
         </label>
       `).join('');
       return `
         ${contentHtml}
         <div>${itemsHtml}</div>
-        ${task.completed ? '<p style="color:#86efac; margin-top:12px;">All items checked - task complete.</p>' : ''}
+        ${task.completed ? '<p style="color:#86efac; margin-top:12px;">All items checked - task complete.</p>' : (mine ? '' : notYoursNotice(task))}
       `;
     }
 
     function multipleChoiceTaskHtml(task) {
       const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      const mine = isMyTask(task);
 
       if (!task.selectedOptionId) {
+        if (!mine) {
+          const optionsHtml = task.choiceOptions.map((opt) => `<div style="padding:6px 0;">${opt.text}</div>`).join('');
+          return `${contentHtml}<div>${optionsHtml}</div>${notYoursNotice(task)}`;
+        }
         const optionsHtml = task.choiceOptions.map((opt) => `
           <label style="display:flex; align-items:center; gap:8px; padding:6px 0;">
             <input type="radio" name="mcOption" value="${opt.id}">
@@ -138,7 +165,7 @@
         const style = opt.isCorrect
           ? 'color:#86efac; font-weight:600;'
           : (isMine ? 'color:#f87171;' : 'color:#9ca3af;');
-        return `<div style="padding:6px 0; ${style}">${isMine ? '→ ' : '　 '}${opt.text}${opt.isCorrect ? ' (correct)' : ''}${isMine && !opt.isCorrect ? ' (your answer)' : ''}</div>`;
+        return `<div style="padding:6px 0; ${style}">${isMine ? '→ ' : '　 '}${opt.text}${opt.isCorrect ? ' (correct)' : ''}${isMine && !opt.isCorrect ? ' (their answer)' : ''}</div>`;
       }).join('');
 
       return `
@@ -153,6 +180,13 @@
     async function loadTask() {
       try {
         const task = await apiCall('/modules/tasks/' + taskId);
+        if (planId) {
+          try {
+            currentPlan = await apiCall('/plans/' + planId);
+          } catch (e) {
+            currentPlan = null; // fine - isMyTask() falls back to fail-open on viewing, server still enforces the real rule
+          }
+        }
         document.getElementById('pageTitle').textContent = task.text;
         const card = document.getElementById('taskCard');
         if (task.taskType === 'QUESTION') {

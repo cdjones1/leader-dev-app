@@ -176,6 +176,14 @@ enum TaskType {
   MULTIPLE_CHOICE
 }
 
+// Who is actually responsible for completing this task - most tasks
+// are for the developee, but some (check-ins, prep before a meeting,
+// observations) are the developer's own responsibility.
+enum AssignedRole {
+  DEVELOPER
+  DEVELOPEE
+}
+
 model ModuleTask {
   id              String    @id @default(uuid())
   moduleId        String
@@ -184,6 +192,7 @@ model ModuleTask {
   text            String    // short title shown in the checklist
   content         String    @default("") // reading material / the question itself
   taskType        TaskType  @default(READING)
+  assignedTo      AssignedRole @default(DEVELOPEE)
   correctAnswer   String?   // QUESTION only - NEVER sent to the browser until submitted
   completed       Boolean   @default(false)
   completedAt     DateTime?
@@ -242,6 +251,7 @@ model ModuleTaskTemplate {
   text             String
   content          String   @default("")
   taskType         TaskType @default(READING)
+  assignedTo       AssignedRole @default(DEVELOPEE)
   correctAnswer    String?
 
   checklistItemTemplates ChecklistItemTemplate[]

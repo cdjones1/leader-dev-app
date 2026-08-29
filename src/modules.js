@@ -6,40 +6,11 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess } = require('./access');
+const { checkPlanAccess, checkIsAssignedRole } = require('./access');
 
 const router = express.Router();
 
 const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
-
-// --------------------------------------------------------------
-// TOGGLE a task's checked state. Only for READING tasks - a
-// QUESTION task is marked complete by submitting an answer, not
-// by checking a box.
-// --------------------------------------------------------------
-router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
-  const task = await prisma.moduleTask.findUnique({
-    where: { id: req.params.taskId },
-    include: { module: true },
-  });
-  if (!task) {
-    return res.status(404).json({ error: 'Task not found' });
-  }
-  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
-  if (task.taskType !== 'READING') {
-    return res.status(400).json({ error: 'Only reading tasks can be toggled - question tasks are completed by submitting an answer' });
-  }
-
-  const updated = await prisma.moduleTask.update({
-    where: { id: task.id },
-    data: {
-      completed: !task.completed,
-      completedAt: !task.completed ? new Date() : null,
-    },
-  });
-
-  res.json(stripAnswerIfUnsubmitted(updated));
-});
 
 // Shared answer-hiding rule - same as the one in plans.js. Never
 // include an answer before it's meant to be revealed.
@@ -72,6 +43,7 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'READING') {
     return res.status(400).json({ error: 'Only reading tasks can be toggled directly' });
   }
@@ -90,6 +62,8 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
 // --------------------------------------------------------------
 // A single task's own page - includes checklist items and choice
 // options, with hidden answers stripped per stripHiddenAnswers above.
+// Viewing is open to any plan participant (or admin) regardless of
+// who it's assigned to - only ACTING on the task is role-restricted.
 // --------------------------------------------------------------
 router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
@@ -120,6 +94,7 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
   }
@@ -155,6 +130,7 @@ router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, re
     return res.status(404).json({ error: 'Checklist item not found' });
   }
   if (!(await checkPlanAccess(req, res, item.moduleTask.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, item.moduleTask.module.planId, item.moduleTask.assignedTo))) return;
 
   const now = new Date();
   await prisma.taskChecklistItem.update({
@@ -189,6 +165,7 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
   }
