@@ -34,6 +34,10 @@
       width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
       border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
     }
+    .day-banner {
+      background: #713f12; color: #fef9c3; padding: 12px 20px; border-radius: 8px;
+      margin-bottom: 16px; font-weight: 600;
+    }
     #message { color: #aaa; margin-top: 16px; }
   </style>
 </head>
@@ -43,6 +47,7 @@
     <a href="/dashboard.html">&larr; Back to Dashboard</a>
   </div>
 
+  <div id="dayBanner"></div>
   <div id="modulesList"></div>
   <div id="assessmentSection"></div>
   <div id="message"></div>
@@ -186,6 +191,21 @@
         const plan = await apiCall('/plans/' + planId);
         document.getElementById('pageTitle').textContent =
           `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
+
+        // Show a banner based on how many days into the 40-day window this plan is.
+        const bannerDiv = document.getElementById('dayBanner');
+        if (plan.status === 'IN_PROGRESS') {
+          const daysElapsed = Math.floor((Date.now() - new Date(plan.createdAt)) / (1000 * 60 * 60 * 24));
+          if (daysElapsed >= 40) {
+            bannerDiv.innerHTML = `<div class="day-banner" style="background:#7f1d1d; color:#fecaca;">This plan is past its 40-day mark (day ${daysElapsed}) and is not yet complete.</div>`;
+          } else if (daysElapsed >= 30) {
+            bannerDiv.innerHTML = `<div class="day-banner">Reminder: this development plan is due within ${40 - daysElapsed} day(s) (day ${daysElapsed} of 40).</div>`;
+          } else {
+            bannerDiv.innerHTML = '';
+          }
+        } else {
+          bannerDiv.innerHTML = '';
+        }
 
         document.getElementById('modulesList').innerHTML = plan.modules.map((m) => {
           let row = moduleRowHtml(m, plan.assessments, plan.modules);

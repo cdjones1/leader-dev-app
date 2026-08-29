@@ -22,7 +22,7 @@ function requireAdmin(req, res) {
 // Combines three different kinds of problems into one list, each
 // tagged with a "reason" and "since" (how long it's been an issue),
 // then sorts so the oldest, most overdue problem shows up first.
-function buildQueue({ stalledModules, overduePlans, needsMeetingAssessments, finalLockAssessments }) {
+function buildQueue({ stalledModules, overduePlans, dueSoonPlans, needsMeetingAssessments, finalLockAssessments }) {
   const queue = [];
 
   for (const m of stalledModules) {
@@ -39,6 +39,16 @@ function buildQueue({ stalledModules, overduePlans, needsMeetingAssessments, fin
   for (const p of overduePlans) {
     queue.push({
       reason: 'plan_overdue',
+      since: p.createdAt,
+      planId: p.id,
+      developer: p.pairing.developer.name,
+      developee: p.pairing.developee.name,
+    });
+  }
+
+  for (const p of dueSoonPlans) {
+    queue.push({
+      reason: 'plan_due_soon',
       since: p.createdAt,
       planId: p.id,
       developer: p.pairing.developer.name,
@@ -92,19 +102,30 @@ router.get('/needs-attention', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const FORTY_DAYS_IN_MS = 40 * 24 * 60 * 60 * 1000;
+  const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
   const fortyDaysAgo = new Date(Date.now() - FORTY_DAYS_IN_MS);
+  const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_IN_MS);
 
   const includePairingPeople = {
     plan: { include: { pairing: { include: { developer: true, developee: true } } } },
   };
 
-  const [stalledModules, overduePlans, problemAssessments] = await Promise.all([
+  const [stalledModules, overduePlans, dueSoonPlans, problemAssessments] = await Promise.all([
     prisma.module.findMany({
       where: { status: 'LOCKED' },
       include: includePairingPeople,
     }),
     prisma.developmentPlan.findMany({
       where: { status: 'IN_PROGRESS', createdAt: { lt: fortyDaysAgo } },
+      include: { pairing: { include: { developer: true, developee: true } } },
+    }),
+    // Due soon: past the 30-day mark, but NOT yet past 40 (those already
+    // show up as plan_overdue above - no need to show the same plan twice).
+    prisma.developmentPlan.findMany({
+      where: {
+        status: 'IN_PROGRESS',
+        createdAt: { lt: thirtyDaysAgo, gte: fortyDaysAgo },
+      },
       include: { pairing: { include: { developer: true, developee: true } } },
     }),
     prisma.assessment.findMany({
@@ -116,7 +137,7 @@ router.get('/needs-attention', requireAuth, async (req, res) => {
   const needsMeetingAssessments = problemAssessments.filter((a) => a.status === 'LOCKED_NEEDS_MEETING');
   const finalLockAssessments = problemAssessments.filter((a) => a.status === 'LOCKED_FINAL');
 
-  const queue = buildQueue({ stalledModules, overduePlans, needsMeetingAssessments, finalLockAssessments });
+  const queue = buildQueue({ stalledModules, overduePlans, dueSoonPlans, needsMeetingAssessments, finalLockAssessments });
 
   res.json({ count: queue.length, items: queue });
 });
