@@ -63,10 +63,7 @@
 <body>
   <div class="header">
     <h1>Needs Attention</h1>
-    <div>
-      <a href="/register.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Register User</a>
-      <a href="/admin-setup.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Admin Setup</a>
-      <a href="/myplans.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">My Plans</a>
+    <div id="navLinks">
       <button onclick="logout()">Log Out</button>
     </div>
   </div>
@@ -104,6 +101,20 @@
       localStorage.removeItem('user');
       window.location.href = '/index.html';
     }
+
+    // Build the nav bar based on who's actually logged in - a non-admin
+    // never even sees links to pages they can't use.
+    function renderNav() {
+      const navLinks = document.getElementById('navLinks');
+      const links = [];
+      if (user.isAdmin) {
+        links.push('<a href="/register.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Register User</a>');
+        links.push('<a href="/admin-setup.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Admin Setup</a>');
+      }
+      links.push('<a href="/myplans.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">My Plans</a>');
+      navLinks.innerHTML = links.join('') + '<button onclick="logout()">Log Out</button>';
+    }
+    renderNav();
 
     const reasonLabels = {
       module_stalled: 'Module Stalled',
