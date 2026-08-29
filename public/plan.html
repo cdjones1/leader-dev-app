@@ -106,12 +106,27 @@
 
       const canComplete = module.status === 'OPEN';
 
+      // Group tasks by their section label, in first-appearance order.
+      const sectionGroups = [];
+      const bySection = {};
+      for (const t of (module.tasks || [])) {
+        const key = t.section || '';
+        if (!bySection[key]) {
+          bySection[key] = { section: t.section || null, tasks: [] };
+          sectionGroups.push(bySection[key]);
+        }
+        bySection[key].tasks.push(t);
+      }
+
       const taskListHtml = (module.tasks && module.tasks.length > 0) ? `
         <div class="task-checklist">
-          ${module.tasks.map((t) => `
-            <a class="task-item ${t.completed ? 'done' : ''}" href="/task.html?id=${t.id}&planId=${planId}" style="text-decoration:none; display:block;">
-              ${t.completed ? '✓' : '○'} ${t.text} <span style="color:#6b7280; font-size:12px;">(${t.taskType === 'QUESTION' ? 'question' : t.taskType.toLowerCase()} - ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
-            </a>
+          ${sectionGroups.map((group) => `
+            ${group.section ? `<div style="color:#93c5fd; font-size:12px; font-weight:600; margin-top:10px; text-transform:uppercase;">${group.section}</div>` : ''}
+            ${group.tasks.map((t) => `
+              <a class="task-item ${t.completed ? 'done' : ''}" href="/task.html?id=${t.id}&planId=${planId}" style="text-decoration:none; display:block;">
+                ${t.completed ? '✓' : '○'} ${t.text} <span style="color:#6b7280; font-size:12px;">(${t.taskType === 'QUESTION' ? 'question' : t.taskType.toLowerCase()} - ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
+              </a>
+            `).join('')}
           `).join('')}
         </div>
       ` : '';

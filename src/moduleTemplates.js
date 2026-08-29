@@ -99,7 +99,7 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
@@ -119,6 +119,7 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
     data: {
       moduleTemplateId: template.id,
       order: existingCount + 1,
+      section: section || null,
       text,
       content: content || '',
       taskType: taskType || 'READING',
@@ -158,7 +159,7 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
@@ -176,6 +177,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
     where: { id: req.params.taskId },
     data: {
       text,
+      section: section || null,
       content: content || '',
       taskType: taskType || 'READING',
       assignedTo: assignedTo || 'DEVELOPEE',

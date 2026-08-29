@@ -58,25 +58,45 @@
       return data;
     }
 
+    // Groups a list of tasks by their "section" label, preserving the
+    // order sections first appear in. Tasks with no section land in
+    // their own unlabeled group, rendered without a header.
+    function groupBySection(tasks) {
+      const groups = [];
+      const bySection = {};
+      for (const t of tasks) {
+        const key = t.section || '';
+        if (!bySection[key]) {
+          bySection[key] = { section: t.section || null, tasks: [] };
+          groups.push(bySection[key]);
+        }
+        bySection[key].tasks.push(t);
+      }
+      return groups;
+    }
+
     function templateCardHtml(seq, template) {
       const title = template ? template.title : '';
       const description = template ? template.description : '';
       const tasks = template ? template.taskTemplates : [];
 
-      const taskRows = tasks.map((t) => `
-        <div class="task-row">
-          <div>
-            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType}, assigned to ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
-            ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
-            ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
-            ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
-            ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
+      const taskRows = groupBySection(tasks).map((group) => `
+        ${group.section ? `<div style="color:#93c5fd; font-size:12px; font-weight:600; margin-top:12px; text-transform:uppercase;">${group.section}</div>` : ''}
+        ${group.tasks.map((t) => `
+          <div class="task-row">
+            <div>
+              <strong>${t.text}</strong> <span class="task-meta">(${t.taskType}, assigned to ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
+              ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
+              ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
+              ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
+              ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button style="background:#374151;" onclick='editTask(${seq}, ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
+              <button onclick="removeTask('${t.id}', ${seq})">Remove</button>
+            </div>
           </div>
-          <div style="display:flex; gap:6px;">
-            <button style="background:#374151;" onclick='editTask(${seq}, ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
-            <button onclick="removeTask('${t.id}', ${seq})">Remove</button>
-          </div>
-        </div>
+        `).join('')}
       `).join('');
 
       return `
@@ -96,6 +116,8 @@
             <div id="formLabel-${seq}" style="color:#93c5fd; font-size:13px; margin-bottom:4px;">New Task</div>
             <label>Task Title</label>
             <input type="text" id="newTaskText-${seq}" placeholder="e.g. Read Chapter 1">
+            <label>Section (optional grouping label, e.g. "Reading Materials")</label>
+            <input type="text" id="newTaskSection-${seq}" placeholder="Leave blank for no section">
             <label>Assigned To</label>
             <select id="newTaskAssignedTo-${seq}">
               <option value="DEVELOPEE">Developee (the person being developed)</option>
@@ -183,6 +205,7 @@
     function editTask(seq, task) {
       editingTaskId[seq] = task.id;
       document.getElementById(`newTaskText-${seq}`).value = task.text;
+      document.getElementById(`newTaskSection-${seq}`).value = task.section || '';
       document.getElementById(`newTaskType-${seq}`).value = task.taskType;
       document.getElementById(`newTaskAssignedTo-${seq}`).value = task.assignedTo || 'DEVELOPEE';
       document.getElementById(`newTaskContent-${seq}`).value = task.content || '';
@@ -203,6 +226,7 @@
     function cancelEdit(seq) {
       editingTaskId[seq] = null;
       document.getElementById(`newTaskText-${seq}`).value = '';
+      document.getElementById(`newTaskSection-${seq}`).value = '';
       document.getElementById(`newTaskAssignedTo-${seq}`).value = 'DEVELOPEE';
       document.getElementById(`newTaskContent-${seq}`).value = '';
       document.getElementById(`newTaskAnswer-${seq}`).value = '';
@@ -246,6 +270,7 @@
 
     async function addTask(seq) {
       const text = document.getElementById(`newTaskText-${seq}`).value.trim();
+      const section = document.getElementById(`newTaskSection-${seq}`).value.trim();
       const taskType = document.getElementById(`newTaskType-${seq}`).value;
       const assignedTo = document.getElementById(`newTaskAssignedTo-${seq}`).value;
       const content = document.getElementById(`newTaskContent-${seq}`).value;
@@ -274,7 +299,7 @@
       }
 
       const editingId = editingTaskId[seq];
-      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo };
+      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section };
 
       try {
         if (editingId) {

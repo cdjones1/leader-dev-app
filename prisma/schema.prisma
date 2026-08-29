@@ -189,6 +189,7 @@ model ModuleTask {
   moduleId        String
   module          Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   order           Int
+  section         String?   // optional grouping label, e.g. "Reading Materials" - purely for display
   text            String    // short title shown in the checklist
   content         String    @default("") // reading material / the question itself
   taskType        TaskType  @default(READING)
@@ -248,6 +249,7 @@ model ModuleTaskTemplate {
   moduleTemplateId String
   moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id])
   order            Int
+  section          String?
   text             String
   content          String   @default("")
   taskType         TaskType @default(READING)

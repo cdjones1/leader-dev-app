@@ -91,6 +91,7 @@ router.post('/', requireAuth, async (req, res) => {
           data: {
             moduleId: module.id,
             order: taskTemplate.order,
+            section: taskTemplate.section,
             text: taskTemplate.text,
             content: taskTemplate.content,
             taskType: taskTemplate.taskType,
