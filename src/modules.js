@@ -13,6 +13,32 @@ const router = express.Router();
 const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
 // --------------------------------------------------------------
+// TOGGLE a task's checked state. Anyone with access to the plan
+// can check/uncheck a task - same access rule as opening/completing
+// modules themselves.
+// --------------------------------------------------------------
+router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: { module: true },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+
+  const updated = await prisma.moduleTask.update({
+    where: { id: task.id },
+    data: {
+      completed: !task.completed,
+      completedAt: !task.completed ? new Date() : null,
+    },
+  });
+
+  res.json(updated);
+});
+
+// --------------------------------------------------------------
 // OPEN a module — starts its 5-day countdown.
 // Only allowed if it's currently NOT_STARTED (can't re-open a
 // completed or locked module this way — that's a separate action).

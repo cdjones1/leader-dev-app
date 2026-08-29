@@ -153,10 +153,52 @@ model Module {
   dueAt         DateTime?    // set to openedAt + 5 days when opened
   completedAt   DateTime?
   lockedAt      DateTime?
+  title         String?      // copied from the template when the plan was created
+  description   String?      // copied from the template when the plan was created
 
   @@unique([planId, sequenceOrder]) // no duplicate module numbers within a plan
 
   events        ModuleEvent[]
+  tasks         ModuleTask[]
+}
+
+// ------------------------------------------------------------
+// MODULE TASKS — the checklist inside a specific module instance.
+// Copied from the template's task list when the plan is created,
+// then checked off individually by whoever's doing the work.
+// ------------------------------------------------------------
+model ModuleTask {
+  id          String    @id @default(uuid())
+  moduleId    String
+  module      Module    @relation(fields: [moduleId], references: [id])
+  order       Int
+  text        String
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+}
+
+// ------------------------------------------------------------
+// MODULE TEMPLATES — the reusable curriculum content for each of
+// the 8 module "slots." Admin edits these once; every new plan
+// copies this content into its own Module records at creation time.
+// Editing a template later does NOT change plans already in progress -
+// same principle as pairing history: don't silently rewrite the past.
+// ------------------------------------------------------------
+model ModuleTemplate {
+  id            String   @id @default(uuid())
+  sequenceOrder Int      @unique // 1 through 8
+  title         String
+  description   String
+
+  taskTemplates ModuleTaskTemplate[]
+}
+
+model ModuleTaskTemplate {
+  id               String         @id @default(uuid())
+  moduleTemplateId String
+  moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id])
+  order            Int
+  text             String
 }
 
 // ------------------------------------------------------------

@@ -106,6 +106,7 @@
       const navLinks = document.getElementById('navLinks');
       const links = [];
       if (user.isAdmin) {
+        links.push('<a href="/module-content.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Module Content</a>');
         links.push('<a href="/register.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Register User</a>');
         links.push('<a href="/admin-setup.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Admin Setup</a>');
       }

@@ -39,10 +39,32 @@ router.post('/', requireAuth, async (req, res) => {
   // All 8 modules are created NOT_STARTED, including module 1 - nothing
   // auto-opens anymore. The plan's real clock (startedAt) only begins
   // once someone actually clicks to open module 1.
+  // Content (title/description/tasks) is copied from the matching
+  // template, if one exists yet - templates might not be filled in
+  // yet, and that's fine, the module just starts blank.
   for (let seq = 1; seq <= 8; seq++) {
-    await prisma.module.create({
-      data: { planId: plan.id, sequenceOrder: seq, status: 'NOT_STARTED' },
+    const template = await prisma.moduleTemplate.findUnique({
+      where: { sequenceOrder: seq },
+      include: { taskTemplates: { orderBy: { order: 'asc' } } },
     });
+
+    const module = await prisma.module.create({
+      data: {
+        planId: plan.id,
+        sequenceOrder: seq,
+        status: 'NOT_STARTED',
+        title: template ? template.title : null,
+        description: template ? template.description : null,
+      },
+    });
+
+    if (template) {
+      for (const taskTemplate of template.taskTemplates) {
+        await prisma.moduleTask.create({
+          data: { moduleId: module.id, order: taskTemplate.order, text: taskTemplate.text },
+        });
+      }
+    }
   }
 
   // Set up access control: the developer and developee on this
@@ -85,7 +107,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   const plan = await prisma.developmentPlan.findUnique({
     where: { id: req.params.id },
     include: {
-      modules: { orderBy: { sequenceOrder: 'asc' } },
+      modules: { orderBy: { sequenceOrder: 'asc' }, include: { tasks: { orderBy: { order: 'asc' } } } },
       assessments: true,
       reviewSteps: true,
       pairing: { include: { developer: true, developee: true } },

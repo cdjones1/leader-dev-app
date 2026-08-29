@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Module Content</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h1 { font-size: 22px; margin: 0; }
+    a { color: #93c5fd; text-decoration: none; }
+    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+    .card h2 { margin-top: 0; font-size: 16px; }
+    label { display: block; margin-top: 10px; font-size: 13px; color: #aaa; }
+    input, textarea {
+      width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
+      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      font-family: inherit;
+    }
+    button {
+      margin-top: 10px; padding: 7px 14px; background: #4f46e5; color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { background: #4338ca; }
+    .task-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+    .task-row button { background: #7f1d1d; margin: 0; }
+    .add-task-row { display: flex; gap: 8px; margin-top: 10px; }
+    .add-task-row input { flex: 1; }
+    .saved-note { color: #86efac; font-size: 12px; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Module Content</h1>
+    <a href="/dashboard.html">&larr; Back to Dashboard</a>
+  </div>
+  <p style="color:#888;">Define the title, description, and checklist for each of the 8 modules. Every new plan copies this content when it's created - editing here won't change plans already in progress.</p>
+
+  <div id="templatesContainer">Loading...</div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/index.html';
+    if (!user.isAdmin) {
+      document.body.innerHTML = '<p>This page is admin-only.</p>';
+      throw new Error('not admin');
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(options.headers || {}) },
+      });
+      if (res.status === 204) return null;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function templateCardHtml(seq, template) {
+      const title = template ? template.title : '';
+      const description = template ? template.description : '';
+      const tasks = template ? template.taskTemplates : [];
+
+      const taskRows = tasks.map((t) => `
+        <div class="task-row">
+          <span>${t.text}</span>
+          <button onclick="removeTask('${t.id}', ${seq})">Remove</button>
+        </div>
+      `).join('');
+
+      return `
+        <div class="card">
+          <h2>Module ${seq}</h2>
+          <label>Title</label>
+          <input type="text" id="title-${seq}" value="${title.replace(/"/g, '&quot;')}">
+          <label>Description</label>
+          <textarea id="description-${seq}" rows="2">${description}</textarea>
+          <button onclick="saveTemplate(${seq})">Save Title/Description</button>
+          <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
+
+          <label style="margin-top:16px;">Checklist Tasks</label>
+          <div id="tasks-${seq}">${taskRows}</div>
+          <div class="add-task-row">
+            <input type="text" id="newTask-${seq}" placeholder="Add a task...">
+            <button onclick="addTask(${seq})">Add</button>
+          </div>
+        </div>
+      `;
+    }
+
+    let templatesBySeq = {};
+
+    async function loadTemplates() {
+      const templates = await apiCall('/module-templates');
+      templatesBySeq = {};
+      templates.forEach((t) => { templatesBySeq[t.sequenceOrder] = t; });
+
+      const container = document.getElementById('templatesContainer');
+      let html = '';
+      for (let seq = 1; seq <= 8; seq++) {
+        html += templateCardHtml(seq, templatesBySeq[seq] || null);
+      }
+      container.innerHTML = html;
+    }
+
+    async function saveTemplate(seq) {
+      const title = document.getElementById(`title-${seq}`).value;
+      const description = document.getElementById(`description-${seq}`).value;
+      try {
+        await apiCall(`/module-templates/${seq}`, { method: 'PUT', body: JSON.stringify({ title, description }) });
+        const savedNote = document.getElementById(`saved-${seq}`);
+        savedNote.style.display = 'inline';
+        setTimeout(() => { savedNote.style.display = 'none'; }, 2000);
+        loadTemplates();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function addTask(seq) {
+      const input = document.getElementById(`newTask-${seq}`);
+      const text = input.value.trim();
+      if (!text) return;
+      try {
+        await apiCall(`/module-templates/${seq}/tasks`, { method: 'POST', body: JSON.stringify({ text }) });
+        input.value = '';
+        loadTemplates();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function removeTask(taskId, seq) {
+      try {
+        await apiCall(`/module-templates/tasks/${taskId}`, { method: 'DELETE' });
+        loadTemplates();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    loadTemplates();
+  </script>
+</body>
+</html>
