@@ -95,7 +95,9 @@
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
 
-        window.location.href = '/dashboard.html';
+        // Admins land on the admin dashboard; everyone else goes
+        // straight to their own plans - that IS their home page.
+        window.location.href = data.user.isAdmin ? '/dashboard.html' : '/myplans.html';
       } catch (err) {
         errorDiv.textContent = 'Could not reach the server. Please try again.';
         errorDiv.style.display = 'block';

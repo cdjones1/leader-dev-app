@@ -52,12 +52,6 @@
     .tag-assessment_needs_meeting { background: #713f12; color: #fef08a; }
     .tag-assessment_locked_final { background: #7f1d1d; color: #fecaca; }
     #message { color: #aaa; }
-    #notAdmin {
-      background: #16213e;
-      padding: 24px;
-      border-radius: 8px;
-      display: none;
-    }
   </style>
 </head>
 <body>
@@ -69,10 +63,6 @@
   </div>
 
   <div id="message">Loading...</div>
-  <div id="notAdmin">
-    <p>You're logged in, but this dashboard view is only available to admins right now.</p>
-    <p style="color:#888; font-size: 14px;">A regular user view (your own development plans) is coming in a future update.</p>
-  </div>
   <table id="queueTable" style="display:none;">
     <thead>
       <tr>
@@ -95,6 +85,13 @@
     }
 
     const user = JSON.parse(userJson);
+
+    // This page is admin-only. A non-admin landing here (bookmark, back
+    // button, etc.) should just go to their actual home page instead
+    // of seeing a dead end.
+    if (!user.isAdmin) {
+      window.location.href = '/myplans.html';
+    }
 
     function logout() {
       localStorage.removeItem('token');
@@ -125,15 +122,8 @@
 
     async function loadDashboard() {
       const messageDiv = document.getElementById('message');
-      const notAdminDiv = document.getElementById('notAdmin');
       const table = document.getElementById('queueTable');
       const tbody = document.getElementById('queueBody');
-
-      if (!user.isAdmin) {
-        messageDiv.style.display = 'none';
-        notAdminDiv.style.display = 'block';
-        return;
-      }
 
       try {
         const res = await fetch('/admin/needs-attention', {

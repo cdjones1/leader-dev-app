@@ -23,9 +23,8 @@
 </head>
 <body>
   <div class="header">
-    <h1>My Plans</h1>
-    <div>
-      <a class="back" href="/dashboard.html">Dashboard</a> &nbsp;
+    <h1 id="pageTitle">My Plans</h1>
+    <div id="navLinks">
       <button onclick="logout()">Log Out</button>
     </div>
   </div>
@@ -35,13 +34,27 @@
 
   <script>
     const token = localStorage.getItem('token');
-    if (!token) window.location.href = '/index.html';
+    const userJson = localStorage.getItem('user');
+    if (!token || !userJson) window.location.href = '/index.html';
+
+    const user = JSON.parse(userJson);
+    document.getElementById('pageTitle').textContent = `Welcome, ${user.name}`;
 
     function logout() {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/index.html';
     }
+
+    function renderNav() {
+      const navLinks = document.getElementById('navLinks');
+      const links = [];
+      if (user.isAdmin) {
+        links.push('<a href="/dashboard.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Admin Dashboard</a>');
+      }
+      navLinks.innerHTML = links.join('') + '<button onclick="logout()">Log Out</button>';
+    }
+    renderNav();
 
     async function loadPlans() {
       const messageDiv = document.getElementById('message');
