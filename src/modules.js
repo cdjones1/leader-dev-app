@@ -29,10 +29,24 @@ router.post('/:id/open', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `Cannot open a module with status ${module.status}` });
   }
 
-  // Module 5 is gated by the midterm assessment (after module 4).
-  // Even though it's "NOT_STARTED" and would otherwise be openable,
-  // it must stay blocked until that assessment has actually PASSED -
-  // otherwise someone could open it manually and skip the gate entirely.
+  // General sequencing rule: module N (other than 1) can't open until
+  // module N-1 has actually been completed - regardless of which
+  // button someone clicks. The normal flow already does this via
+  // auto-cascade, but nothing was stopping a direct, out-of-order
+  // open request until now.
+  if (module.sequenceOrder > 1) {
+    const previousModule = await prisma.module.findFirst({
+      where: { planId: module.planId, sequenceOrder: module.sequenceOrder - 1 },
+    });
+    if (!previousModule || previousModule.status !== 'COMPLETED') {
+      return res.status(400).json({
+        error: `Module ${module.sequenceOrder} is locked until module ${module.sequenceOrder - 1} is completed`,
+      });
+    }
+  }
+
+  // Module 5 has an ADDITIONAL gate on top of the sequencing rule
+  // above: the midterm assessment (after module 4) must have PASSED.
   if (module.sequenceOrder === 5) {
     const midterm = await prisma.assessment.findUnique({
       where: { planId_gatePosition: { planId: module.planId, gatePosition: 'AFTER_MODULE_4' } },

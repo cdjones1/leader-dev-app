@@ -72,11 +72,19 @@
       return data;
     }
 
-    function moduleRowHtml(module, planAssessments) {
+    function moduleRowHtml(module, planAssessments, allModules) {
       let canOpen = module.status === 'NOT_STARTED';
 
-      // Module 5 stays locked-looking until the midterm has actually passed,
-      // matching the same rule the server enforces.
+      // General sequencing rule, matching the server: module N (other
+      // than 1) needs module N-1 actually completed first.
+      if (canOpen && module.sequenceOrder > 1) {
+        const previousModule = allModules.find((m) => m.sequenceOrder === module.sequenceOrder - 1);
+        if (!previousModule || previousModule.status !== 'COMPLETED') {
+          canOpen = false;
+        }
+      }
+
+      // Module 5 has the additional midterm-assessment gate on top.
       if (module.sequenceOrder === 5 && canOpen) {
         const midterm = planAssessments.find((a) => a.gatePosition === 'AFTER_MODULE_4');
         if (!midterm || midterm.status !== 'PASSED') {
@@ -166,7 +174,7 @@
         document.getElementById('pageTitle').textContent =
           `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
 
-        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => moduleRowHtml(m, plan.assessments)).join('');
+        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => moduleRowHtml(m, plan.assessments, plan.modules)).join('');
 
         // Find the assessment that's currently relevant (not yet PASSED)
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
