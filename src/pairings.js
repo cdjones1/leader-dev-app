@@ -51,4 +51,31 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(pairings);
 });
 
+// --------------------------------------------------------------
+// DELETE a pairing - admin only. Refuses if any plans still exist
+// for this pairing (delete those first) - this is intentionally
+// NOT cascading, since deleting someone's plan history should
+// always be a separate, deliberate action from deleting the pairing.
+// --------------------------------------------------------------
+router.delete('/:id', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only an admin can delete a pairing' });
+  }
+
+  const existingPlans = await prisma.developmentPlan.count({ where: { pairingId: req.params.id } });
+  if (existingPlans > 0) {
+    return res.status(400).json({
+      error: `This pairing still has ${existingPlans} plan(s). Delete those first, then delete the pairing.`,
+    });
+  }
+
+  const pairing = await prisma.developerPairing.findUnique({ where: { id: req.params.id } });
+  if (!pairing) {
+    return res.status(404).json({ error: 'Pairing not found' });
+  }
+
+  await prisma.developerPairing.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
 module.exports = router;

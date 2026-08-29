@@ -20,11 +20,15 @@
       border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
     }
     button:hover { background: #4338ca; }
+    button.danger { background: #7f1d1d; }
+    button.danger:hover { background: #991b1b; }
     .pairing-row {
       display: flex; justify-content: space-between; align-items: center;
       padding: 12px 0; border-bottom: 1px solid #2a2a4a;
     }
     .pairing-row:last-child { border-bottom: none; }
+    .pairing-row button { margin-top: 0; margin-left: 8px; }
+    .cleanup-card { border: 1px solid #7f1d1d; }
     #message { color: #86efac; margin-top: 12px; }
     #errorMessage { color: #f87171; margin-top: 12px; }
   </style>
@@ -51,10 +55,24 @@
     <div id="pairingsList">Loading...</div>
   </div>
 
-  <div class="card">
-    <h2>All Plans (cleanup)</h2>
+  <h2 style="margin-top:32px; color:#fca5a5;">Cleanup (permanent, use with care)</h2>
+
+  <div class="card cleanup-card">
+    <h2>All Plans</h2>
     <p style="color:#888; font-size:13px;">Deleting a plan is permanent - it removes all its modules, tasks, assessments, and history. The pairing and both people stay intact.</p>
     <div id="plansList">Loading...</div>
+  </div>
+
+  <div class="card cleanup-card">
+    <h2>All Pairings</h2>
+    <p style="color:#888; font-size:13px;">A pairing can only be deleted once it has no plans left - delete those first, above.</p>
+    <div id="pairingsCleanupList">Loading...</div>
+  </div>
+
+  <div class="card cleanup-card">
+    <h2>All Users</h2>
+    <p style="color:#888; font-size:13px;">A user can only be deleted once they're not part of any pairing - delete those first, above. You can't delete your own account.</p>
+    <div id="usersCleanupList">Loading...</div>
   </div>
 
   <script>
@@ -105,6 +123,62 @@
           <button onclick="startPlan('${p.id}')">Start Plan</button>
         </div>
       `).join('');
+    }
+
+    async function loadPairingsCleanupList() {
+      const pairings = await apiCall('/pairings');
+      const listDiv = document.getElementById('pairingsCleanupList');
+
+      if (pairings.length === 0) {
+        listDiv.textContent = 'No pairings yet.';
+        return;
+      }
+
+      listDiv.innerHTML = pairings.map((p) => `
+        <div class="pairing-row">
+          <div><strong>${p.developee.name}</strong> developed by <strong>${p.developer.name}</strong></div>
+          <button class="danger" onclick="deletePairing('${p.id}')">Delete Pairing</button>
+        </div>
+      `).join('');
+    }
+
+    async function deletePairing(pairingId) {
+      if (!confirm('This permanently deletes this pairing. Only works if it has no plans left. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/pairings/' + pairingId, { method: 'DELETE' });
+        loadPairings();
+        loadPairingsCleanupList();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function loadUsersCleanupList() {
+      const users = await apiCall('/admin/users');
+      const listDiv = document.getElementById('usersCleanupList');
+      const myId = JSON.parse(localStorage.getItem('user')).id;
+
+      listDiv.innerHTML = users.map((u) => `
+        <div class="pairing-row">
+          <div><strong>${u.name}</strong> (${u.email}) - ${u.role}${u.id === myId ? ' - this is you' : ''}</div>
+          ${u.id === myId ? '' : `<button class="danger" onclick="deleteUser('${u.id}')">Delete User</button>`}
+        </div>
+      `).join('');
+    }
+
+    async function deleteUser(userId) {
+      if (!confirm('This permanently deletes this user account. Only works if they are not part of any pairing. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/admin/users/' + userId, { method: 'DELETE' });
+        loadUsersCleanupList();
+        loadUsers(); // refresh the dropdowns too, in case this user was in them
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
     async function createPairing() {
@@ -170,6 +244,8 @@
     }
 
     loadAllPlans();
+    loadPairingsCleanupList();
+    loadUsersCleanupList();
 
     loadUsers();
     loadPairings();

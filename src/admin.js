@@ -98,6 +98,37 @@ router.get('/users', requireAuth, async (req, res) => {
   res.json(users);
 });
 
+// --------------------------------------------------------------
+// DELETE a user - admin only. Two safety rules: you can't delete
+// yourself, and you can't delete someone still tied to a pairing
+// (delete the pairing first - same "clean up in order" pattern
+// as plans before pairings).
+// --------------------------------------------------------------
+router.delete('/users/:id', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  if (req.params.id === req.user.userId) {
+    return res.status(400).json({ error: 'You cannot delete your own account' });
+  }
+
+  const existingPairings = await prisma.developerPairing.count({
+    where: { OR: [{ developerId: req.params.id }, { developeeId: req.params.id }] },
+  });
+  if (existingPairings > 0) {
+    return res.status(400).json({
+      error: `This person is part of ${existingPairings} pairing(s). Delete those first, then delete the user.`,
+    });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  await prisma.user.delete({ where: { id: req.params.id } });
+  res.status(204).send();
+});
+
 router.get('/needs-attention', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
