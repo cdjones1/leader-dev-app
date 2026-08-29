@@ -139,9 +139,13 @@
         `;
       }
 
+      const attemptLabel = assessment.attemptCount < 3
+        ? `Attempt ${assessment.attemptCount + 1} of 3`
+        : `Extra Attempt ${assessment.attemptCount + 1} (admin-granted)`;
+
       return `
         <div class="assessment-box">
-          <h3>${label} - Attempt ${assessment.attemptCount + 1} of 3</h3>
+          <h3>${label} - ${attemptLabel}</h3>
           <label>Score (1-10)</label>
           <input type="number" id="score" min="1" max="10" value="5">
           <label>Comments</label>

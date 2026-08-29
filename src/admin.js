@@ -75,6 +75,19 @@ function buildQueue({ stalledModules, overduePlans, needsMeetingAssessments, fin
   return queue;
 }
 
+// List every user in the system - only for populating admin dropdowns
+// (e.g. picking who's the developer/developee when creating a pairing).
+router.get('/users', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const users = await prisma.user.findMany({
+    select: { id: true, name: true, email: true, role: true },
+    orderBy: { name: 'asc' },
+  });
+
+  res.json(users);
+});
+
 router.get('/needs-attention', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
