@@ -12,9 +12,11 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 // --------------------------------------------------------------
 // REGISTER — creates a new user.
-// In real use, only an admin should be able to call this
-// (we'll lock that down properly once the admin dashboard exists).
-// For now it's open so you can create your first test users.
+// SECURITY RULE: only an admin can create new users, with one
+// exception - if literally no users exist yet, registration is
+// open (otherwise nobody could ever create the very first admin).
+// Once at least one user exists, every future registration must
+// come from a logged-in admin.
 // --------------------------------------------------------------
 router.post('/register', async (req, res) => {
   const { name, email, password, role, isAdmin } = req.body;
@@ -22,6 +24,25 @@ router.post('/register', async (req, res) => {
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'name, email, password, and role are required' });
   }
+
+  const userCount = await prisma.user.count();
+
+  if (userCount > 0) {
+    // Not the first user - an admin must be making this request.
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Only a logged-in admin can register new users' });
+    }
+    try {
+      const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+      if (!decoded.isAdmin) {
+        return res.status(403).json({ error: 'Only an admin can register new users' });
+      }
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired login token' });
+    }
+  }
+  // else: userCount === 0, this is the bootstrap case - allowed through freely.
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {

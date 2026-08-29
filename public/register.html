@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Register New User</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h1 { font-size: 22px; margin: 0; }
+    a { color: #93c5fd; text-decoration: none; }
+    .card { background: #16213e; padding: 24px; border-radius: 8px; max-width: 420px; }
+    label { display: block; margin-top: 14px; font-size: 14px; color: #aaa; }
+    input, select {
+      width: 100%; padding: 9px; margin-top: 4px; border-radius: 6px;
+      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+    }
+    .checkbox-row { display: flex; align-items: center; margin-top: 16px; gap: 8px; }
+    .checkbox-row input { width: auto; margin: 0; }
+    .checkbox-row label { margin: 0; }
+    button {
+      margin-top: 20px; padding: 10px 18px; background: #4f46e5; color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 14px; width: 100%;
+    }
+    button:hover { background: #4338ca; }
+    #message { color: #86efac; margin-top: 12px; }
+    #errorMessage { color: #f87171; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Register New User</h1>
+    <a href="/dashboard.html">&larr; Back to Dashboard</a>
+  </div>
+
+  <div class="card">
+    <label>Full Name</label>
+    <input type="text" id="name">
+    <label>Email</label>
+    <input type="email" id="email">
+    <label>Temporary Password</label>
+    <input type="password" id="password">
+    <label>Role</label>
+    <select id="role">
+      <option value="OPERATIONS_SPECIALIST">Operations Specialist</option>
+      <option value="TEAM_LEADER">Team Leader</option>
+      <option value="MANAGER">Manager</option>
+      <option value="ASSISTANT_DIRECTOR">Assistant Director</option>
+      <option value="DIRECTOR">Director</option>
+    </select>
+    <div class="checkbox-row">
+      <input type="checkbox" id="isAdmin">
+      <label for="isAdmin" style="margin:0;">Grant admin access</label>
+    </div>
+    <button onclick="registerUser()">Create User</button>
+    <div id="message"></div>
+    <div id="errorMessage"></div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/index.html';
+    if (!user.isAdmin) {
+      document.body.innerHTML = '<p>This page is admin-only.</p>';
+      throw new Error('not admin');
+    }
+
+    async function registerUser() {
+      const messageDiv = document.getElementById('message');
+      const errorDiv = document.getElementById('errorMessage');
+      messageDiv.textContent = '';
+      errorDiv.textContent = '';
+
+      const body = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+        role: document.getElementById('role').value,
+        isAdmin: document.getElementById('isAdmin').checked,
+      };
+
+      try {
+        const res = await fetch('/auth/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer ' + token, // proves an admin is making this request
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorDiv.textContent = data.error || 'Registration failed';
+          return;
+        }
+
+        messageDiv.textContent = `Created ${data.name} (${data.email}). They can log in with the temporary password now.`;
+        document.getElementById('name').value = '';
+        document.getElementById('email').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('isAdmin').checked = false;
+      } catch (err) {
+        errorDiv.textContent = 'Could not reach the server.';
+      }
+    }
+  </script>
+</body>
+</html>
