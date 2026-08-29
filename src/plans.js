@@ -61,7 +61,14 @@ router.post('/', requireAuth, async (req, res) => {
     if (template) {
       for (const taskTemplate of template.taskTemplates) {
         await prisma.moduleTask.create({
-          data: { moduleId: module.id, order: taskTemplate.order, text: taskTemplate.text },
+          data: {
+            moduleId: module.id,
+            order: taskTemplate.order,
+            text: taskTemplate.text,
+            content: taskTemplate.content,
+            taskType: taskTemplate.taskType,
+            correctAnswer: taskTemplate.correctAnswer,
+          },
         });
       }
     }
@@ -117,6 +124,19 @@ router.get('/:id', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Plan not found' });
   }
   if (!(await checkPlanAccess(req, res, plan.id))) return;
+
+  // Never send a QUESTION task's correct answer until that specific
+  // task has actually been submitted - same rule as the task's own
+  // page, applied here too since this route also carries task data.
+  for (const module of plan.modules) {
+    module.tasks = module.tasks.map((task) => {
+      if (task.taskType === 'QUESTION' && !task.submittedAt) {
+        const { correctAnswer, ...safeTask } = task;
+        return safeTask;
+      }
+      return task;
+    });
+  }
 
   res.json(plan);
 });

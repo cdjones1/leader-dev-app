@@ -109,10 +109,9 @@
       const taskListHtml = (module.tasks && module.tasks.length > 0) ? `
         <div class="task-checklist">
           ${module.tasks.map((t) => `
-            <label class="task-item ${t.completed ? 'done' : ''}">
-              <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask('${t.id}')">
-              ${t.text}
-            </label>
+            <a class="task-item ${t.completed ? 'done' : ''}" href="/task.html?id=${t.id}&planId=${planId}" style="text-decoration:none; display:block;">
+              ${t.completed ? '✓' : '○'} ${t.text} ${t.taskType === 'QUESTION' ? '(question)' : ''}
+            </a>
           `).join('')}
         </div>
       ` : '';
@@ -133,15 +132,6 @@
           ${taskListHtml}
         </div>
       `;
-    }
-
-    async function toggleTask(taskId) {
-      try {
-        await apiCall('/modules/tasks/' + taskId + '/toggle', { method: 'POST' });
-        loadPlan();
-      } catch (err) {
-        alert(err.message);
-      }
     }
 
     function assessmentBoxHtml(assessment, isDeveloperHere) {

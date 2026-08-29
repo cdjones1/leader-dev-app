@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h1 { font-size: 20px; margin: 0; }
+    a { color: #93c5fd; text-decoration: none; }
+    .card { background: #16213e; padding: 24px; border-radius: 8px; max-width: 700px; }
+    .content-box { color: #d1d5db; line-height: 1.6; white-space: pre-wrap; margin: 16px 0; }
+    button {
+      padding: 10px 18px; background: #4f46e5; color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #374151; cursor: not-allowed; }
+    textarea {
+      width: 100%; padding: 10px; margin-top: 8px; border-radius: 6px;
+      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      font-family: inherit;
+    }
+    .answer-box {
+      background: #0f172a; padding: 16px; border-radius: 6px; margin-top: 12px;
+      white-space: pre-wrap;
+    }
+    .your-answer { border-left: 3px solid #4f46e5; }
+    .correct-answer { border-left: 3px solid #16a34a; margin-top: 16px; }
+    .label { font-size: 12px; text-transform: uppercase; color: #888; margin-bottom: 6px; }
+    .locked-note { color: #888; font-size: 13px; margin-top: 8px; }
+    #message { color: #f87171; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 id="pageTitle">Loading...</h1>
+    <a id="backLink" href="/dashboard.html">&larr; Back to Plan</a>
+  </div>
+
+  <div class="card" id="taskCard"></div>
+  <div id="message"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const taskId = params.get('id');
+    const planId = params.get('planId'); // used only for the back link
+
+    if (planId) {
+      document.getElementById('backLink').href = '/plan.html?id=' + planId;
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(options.headers || {}) },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function readingTaskHtml(task) {
+      return `
+        <div class="content-box">${task.content || '(No content written for this task yet.)'}</div>
+        <button ${task.completed ? 'disabled' : ''} onclick="markComplete('${task.id}')">
+          ${task.completed ? 'Completed' : 'Mark as Read / Complete'}
+        </button>
+      `;
+    }
+
+    function questionTaskHtml(task) {
+      const contentHtml = `<div class="content-box">${task.content || ''}</div>`;
+
+      if (!task.submittedAt) {
+        return `
+          ${contentHtml}
+          <label>Your Answer</label>
+          <textarea id="answerBox" rows="5"></textarea>
+          <div class="locked-note">Once you submit, this answer is locked and cannot be changed.</div>
+          <button style="margin-top:10px;" onclick="submitAnswer('${task.id}')">Submit Answer</button>
+        `;
+      }
+
+      // Already submitted - show their locked answer and the correct answer below it.
+      return `
+        ${contentHtml}
+        <div class="answer-box your-answer">
+          <div class="label">Your Submitted Answer</div>
+          ${task.submittedAnswer}
+        </div>
+        <div class="answer-box correct-answer">
+          <div class="label">Correct Answer</div>
+          ${task.correctAnswer}
+        </div>
+      `;
+    }
+
+    async function loadTask() {
+      try {
+        const task = await apiCall('/modules/tasks/' + taskId);
+        document.getElementById('pageTitle').textContent = task.text;
+        const card = document.getElementById('taskCard');
+        card.innerHTML = task.taskType === 'QUESTION' ? questionTaskHtml(task) : readingTaskHtml(task);
+      } catch (err) {
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function markComplete(taskId) {
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/toggle', { method: 'POST' });
+        loadTask();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function submitAnswer(taskId) {
+      const answer = document.getElementById('answerBox').value;
+      if (!answer.trim()) {
+        alert('Please write an answer before submitting.');
+        return;
+      }
+      if (!confirm('Once submitted, this answer is locked and cannot be changed. Submit now?')) {
+        return;
+      }
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/submit-answer', {
+          method: 'POST',
+          body: JSON.stringify({ answer }),
+        });
+        loadTask();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    if (taskId) {
+      loadTask();
+    } else {
+      document.getElementById('message').textContent = 'No task specified.';
+    }
+  </script>
+</body>
+</html>

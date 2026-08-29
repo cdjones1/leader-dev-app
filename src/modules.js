@@ -13,9 +13,9 @@ const router = express.Router();
 const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
 // --------------------------------------------------------------
-// TOGGLE a task's checked state. Anyone with access to the plan
-// can check/uncheck a task - same access rule as opening/completing
-// modules themselves.
+// TOGGLE a task's checked state. Only for READING tasks - a
+// QUESTION task is marked complete by submitting an answer, not
+// by checking a box.
 // --------------------------------------------------------------
 router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
@@ -26,6 +26,9 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (task.taskType !== 'READING') {
+    return res.status(400).json({ error: 'Only reading tasks can be toggled - question tasks are completed by submitting an answer' });
+  }
 
   const updated = await prisma.moduleTask.update({
     where: { id: task.id },
@@ -35,7 +38,71 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
     },
   });
 
-  res.json(updated);
+  res.json(stripAnswerIfUnsubmitted(updated));
+});
+
+// --------------------------------------------------------------
+// A single task's own page. This is the ONLY place the correct
+// answer is ever included in a response - and even then, only
+// once the person has already locked in their own answer. Before
+// that, correctAnswer is stripped out entirely so it never reaches
+// the browser, not even hidden in the page source.
+// --------------------------------------------------------------
+function stripAnswerIfUnsubmitted(task) {
+  if (task.taskType === 'QUESTION' && !task.submittedAt) {
+    const { correctAnswer, ...safeTask } = task;
+    return safeTask;
+  }
+  return task;
+}
+
+router.get('/tasks/:taskId', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: { module: true },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+
+  res.json(stripAnswerIfUnsubmitted(task));
+});
+
+// --------------------------------------------------------------
+// SUBMIT an answer to a QUESTION task. Locks in permanently -
+// once submittedAt is set, this can never be called again for
+// this task. The response includes the correct answer now, since
+// submission is exactly the moment it's supposed to be revealed.
+// --------------------------------------------------------------
+router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: { module: true },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (task.taskType !== 'QUESTION') {
+    return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
+  }
+  if (task.submittedAt) {
+    return res.status(400).json({ error: 'This answer was already submitted and is locked - it cannot be changed' });
+  }
+
+  const { answer } = req.body;
+  if (!answer || !answer.trim()) {
+    return res.status(400).json({ error: 'answer is required' });
+  }
+
+  const now = new Date();
+  const updated = await prisma.moduleTask.update({
+    where: { id: task.id },
+    data: { submittedAnswer: answer, submittedAt: now, completed: true, completedAt: now },
+  });
+
+  res.json(updated); // safe to include correctAnswer now - this IS the reveal moment
 });
 
 // --------------------------------------------------------------

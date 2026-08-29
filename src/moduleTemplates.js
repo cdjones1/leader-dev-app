@@ -62,9 +62,15 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { text } = req.body;
+  const { text, content, taskType, correctAnswer } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
+  }
+  if (taskType && !['READING', 'QUESTION'].includes(taskType)) {
+    return res.status(400).json({ error: 'taskType must be READING or QUESTION' });
+  }
+  if (taskType === 'QUESTION' && !correctAnswer) {
+    return res.status(400).json({ error: 'A QUESTION task needs a correctAnswer for it to be gradeable' });
   }
 
   const template = await prisma.moduleTemplate.findUnique({ where: { sequenceOrder } });
@@ -75,7 +81,14 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   const existingCount = await prisma.moduleTaskTemplate.count({ where: { moduleTemplateId: template.id } });
 
   const task = await prisma.moduleTaskTemplate.create({
-    data: { moduleTemplateId: template.id, order: existingCount + 1, text },
+    data: {
+      moduleTemplateId: template.id,
+      order: existingCount + 1,
+      text,
+      content: content || '',
+      taskType: taskType || 'READING',
+      correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
+    },
   });
 
   res.status(201).json(task);

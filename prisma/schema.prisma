@@ -163,18 +163,29 @@ model Module {
 }
 
 // ------------------------------------------------------------
-// MODULE TASKS — the checklist inside a specific module instance.
-// Copied from the template's task list when the plan is created,
-// then checked off individually by whoever's doing the work.
+// MODULE TASKS — each one is its own page: reading content, and
+// optionally an open-ended question. Copied from the template
+// when the plan is created.
 // ------------------------------------------------------------
+enum TaskType {
+  READING   // just content to read, marked complete when done
+  QUESTION  // open-ended - answer locks in permanently on submit,
+            // then the reference answer is revealed alongside it
+}
+
 model ModuleTask {
-  id          String    @id @default(uuid())
-  moduleId    String
-  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
-  order       Int
-  text        String
-  completed   Boolean   @default(false)
-  completedAt DateTime?
+  id            String    @id @default(uuid())
+  moduleId      String
+  module        Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  order         Int
+  text          String    // short title shown in the checklist
+  content       String    @default("") // the actual reading material for this task's page
+  taskType      TaskType  @default(READING)
+  correctAnswer String?   // only relevant for QUESTION tasks - NEVER sent to the browser until after submission
+  completed     Boolean   @default(false)
+  completedAt   DateTime?
+  submittedAnswer String? // the developee's locked-in answer, once submitted
+  submittedAt     DateTime? // once set, the answer can never be changed again
 }
 
 // ------------------------------------------------------------
@@ -199,6 +210,9 @@ model ModuleTaskTemplate {
   moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id])
   order            Int
   text             String
+  content          String   @default("")
+  taskType         TaskType @default(READING)
+  correctAnswer    String?
 }
 
 // ------------------------------------------------------------

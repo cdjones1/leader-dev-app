@@ -21,10 +21,11 @@
       border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
     button:hover { background: #4338ca; }
-    .task-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
-    .task-row button { background: #7f1d1d; margin: 0; }
-    .add-task-row { display: flex; gap: 8px; margin-top: 10px; }
-    .add-task-row input { flex: 1; }
+    .task-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #2a2a4a; }
+    .task-row:last-child { border-bottom: none; }
+    .task-row button { background: #7f1d1d; margin: 0; flex-shrink: 0; }
+    .task-meta { color: #888; font-size: 12px; margin-top: 2px; }
+    .add-task-box { margin-top: 12px; padding: 12px; background: #0f172a; border-radius: 6px; }
     .saved-note { color: #86efac; font-size: 12px; margin-left: 10px; }
   </style>
 </head>
@@ -64,7 +65,11 @@
 
       const taskRows = tasks.map((t) => `
         <div class="task-row">
-          <span>${t.text}</span>
+          <div>
+            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType})</span>
+            ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
+            ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
+          </div>
           <button onclick="removeTask('${t.id}', ${seq})">Remove</button>
         </div>
       `).join('');
@@ -79,14 +84,32 @@
           <button onclick="saveTemplate(${seq})">Save Title/Description</button>
           <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
 
-          <label style="margin-top:16px;">Checklist Tasks</label>
+          <label style="margin-top:16px;">Tasks</label>
           <div id="tasks-${seq}">${taskRows}</div>
-          <div class="add-task-row">
-            <input type="text" id="newTask-${seq}" placeholder="Add a task...">
-            <button onclick="addTask(${seq})">Add</button>
+
+          <div class="add-task-box">
+            <label>New Task Title</label>
+            <input type="text" id="newTaskText-${seq}" placeholder="e.g. Read Chapter 1">
+            <label>Task Type</label>
+            <select id="newTaskType-${seq}" onchange="toggleAnswerField(${seq})">
+              <option value="READING">Reading (just read/mark complete)</option>
+              <option value="QUESTION">Question (open-ended, locked on submit)</option>
+            </select>
+            <label>Content (what they'll read on this task's page)</label>
+            <textarea id="newTaskContent-${seq}" rows="3" placeholder="The reading material or the question itself..."></textarea>
+            <div id="answerField-${seq}" style="display:none;">
+              <label>Correct Answer (revealed to them after they submit their own answer)</label>
+              <textarea id="newTaskAnswer-${seq}" rows="2"></textarea>
+            </div>
+            <button onclick="addTask(${seq})">Add Task</button>
           </div>
         </div>
       `;
+    }
+
+    function toggleAnswerField(seq) {
+      const type = document.getElementById(`newTaskType-${seq}`).value;
+      document.getElementById(`answerField-${seq}`).style.display = type === 'QUESTION' ? 'block' : 'none';
     }
 
     let templatesBySeq = {};
@@ -119,12 +142,22 @@
     }
 
     async function addTask(seq) {
-      const input = document.getElementById(`newTask-${seq}`);
-      const text = input.value.trim();
+      const text = document.getElementById(`newTaskText-${seq}`).value.trim();
+      const taskType = document.getElementById(`newTaskType-${seq}`).value;
+      const content = document.getElementById(`newTaskContent-${seq}`).value;
+      const correctAnswer = document.getElementById(`newTaskAnswer-${seq}`).value;
+
       if (!text) return;
+      if (taskType === 'QUESTION' && !correctAnswer.trim()) {
+        alert('A question task needs a correct answer.');
+        return;
+      }
+
       try {
-        await apiCall(`/module-templates/${seq}/tasks`, { method: 'POST', body: JSON.stringify({ text }) });
-        input.value = '';
+        await apiCall(`/module-templates/${seq}/tasks`, {
+          method: 'POST',
+          body: JSON.stringify({ text, content, taskType, correctAnswer }),
+        });
         loadTemplates();
       } catch (err) {
         alert(err.message);
