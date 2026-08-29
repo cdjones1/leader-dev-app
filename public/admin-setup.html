@@ -51,6 +51,12 @@
     <div id="pairingsList">Loading...</div>
   </div>
 
+  <div class="card">
+    <h2>All Plans (cleanup)</h2>
+    <p style="color:#888; font-size:13px;">Deleting a plan is permanent - it removes all its modules, tasks, assessments, and history. The pairing and both people stay intact.</p>
+    <div id="plansList">Loading...</div>
+  </div>
+
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -69,6 +75,7 @@
           ...(options.headers || {}),
         },
       });
+      if (res.status === 204) return null; // DELETE returns no body
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Request failed');
       return data;
@@ -129,6 +136,40 @@
         alert(err.message);
       }
     }
+
+    async function loadAllPlans() {
+      const plans = await apiCall('/plans');
+      const listDiv = document.getElementById('plansList');
+
+      if (plans.length === 0) {
+        listDiv.textContent = 'No plans yet.';
+        return;
+      }
+
+      listDiv.innerHTML = plans.map((p) => `
+        <div class="pairing-row">
+          <div>
+            <strong>${p.pairing.developee.name}</strong> developed by <strong>${p.pairing.developer.name}</strong>
+            (${p.status}) - created ${new Date(p.createdAt).toLocaleDateString()}
+          </div>
+          <button style="background:#7f1d1d;" onclick="deletePlan('${p.id}')">Delete</button>
+        </div>
+      `).join('');
+    }
+
+    async function deletePlan(planId) {
+      if (!confirm('This permanently deletes this plan and everything in it - modules, tasks, assessments, all history. This cannot be undone. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/plans/' + planId, { method: 'DELETE' });
+        loadAllPlans();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    loadAllPlans();
 
     loadUsers();
     loadPairings();

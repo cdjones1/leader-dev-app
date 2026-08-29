@@ -121,4 +121,41 @@ router.get('/:id', requireAuth, async (req, res) => {
   res.json(plan);
 });
 
+// --------------------------------------------------------------
+// LIST all plans - admin only. Used for cleanup/management.
+// --------------------------------------------------------------
+router.get('/', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const plans = await prisma.developmentPlan.findMany({
+    include: { pairing: { include: { developer: true, developee: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.json(plans);
+});
+
+// --------------------------------------------------------------
+// DELETE a plan - admin only, and irreversible. Cascades through
+// every module, task, assessment, attempt, score, review step,
+// and participant record tied to this plan. Does NOT touch the
+// pairing itself or either user - only this specific plan's data.
+// --------------------------------------------------------------
+router.delete('/:id', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only an admin can delete a plan' });
+  }
+
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: req.params.id } });
+  if (!plan) {
+    return res.status(404).json({ error: 'Plan not found' });
+  }
+
+  await prisma.developmentPlan.delete({ where: { id: req.params.id } });
+
+  res.status(204).send();
+});
+
 module.exports = router;

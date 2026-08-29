@@ -103,7 +103,7 @@ enum ReviewStepStatus {
 model ReviewStep {
   id           String           @id @default(uuid())
   planId       String
-  plan         DevelopmentPlan  @relation(fields: [planId], references: [id])
+  plan         DevelopmentPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   gatePosition GatePosition     // reusing AFTER_MODULE_4 / AFTER_MODULE_8
   status       ReviewStepStatus @default(NOT_STARTED)
   openedAt     DateTime?
@@ -126,7 +126,7 @@ enum ParticipantRole {
 model PlanParticipant {
   id              String          @id @default(uuid())
   planId          String
-  plan            DevelopmentPlan @relation(fields: [planId], references: [id])
+  plan            DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   userId          String
   participantRole ParticipantRole
 
@@ -146,7 +146,7 @@ enum ModuleStatus {
 model Module {
   id            String       @id @default(uuid())
   planId        String
-  plan          DevelopmentPlan @relation(fields: [planId], references: [id])
+  plan          DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   sequenceOrder Int          // 1 through 8
   status        ModuleStatus @default(NOT_STARTED)
   openedAt      DateTime?
@@ -170,7 +170,7 @@ model Module {
 model ModuleTask {
   id          String    @id @default(uuid())
   moduleId    String
-  module      Module    @relation(fields: [moduleId], references: [id])
+  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   order       Int
   text        String
   completed   Boolean   @default(false)
@@ -216,7 +216,7 @@ enum ModuleEventType {
 model ModuleEvent {
   id        String          @id @default(uuid())
   moduleId  String
-  module    Module          @relation(fields: [moduleId], references: [id])
+  module    Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   eventType ModuleEventType
   actorId   String?         // the user who did this; null means "the system did it automatically"
   timestamp DateTime        @default(now())
@@ -242,7 +242,7 @@ enum AssessmentStatus {
 model Assessment {
   id           String           @id @default(uuid())
   planId       String
-  plan         DevelopmentPlan  @relation(fields: [planId], references: [id])
+  plan         DevelopmentPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   gatePosition GatePosition
   status       AssessmentStatus @default(PENDING)
   attemptCount Int              @default(0)
@@ -256,7 +256,7 @@ model Assessment {
 model AssessmentAttempt {
   id            String     @id @default(uuid())
   assessmentId  String
-  assessment    Assessment @relation(fields: [assessmentId], references: [id])
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   attemptNumber Int        // 1, 2, or 3
   overallResult String     // "PASS" or "FAIL"
   gradedBy      String     // the developer's user id who graded it
@@ -268,7 +268,7 @@ model AssessmentAttempt {
 model AssessmentItemScore {
   id        String            @id @default(uuid())
   attemptId String
-  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id])
+  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   moduleId  String            // which of the 4 modules in this block this score is for
   score     Int
   comments  String?
