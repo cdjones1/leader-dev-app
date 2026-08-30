@@ -32,6 +32,24 @@
     #completeSection { margin-top: 24px; padding: 16px; background: #16213e; border-radius: 8px; }
     #missingList { color: #f59e0b; font-size: 13px; margin-top: 8px; }
     #message { color: #f87171; margin-top: 12px; }
+    .notice-box {
+      background: #1e293b; border-left: 3px solid #3b82f6; border-radius: 6px;
+      padding: 16px; margin-bottom: 16px;
+    }
+    .notice-box .notice-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #60a5fa;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .notice-box .notice-text { color: #dbeafe; line-height: 1.6; white-space: pre-wrap; }
+    .warning-box {
+      background: #2d1414; border-left: 3px solid #ef4444; border-radius: 6px;
+      padding: 16px; margin-bottom: 16px;
+    }
+    .warning-box .warning-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #f87171;
+      text-transform: uppercase; margin-bottom: 6px;
+    }
+    .warning-box .warning-text { color: #fecaca; line-height: 1.6; white-space: pre-wrap; }
     .not-yours { color: #f59e0b; margin-top: 8px; }
   </style>
 </head>
@@ -78,6 +96,14 @@
 
     function readingBlock(task) {
       return `<div class="task-block"><h3>${task.text}</h3><div class="content-box">${task.content || '(No content written yet.)'}</div></div>`;
+    }
+
+    function noticeBlock(task) {
+      return `<div class="notice-box"><div class="notice-label">Info</div><div class="notice-text">${task.content || ''}</div></div>`;
+    }
+
+    function warningBlock(task) {
+      return `<div class="warning-box"><div class="warning-label">Warning</div><div class="warning-text">${task.content || ''}</div></div>`;
     }
 
     function questionBlock(task, mine) {
@@ -152,6 +178,19 @@
       `;
     }
 
+    // Finds this section's position among its siblings within the same
+    // module, using the full plan (which has modules -> sections in order).
+    function findSectionContext(section) {
+      if (!currentPlan) return { index: -1, siblings: [], isLast: false, nextSection: null };
+      const module = currentPlan.modules.find((m) => m.id === section.moduleId);
+      if (!module) return { index: -1, siblings: [], isLast: false, nextSection: null };
+      const siblings = module.sections; // already ordered by the server
+      const index = siblings.findIndex((s) => s.id === section.id);
+      const isLast = index === siblings.length - 1;
+      const nextSection = isLast ? null : siblings[index + 1];
+      return { index, siblings, isLast, nextSection, moduleId: module.id };
+    }
+
     async function loadSection() {
       try {
         const section = await apiCall('/sections/' + sectionId);
@@ -165,6 +204,8 @@
 
         const blocksHtml = section.tasks.map((t) => {
           if (t.taskType === 'READING') return readingBlock(t);
+          if (t.taskType === 'NOTICE') return noticeBlock(t);
+          if (t.taskType === 'WARNING') return warningBlock(t);
           if (t.taskType === 'QUESTION') return questionBlock(t, mine);
           if (t.taskType === 'CHECKLIST') return checklistBlock(t, mine);
           if (t.taskType === 'MULTIPLE_CHOICE') return multipleChoiceBlock(t, mine);
@@ -172,20 +213,36 @@
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;
 
+        const { isLast, nextSection } = findSectionContext(section);
         const completeDiv = document.getElementById('completeSection');
-        if (section.completed) {
-          completeDiv.innerHTML = '<p style="color:#86efac; font-weight:600;">This section is complete.</p>';
-        } else if (!mine) {
+
+        if (!mine && !section.completed) {
           completeDiv.innerHTML = '<p class="not-yours">This section is assigned to someone else - only they (or an admin) can mark it complete.</p>';
+        } else if (section.completed) {
+          // Already done - just offer plain navigation, no re-validation needed.
+          if (isLast) {
+            completeDiv.innerHTML = '<p style="color:#86efac; font-weight:600;">This section is complete - it was the last one in this module.</p>';
+          } else if (nextSection) {
+            completeDiv.innerHTML = `<button onclick="goToSection('${nextSection.id}')">Next Section</button>`;
+          }
         } else {
+          // Not yet complete: one button, labeled for what happens next.
+          // Clicking it always tries to complete this section first - if
+          // anything's missing, the same warning list shows instead of
+          // letting them skip ahead.
+          const label = isLast ? 'Complete Module' : 'Next Section';
           completeDiv.innerHTML = `
-            <button onclick="completeSection()">Mark Section Complete</button>
+            <button onclick="completeAndAdvance()">${label}</button>
             <div id="missingList"></div>
           `;
         }
       } catch (err) {
         document.getElementById('message').textContent = err.message;
       }
+    }
+
+    function goToSection(id) {
+      window.location.href = '/section.html?id=' + id + '&planId=' + planId;
     }
 
     async function submitAnswer(taskId) {
@@ -221,17 +278,35 @@
       }
     }
 
-    async function completeSection() {
+    async function completeAndAdvance() {
+      const missingDiv = document.getElementById('missingList');
       try {
         await apiCall('/sections/' + sectionId + '/complete', { method: 'POST' });
-        loadSection();
       } catch (err) {
-        const missingDiv = document.getElementById('missingList');
         if (err.missing && missingDiv) {
-          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+          missingDiv.innerHTML = 'Still needed before you can continue: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
         } else {
           alert(err.message);
         }
+        return; // stop here - do not advance if the section wasn't actually ready
+      }
+
+      const { isLast, nextSection, moduleId } = findSectionContext(currentSection);
+
+      if (!isLast && nextSection) {
+        goToSection(nextSection.id);
+        return;
+      }
+
+      if (isLast) {
+        // Finishing the last section also completes the whole module -
+        // no separate trip back to the plan page needed just for that.
+        try {
+          await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
+        } catch (err) {
+          alert('Section completed, but the module could not be marked complete: ' + err.message);
+        }
+        window.location.href = '/plan.html?id=' + planId;
       }
     }
 

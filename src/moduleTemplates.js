@@ -19,7 +19,7 @@ function requireAdmin(req, res) {
   return true;
 }
 
-const VALID_TYPES = ['READING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
+const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
 
 function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
