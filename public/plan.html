@@ -4,70 +4,149 @@
   <meta charset="UTF-8">
   <title>Development Plan</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    h1 { font-size: 22px; margin: 0; }
-    a { color: #93c5fd; text-decoration: none; }
-    button {
-      padding: 8px 16px; background: #4f46e5; color: white; border: none;
-      border-radius: 6px; cursor: pointer; font-size: 14px;
+    :root {
+      --accent: #d6222a;
+      --accent-dark: #b71c23;
+      --bg: #f7f5f2;
+      --card: #ffffff;
+      --border: #e7e3dd;
+      --text: #1a1a1a;
+      --text-muted: #6b6560;
     }
-    button:hover { background: #4338ca; }
-    button:disabled { background: #374151; cursor: not-allowed; }
-    .module-row {
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+
+    .topbar {
       display: flex; justify-content: space-between; align-items: center;
-      background: #16213e; padding: 16px 20px; border-radius: 8px; margin-bottom: 8px;
+      background: #fff; border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
     }
-    .module-name { font-weight: 600; }
-    .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 10px; }
-    .tag-NOT_STARTED { background: #374151; color: #d1d5db; }
-    .tag-OPEN { background: #1e3a8a; color: #bfdbfe; }
-    .tag-COMPLETED { background: #14532d; color: #bbf7d0; }
-    .tag-LOCKED { background: #7f1d1d; color: #fecaca; }
-    .assessment-box {
-      background: #16213e; padding: 20px; border-radius: 8px; margin-top: 16px;
-      border: 1px solid #4f46e5;
+    .topbar .brand { font-weight: 700; font-size: 16px; }
+    .topbar .subbrand { color: var(--text-muted); font-size: 13px; }
+    .topbar .who { font-size: 14px; }
+    .topbar .who .role { color: var(--text-muted); }
+    .topbar .signout { margin-left: 20px; color: var(--text-muted); font-size: 14px; }
+
+    .page { max-width: 900px; margin: 0 auto; padding: 40px 32px 80px; }
+    .eyebrow { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+    h1.welcome { font-size: 40px; margin: 6px 0 4px; }
+    .subtitle { color: var(--text-muted); font-size: 16px; margin-bottom: 32px; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; margin-bottom: 20px; }
+    .hero-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .hero-title { font-size: 26px; font-weight: 700; margin: 6px 0 10px; }
+    .hero-desc { color: var(--text-muted); font-size: 15px; line-height: 1.5; margin-bottom: 20px; }
+
+    .tiles { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tile { background: #f4f2ee; border-radius: 10px; padding: 14px 18px; flex: 1; min-width: 160px; }
+    .tile .tile-label { color: var(--text-muted); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
+    .tile .tile-value { font-size: 17px; font-weight: 700; margin-top: 4px; }
+
+    button.cta {
+      padding: 13px 20px; background: var(--accent); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;
     }
+    button.cta:hover { background: var(--accent-dark); }
+    button { padding: 8px 14px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { background: #d8d3cc; color: #a39d94; cursor: not-allowed; }
+
+    .timeline-card { background: #eaf7ee; border: 1px solid #cdeed9; border-radius: 14px; padding: 18px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .timeline-card .tl-label { color: #1a7a3a; font-weight: 700; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .timeline-card .tl-day { color: #14532d; font-weight: 700; font-size: 17px; margin-top: 2px; }
+    .timeline-card .tl-dates { text-align: right; color: #1a7a3a; font-size: 13px; line-height: 1.6; }
+    .timeline-card.overdue { background: #fdecec; border-color: #f7c6c6; }
+    .timeline-card.overdue .tl-label, .timeline-card.overdue .tl-day, .timeline-card.overdue .tl-dates { color: #9b1c1c; }
+
+    .section-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; margin: 32px 0 4px; }
+    .section-title { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+
+    .item-row { display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; }
+    .item-row.current { border-color: var(--accent); background: #fff7f5; }
+    .item-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+    .item-icon.done { background: #dcf7e3; color: #1a7a3a; }
+    .item-icon.progress { background: #dbeafe; color: #1e40af; }
+    .item-icon.pending { background: #e9e5df; color: #8a8378; }
+    .item-icon.locked { background: #f3f0eb; color: #a39d94; }
+    .item-body { flex: 1; min-width: 0; }
+    .item-title { font-weight: 700; font-size: 15px; }
+    .item-desc { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+    .pill { display: inline-block; padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pill-done { background: #dcf7e3; color: #1a7a3a; }
+    .pill-progress { background: #dbeafe; color: #1e40af; }
+    .pill-pending { background: #e9e5df; color: #6b6560; }
+    .pill-locked { background: #fdecec; color: #9b1c1c; }
+    .item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    .module-detail { margin-top: 10px; padding-left: 40px; }
+    .task-checklist { margin-top: 6px; }
+    .task-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    .task-item.done { text-decoration: line-through; color: #a39d94; }
+
+    .assessment-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 16px; }
     .assessment-box h3 { margin-top: 0; }
-    .task-checklist { margin-top: 8px; padding-left: 8px; }
-    .task-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 14px; color: #ccc; }
-    .task-item input { width: auto; margin: 0; }
-    .task-item.done { color: #6b7280; text-decoration: line-through; }
-    .module-description { color: #9ca3af; font-size: 14px; margin: 6px 0 0 0; }
-    label { display: block; margin-top: 12px; font-size: 14px; color: #aaa; }
+    label { display: block; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
     input, select, textarea {
-      width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
-      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      width: 100%; padding: 9px; margin-top: 4px; border-radius: 6px;
+      border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
     }
-    .day-banner {
-      background: #713f12; color: #fef9c3; padding: 12px 20px; border-radius: 8px;
-      margin-bottom: 16px; font-weight: 600;
-    }
-    #message { color: #aaa; margin-top: 16px; }
-    .date-info { color: #93c5fd; font-size: 14px; margin-bottom: 16px; }
+    #message { color: var(--text-muted); margin-top: 16px; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1 id="pageTitle">Development Plan</h1>
-    <a href="/dashboard.html">&larr; Back to Dashboard</a>
+  <div class="topbar">
+    <div>
+      <div class="brand" id="brandName">Leadership Development</div>
+      <div class="subbrand" id="brandSub"></div>
+    </div>
+    <div style="display:flex; align-items:center;">
+      <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
+      <a class="signout" href="#" onclick="signOut()">Sign out</a>
+    </div>
   </div>
 
-  <div id="dateInfo" class="date-info"></div>
-  <div id="dayBanner"></div>
-  <div id="modulesList"></div>
-  <div id="assessmentSection"></div>
-  <div id="message"></div>
+  <div class="page">
+    <div class="eyebrow">Welcome</div>
+    <h1 class="welcome" id="welcomeName">Hello.</h1>
+    <div class="subtitle">Here's where you are in your development path.</div>
+
+    <div class="card" id="heroCard" style="display:none;">
+      <div class="hero-label">Pick up where you left off</div>
+      <div class="hero-title" id="heroTitle"></div>
+      <div class="hero-desc" id="heroDesc"></div>
+      <div class="tiles" id="heroTiles"></div>
+      <div id="heroAction"></div>
+    </div>
+
+    <div id="timelineCard"></div>
+
+    <div class="section-label">Your Path</div>
+    <div class="section-title">All modules</div>
+    <div id="modulesList"></div>
+    <div id="assessmentSection"></div>
+    <div id="message"></div>
+  </div>
 
   <script>
     const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/index.html';
 
     const params = new URLSearchParams(window.location.search);
     const planId = params.get('id');
 
     if (!planId) {
-      document.getElementById('message').textContent = 'No plan specified. Go back to the dashboard and pick a plan.';
+      document.getElementById('message').textContent = 'No plan specified. Go back to My Plans and pick a plan.';
+    }
+
+    document.getElementById('welcomeName').textContent = 'Hello, ' + (user.name ? user.name.split(' ')[0] : '') + '.';
+    document.getElementById('whoName').textContent = user.name || '';
+
+    function signOut() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/index.html';
     }
 
     async function apiCall(url, options = {}) {
@@ -84,32 +163,116 @@
       return data;
     }
 
-    function moduleRowHtml(module, planAssessments, allModules) {
+    function buildSequence(plan) {
+      const seq = [];
+      for (const m of plan.modules) {
+        seq.push({ type: 'module', data: m, label: `Module ${m.sequenceOrder}${m.title ? ' — ' + m.title : ''}`, done: m.status === 'COMPLETED' });
+        if (m.sequenceOrder === 4 || m.sequenceOrder === 8) {
+          const gate = m.sequenceOrder === 4 ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+          const review = plan.reviewSteps.find((r) => r.gatePosition === gate);
+          const label = m.sequenceOrder === 4 ? 'Study & Review — Modules 1-4' : 'Study & Review — Modules 5-8';
+          seq.push({ type: 'review', data: review, label, done: review ? review.status === 'COMPLETED' : false });
+          const assessment = plan.assessments.find((a) => a.gatePosition === gate);
+          const aLabel = m.sequenceOrder === 4 ? 'Assessment Part 1 — Modules 1-4' : 'Assessment Part 2 — Modules 5-8';
+          seq.push({ type: 'assessment', data: assessment, label: aLabel, done: assessment ? assessment.status === 'PASSED' : false });
+        }
+      }
+      return seq;
+    }
+
+    function pillFor(item) {
+      if (item.done) return { cls: 'pill-done', text: 'SIGNED OFF' };
+      if (item.type === 'module') {
+        if (item.data.status === 'LOCKED') return { cls: 'pill-locked', text: 'LOCKED' };
+        if (item.data.status === 'OPEN') return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'review') {
+        if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
+        return item.data.status === 'OPEN' ? { cls: 'pill-progress', text: 'AWAITING REVIEW' } : { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'assessment') {
+        if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
+        if (item.data.status === 'LOCKED_NEEDS_MEETING') return { cls: 'pill-locked', text: 'NEEDS MEETING' };
+        if (item.data.status === 'LOCKED_FINAL') return { cls: 'pill-locked', text: 'NEEDS ADMIN' };
+        if (['PENDING', 'IN_PROGRESS'].includes(item.data.status)) return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      return { cls: 'pill-pending', text: 'NOT STARTED' };
+    }
+
+    function iconFor(pill) {
+      if (pill.cls === 'pill-done') return { cls: 'done', glyph: '✓' };
+      if (pill.cls === 'pill-progress') return { cls: 'progress', glyph: '●' };
+      if (pill.cls === 'pill-locked') return { cls: 'locked', glyph: '🔒' };
+      return { cls: 'pending', glyph: '·' };
+    }
+
+    function renderHero(sequence, plan, isDeveloperHere, isAdmin) {
+      const current = sequence.find((item) => !item.done);
+      const heroCard = document.getElementById('heroCard');
+      if (!current) {
+        heroCard.style.display = 'block';
+        document.getElementById('heroTitle').textContent = 'All done!';
+        document.getElementById('heroDesc').textContent = 'Every module and assessment in this plan is complete.';
+        document.getElementById('heroTiles').innerHTML = '';
+        document.getElementById('heroAction').innerHTML = '';
+        return;
+      }
+      heroCard.style.display = 'block';
+      document.getElementById('heroTitle').textContent = current.label;
+      document.getElementById('heroDesc').textContent =
+        current.type === 'module' ? (current.data.description || 'Continue this module.') :
+        current.type === 'review' ? 'Review everything so far before the assessment.' :
+        'An assessment covering the modules in this block.';
+
+      const completedModules = plan.modules.filter((m) => m.status === 'COMPLETED').length;
+      document.getElementById('heroTiles').innerHTML = `
+        <div class="tile"><div class="tile-label">Modules Complete</div><div class="tile-value">${completedModules} of ${plan.modules.length}</div></div>
+        <div class="tile"><div class="tile-label">Developer</div><div class="tile-value">${plan.pairing.developer.name}</div></div>
+        <div class="tile"><div class="tile-label">Plan Status</div><div class="tile-value">${plan.status.replace('_', ' ')}</div></div>
+      `;
+
+      const actionDiv = document.getElementById('heroAction');
+      if (current.type === 'module') {
+        const m = current.data;
+        if (m.status === 'NOT_STARTED') {
+          actionDiv.innerHTML = `<button class="cta" onclick="openModule('${m.id}')">Start: ${current.label}</button>`;
+        } else if (m.status === 'OPEN') {
+          const incompleteSection = (m.sections || []).find((s) => !s.completed);
+          if (incompleteSection) {
+            actionDiv.innerHTML = `<a href="/section.html?id=${incompleteSection.id}&planId=${planId}"><button class="cta">Continue: ${incompleteSection.title}</button></a>`;
+          } else {
+            actionDiv.innerHTML = `<button class="cta" onclick="completeModule('${m.id}')">Mark Module Complete</button>`;
+          }
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This module is locked - see below for details.</p>`;
+        }
+      } else if (current.type === 'review') {
+        if (current.data) {
+          actionDiv.innerHTML = `<button class="cta" onclick="completeReviewStep('${current.data.id}')">Mark Reviewed</button>`;
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This unlocks once the module before it is complete.</p>`;
+        }
+      } else if (current.type === 'assessment') {
+        if (current.data && ['PENDING', 'IN_PROGRESS'].includes(current.data.status) && !isDeveloperHere && !isAdmin) {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>`;
+        } else if (current.data) {
+          actionDiv.innerHTML = `<a href="#assessmentSection"><button class="cta">Go to Assessment</button></a>`;
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This unlocks once the review before it is complete.</p>`;
+        }
+      }
+    }
+
+    function moduleDetailHtml(module) {
       let canOpen = module.status === 'NOT_STARTED';
-
-      // General sequencing rule, matching the server: module N (other
-      // than 1) needs module N-1 actually completed first.
-      if (canOpen && module.sequenceOrder > 1) {
-        const previousModule = allModules.find((m) => m.sequenceOrder === module.sequenceOrder - 1);
-        if (!previousModule || previousModule.status !== 'COMPLETED') {
-          canOpen = false;
-        }
-      }
-
-      // Module 5 has the additional midterm-assessment gate on top.
-      if (module.sequenceOrder === 5 && canOpen) {
-        const midterm = planAssessments.find((a) => a.gatePosition === 'AFTER_MODULE_4');
-        if (!midterm || midterm.status !== 'PASSED') {
-          canOpen = false;
-        }
-      }
-
       const canComplete = module.status === 'OPEN';
 
       const sectionListHtml = (module.sections && module.sections.length > 0) ? `
         <div class="task-checklist">
           ${module.sections.map((s) => `
-            <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}" style="text-decoration:none; display:block;">
+            <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}">
               ${s.completed ? '✓' : '○'} ${s.title}
             </a>
           `).join('')}
@@ -117,19 +280,36 @@
       ` : '';
 
       return `
-        <div class="module-row" style="flex-direction:column; align-items:stretch;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div>
-              <span class="module-name">Module ${module.sequenceOrder}${module.title ? ': ' + module.title : ''}</span>
-              <span class="tag tag-${module.status}">${module.status.replace('_', ' ')}</span>
-            </div>
-            <div>
-              <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
-              <button ${canComplete ? '' : 'disabled'} onclick="completeModule('${module.id}')">Mark Complete</button>
-            </div>
+        <div class="module-detail">
+          ${module.description ? `<div class="item-desc" style="margin-bottom:8px;">${module.description}</div>` : ''}
+          <div class="item-actions">
+            <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
+            <button ${canComplete ? '' : 'disabled'} onclick="completeModule('${module.id}')">Mark Complete</button>
           </div>
-          ${module.description ? `<p class="module-description">${module.description}</p>` : ''}
           ${sectionListHtml}
+        </div>
+      `;
+    }
+
+    function itemRowHtml(item, isCurrent) {
+      const pill = pillFor(item);
+      const icon = iconFor(pill);
+      let detail = '';
+      if (item.type === 'module') detail = moduleDetailHtml(item.data);
+      if (item.type === 'review' && item.data && item.data.status === 'OPEN') {
+        detail = `<div class="module-detail"><button onclick="completeReviewStep('${item.data.id}')">Mark Reviewed</button></div>`;
+      }
+
+      return `
+        <div>
+          <div class="item-row ${isCurrent ? 'current' : ''}">
+            <div class="item-icon ${icon.cls}">${icon.glyph}</div>
+            <div class="item-body">
+              <div class="item-title">${item.label}</div>
+            </div>
+            <span class="pill ${pill.cls}">${pill.text}</span>
+          </div>
+          ${detail}
         </div>
       `;
     }
@@ -138,49 +318,47 @@
       if (!assessment) return '';
       const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
       const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
-      const isAdmin = JSON.parse(localStorage.getItem('user')).isAdmin;
+      const isAdmin = user.isAdmin;
 
       if (assessment.status === 'LOCKED_NEEDS_MEETING') {
         return `
-          <div class="assessment-box">
+          <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
             <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
             <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
             ${isDeveloperHere || isAdmin
               ? `<button onclick="reopenAfterMeeting('${assessment.id}')">I've held the meeting - Reopen for attempt 3</button>`
-              : `<p style="color:#888;">Your developer needs to confirm the meeting happened before this can continue.</p>`}
+              : `<p style="color:var(--text-muted);">Your developer needs to confirm the meeting happened before this can continue.</p>`}
           </div>
         `;
       }
 
       if (assessment.status === 'LOCKED_FINAL') {
         return `
-          <div class="assessment-box">
+          <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
             <p>Status: <strong>Locked - Needs Admin</strong></p>
             <p>All attempts have failed. This requires admin resolution.</p>
             ${isAdmin
               ? `<button onclick="adminReopenForRetry('${assessment.id}')">Grant One More Attempt</button>
-                 <button style="margin-left:8px; background:#7f1d1d;" onclick="adminOverridePass('${assessment.id}')">Override to Pass</button>`
-              : `<p style="color:#888;">Only an admin can resolve this.</p>`}
+                 <button style="margin-left:8px; background:#9b1c1c;" onclick="adminOverridePass('${assessment.id}')">Override to Pass</button>`
+              : `<p style="color:var(--text-muted);">Only an admin can resolve this.</p>`}
           </div>
         `;
       }
 
       if (!gradeable) {
         return `
-          <div class="assessment-box">
+          <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
             <p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>
           </div>
         `;
       }
 
-      // It's gradeable, but only the developer (or an admin) actually
-      // grades it - a developee just sees that it's waiting on them.
       if (!isDeveloperHere && !isAdmin) {
         return `
-          <div class="assessment-box">
+          <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
             <p>Status: <strong>Waiting on your developer to grade this</strong></p>
           </div>
@@ -192,7 +370,7 @@
         : `Extra Attempt ${assessment.attemptCount + 1} (admin-granted)`;
 
       return `
-        <div class="assessment-box">
+        <div class="assessment-box" id="assessmentSection">
           <h3>${label} - ${attemptLabel}</h3>
           <label>Score (1-10)</label>
           <input type="number" id="score" min="1" max="10" value="5">
@@ -211,75 +389,54 @@
     async function loadPlan() {
       try {
         const plan = await apiCall('/plans/' + planId);
-        document.getElementById('pageTitle').textContent =
-          `Plan: ${plan.pairing.developee.name} (developed by ${plan.pairing.developer.name})`;
 
-        // Start/due dates and the reminder banner all key off startedAt -
-        // the moment module 1 was actually opened, not when the plan
-        // record itself was created.
-        const dateInfoDiv = document.getElementById('dateInfo');
-        const bannerDiv = document.getElementById('dayBanner');
+        document.getElementById('brandSub').textContent =
+          `${plan.pairing.developee.name}'s Plan · Developed by ${plan.pairing.developer.name}`;
 
+        const currentUserId = user.id;
+        const isDeveloperHere = plan.pairing.developer.id === currentUserId;
+        const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
+        document.getElementById('whoRole').textContent =
+          user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
+
+        const sequence = buildSequence(plan);
+        renderHero(sequence, plan, isDeveloperHere, user.isAdmin);
+
+        const timelineDiv = document.getElementById('timelineCard');
         if (!plan.startedAt) {
-          dateInfoDiv.textContent = 'Not started yet - the 40-day clock begins once Module 1 is opened.';
-          bannerDiv.innerHTML = '';
+          timelineDiv.innerHTML = `
+            <div class="timeline-card">
+              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Not started yet</div></div>
+              <div class="tl-dates">The 40-day clock begins once Module 1 is opened.</div>
+            </div>
+          `;
         } else {
           const startDate = new Date(plan.startedAt);
-          const dueDate = new Date(startDate.getTime() + 40 * 24 * 60 * 60 * 1000);
-          dateInfoDiv.textContent = `Start Date: ${startDate.toLocaleDateString()}  |  Due Date: ${dueDate.toLocaleDateString()}`;
-
-          if (plan.status === 'IN_PROGRESS') {
-            const daysElapsed = Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
-            if (daysElapsed >= 40) {
-              bannerDiv.innerHTML = `<div class="day-banner" style="background:#7f1d1d; color:#fecaca;">This plan is past its 40-day mark (day ${daysElapsed}) and is not yet complete.</div>`;
-            } else if (daysElapsed >= 30) {
-              bannerDiv.innerHTML = `<div class="day-banner">Reminder: this development plan is due within ${40 - daysElapsed} day(s) (day ${daysElapsed} of 40).</div>`;
-            } else {
-              bannerDiv.innerHTML = '';
-            }
-          } else {
-            bannerDiv.innerHTML = '';
-          }
+          const goalDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const maxDate = new Date(startDate.getTime() + 40 * 24 * 60 * 60 * 1000);
+          const daysElapsed = Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
+          const overdue = plan.status === 'IN_PROGRESS' && daysElapsed >= 40;
+          timelineDiv.innerHTML = `
+            <div class="timeline-card ${overdue ? 'overdue' : ''}">
+              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Day ${daysElapsed} of 30${overdue ? ' — past the 40-day max' : ''}</div></div>
+              <div class="tl-dates">
+                <div><strong>30-day goal:</strong> ${goalDate.toLocaleDateString()}</div>
+                <div><strong>40-day max:</strong> ${maxDate.toLocaleDateString()}</div>
+              </div>
+            </div>
+          `;
         }
 
-        document.getElementById('modulesList').innerHTML = plan.modules.map((m) => {
-          let row = moduleRowHtml(m, plan.assessments, plan.modules);
-          if (m.sequenceOrder === 4) {
-            const review = plan.reviewSteps.find((r) => r.gatePosition === 'AFTER_MODULE_4');
-            row += reviewStepHtml(review, 'Study and Review (Modules 1-4)');
-          }
-          if (m.sequenceOrder === 8) {
-            const review = plan.reviewSteps.find((r) => r.gatePosition === 'AFTER_MODULE_8');
-            row += reviewStepHtml(review, 'Study and Review (Modules 5-8)');
-          }
-          return row;
-        }).join('');
+        const currentItem = sequence.find((item) => !item.done);
+        document.getElementById('modulesList').innerHTML = sequence.map((item) =>
+          itemRowHtml(item, item === currentItem)
+        ).join('');
 
-        // Find the assessment that's currently relevant (not yet PASSED)
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
-        const currentUserId = JSON.parse(localStorage.getItem('user')).id;
-        const isDeveloperHere = plan.pairing.developer.id === currentUserId;
         document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere);
       } catch (err) {
         document.getElementById('message').textContent = err.message;
       }
-    }
-
-    function reviewStepHtml(reviewStep, label) {
-      if (!reviewStep) return '';
-      if (reviewStep.status === 'COMPLETED') {
-        return `
-          <div class="module-row">
-            <div><span class="module-name">${label}</span> <span class="tag tag-COMPLETED">COMPLETED</span></div>
-          </div>
-        `;
-      }
-      return `
-        <div class="module-row">
-          <div><span class="module-name">${label}</span> <span class="tag tag-OPEN">OPEN</span></div>
-          <div><button onclick="completeReviewStep('${reviewStep.id}')">Mark Reviewed</button></div>
-        </div>
-      `;
     }
 
     async function completeReviewStep(reviewStepId) {
