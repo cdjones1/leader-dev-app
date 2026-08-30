@@ -159,15 +159,39 @@ model Module {
   @@unique([planId, sequenceOrder]) // no duplicate module numbers within a plan
 
   events        ModuleEvent[]
-  tasks         ModuleTask[]
+  sections      ModuleSection[]
 }
 
 // ------------------------------------------------------------
-// MODULE TASKS — each one is its own page. Four types:
-// READING (just content), QUESTION (open-ended, locks on submit,
-// reveals reference answer), CHECKLIST (a set of sub-items to
-// check off), MULTIPLE_CHOICE (auto-graded on submit).
-// Copied from the template when the plan is created.
+// MODULE SECTIONS — each one is its own page, holding a group of
+// tasks. Completed with ONE action at the end of the page, not
+// per-task - readings just display, questions/checklists/multiple-
+// choice still capture their own data but don't need a separate
+// "mark complete" click on top of submitting/answering.
+// ------------------------------------------------------------
+enum AssignedRole {
+  DEVELOPER
+  DEVELOPEE
+}
+
+model ModuleSection {
+  id          String    @id @default(uuid())
+  moduleId    String
+  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  order       Int
+  title       String
+  assignedTo  AssignedRole @default(DEVELOPEE) // who completes this whole section
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  tasks ModuleTask[]
+}
+
+// ------------------------------------------------------------
+// TASKS within a section. Four types: READING (just content, no
+// individual completion), QUESTION (locks on submit, reveals
+// reference answer), CHECKLIST (sub-items to check off),
+// MULTIPLE_CHOICE (auto-graded on submit).
 // ------------------------------------------------------------
 enum TaskType {
   READING
@@ -176,27 +200,15 @@ enum TaskType {
   MULTIPLE_CHOICE
 }
 
-// Who is actually responsible for completing this task - most tasks
-// are for the developee, but some (check-ins, prep before a meeting,
-// observations) are the developer's own responsibility.
-enum AssignedRole {
-  DEVELOPER
-  DEVELOPEE
-}
-
 model ModuleTask {
   id              String    @id @default(uuid())
-  moduleId        String
-  module          Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  sectionId       String
+  section         ModuleSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   order           Int
-  section         String?   // optional grouping label, e.g. "Reading Materials" - purely for display
-  text            String    // short title shown in the checklist
+  text            String    // short title
   content         String    @default("") // reading material / the question itself
   taskType        TaskType  @default(READING)
-  assignedTo      AssignedRole @default(DEVELOPEE)
   correctAnswer   String?   // QUESTION only - NEVER sent to the browser until submitted
-  completed       Boolean   @default(false)
-  completedAt     DateTime?
   submittedAnswer String?   // QUESTION - the developee's locked-in answer
   submittedAt     DateTime? // QUESTION - once set, can never be changed again
   selectedOptionId String?  // MULTIPLE_CHOICE - which option they picked, locked in
@@ -241,19 +253,28 @@ model ModuleTemplate {
   title         String
   description   String
 
+  sectionTemplates ModuleSectionTemplate[]
+}
+
+model ModuleSectionTemplate {
+  id               String         @id @default(uuid())
+  moduleTemplateId String
+  moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id], onDelete: Cascade)
+  order            Int
+  title            String
+  assignedTo       AssignedRole @default(DEVELOPEE)
+
   taskTemplates ModuleTaskTemplate[]
 }
 
 model ModuleTaskTemplate {
   id               String         @id @default(uuid())
-  moduleTemplateId String
-  moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id])
+  sectionTemplateId String
+  sectionTemplate  ModuleSectionTemplate @relation(fields: [sectionTemplateId], references: [id], onDelete: Cascade)
   order            Int
-  section          String?
   text             String
   content          String   @default("")
   taskType         TaskType @default(READING)
-  assignedTo       AssignedRole @default(DEVELOPEE)
   correctAnswer    String?
 
   checklistItemTemplates ChecklistItemTemplate[]

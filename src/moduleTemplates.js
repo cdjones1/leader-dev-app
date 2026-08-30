@@ -1,10 +1,9 @@
 // ============================================================
 // MODULE TEMPLATE ROUTES
-// Admin-only. Defines the reusable content (title, description,
-// task checklist) for each of the 8 module "slots." Every new
-// plan copies this content into its own Module records at
-// creation time - editing a template later never changes plans
-// already in progress.
+// Admin-only. Defines the reusable content for each of the 8
+// module "slots" - now organized as SECTIONS (each its own page
+// once copied into a real plan), each holding a group of tasks.
+// Editing a template later never changes plans already in progress.
 // ============================================================
 const express = require('express');
 const prisma = require('./db');
@@ -22,14 +21,9 @@ function requireAdmin(req, res) {
 
 const VALID_TYPES = ['READING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
 
-// Checks that the sub-content for a task actually matches its type,
-// and returns a clear error if not - used by both create and update.
-function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo }) {
+function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
-  }
-  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
-    return 'assignedTo must be DEVELOPER or DEVELOPEE';
   }
   if (taskType === 'QUESTION' && !correctAnswer) {
     return 'A QUESTION task needs a correctAnswer for it to be gradeable';
@@ -51,17 +45,22 @@ function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOpti
   return null;
 }
 
-// List all 8 templates (however many exist so far) with their tasks.
+// List all 8 templates with their sections and each section's tasks.
 router.get('/', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const templates = await prisma.moduleTemplate.findMany({
     include: {
-      taskTemplates: {
+      sectionTemplates: {
         orderBy: { order: 'asc' },
         include: {
-          checklistItemTemplates: { orderBy: { order: 'asc' } },
-          choiceOptionTemplates: { orderBy: { order: 'asc' } },
+          taskTemplates: {
+            orderBy: { order: 'asc' },
+            include: {
+              checklistItemTemplates: { orderBy: { order: 'asc' } },
+              choiceOptionTemplates: { orderBy: { order: 'asc' } },
+            },
+          },
         },
       },
     },
@@ -94,18 +93,21 @@ router.put('/:sequenceOrder', requireAuth, async (req, res) => {
   res.json(template);
 });
 
-// Add one task to a template. checklistItems: [{text}], choiceOptions: [{text, isCorrect}].
-router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
+// --------------------------------------------------------------
+// SECTIONS - each becomes its own page once copied into a real plan.
+// --------------------------------------------------------------
+
+// Add a section to a module template.
+router.post('/:sequenceOrder/sections', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section } = req.body;
-  if (!text) {
-    return res.status(400).json({ error: 'text is required' });
+  const { title, assignedTo } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: 'title is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo });
-  if (shapeError) {
-    return res.status(400).json({ error: shapeError });
+  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
+    return res.status(400).json({ error: 'assignedTo must be DEVELOPER or DEVELOPEE' });
   }
 
   const template = await prisma.moduleTemplate.findUnique({ where: { sequenceOrder } });
@@ -113,17 +115,84 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'No template exists yet for this module - create it first with PUT' });
   }
 
-  const existingCount = await prisma.moduleTaskTemplate.count({ where: { moduleTemplateId: template.id } });
+  const existingCount = await prisma.moduleSectionTemplate.count({ where: { moduleTemplateId: template.id } });
 
-  const task = await prisma.moduleTaskTemplate.create({
+  const section = await prisma.moduleSectionTemplate.create({
     data: {
       moduleTemplateId: template.id,
       order: existingCount + 1,
-      section: section || null,
+      title,
+      assignedTo: assignedTo || 'DEVELOPEE',
+    },
+  });
+
+  res.status(201).json(section);
+});
+
+// Update a section's title/assignment.
+router.put('/sections/:sectionId', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { title, assignedTo } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: 'title is required' });
+  }
+  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
+    return res.status(400).json({ error: 'assignedTo must be DEVELOPER or DEVELOPEE' });
+  }
+
+  const existing = await prisma.moduleSectionTemplate.findUnique({ where: { id: req.params.sectionId } });
+  if (!existing) {
+    return res.status(404).json({ error: 'Section not found' });
+  }
+
+  const updated = await prisma.moduleSectionTemplate.update({
+    where: { id: req.params.sectionId },
+    data: { title, assignedTo: assignedTo || 'DEVELOPEE' },
+  });
+
+  res.json(updated);
+});
+
+// Remove a section entirely (cascades its tasks).
+router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  await prisma.moduleSectionTemplate.delete({ where: { id: req.params.sectionId } });
+  res.status(204).send();
+});
+
+// --------------------------------------------------------------
+// TASKS - now created within a specific section, not directly
+// under a module.
+// --------------------------------------------------------------
+
+router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'text is required' });
+  }
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  if (shapeError) {
+    return res.status(400).json({ error: shapeError });
+  }
+
+  const section = await prisma.moduleSectionTemplate.findUnique({ where: { id: req.params.sectionId } });
+  if (!section) {
+    return res.status(404).json({ error: 'Section not found' });
+  }
+
+  const existingCount = await prisma.moduleTaskTemplate.count({ where: { sectionTemplateId: section.id } });
+
+  const task = await prisma.moduleTaskTemplate.create({
+    data: {
+      sectionTemplateId: section.id,
+      order: existingCount + 1,
       text,
       content: content || '',
       taskType: taskType || 'READING',
-      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });
@@ -152,18 +221,15 @@ router.post('/:sequenceOrder/tasks', requireAuth, async (req, res) => {
   res.status(201).json(task);
 });
 
-// Update an existing task. Sub-items (checklist items / choice options)
-// are fully replaced on every update, matching the "edit reloads the
-// whole form, resubmit replaces it" pattern already used for the main
-// task fields.
+// Update an existing task. Sub-items are fully replaced on every update.
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section } = req.body;
+  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions, assignedTo });
+  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -177,15 +243,12 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
     where: { id: req.params.taskId },
     data: {
       text,
-      section: section || null,
       content: content || '',
       taskType: taskType || 'READING',
-      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });
 
-  // Replace all sub-items with whatever was just submitted.
   await prisma.checklistItemTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
   await prisma.choiceOptionTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
 
@@ -213,7 +276,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-// Remove one task from a template's checklist.
+// Remove one task.
 router.delete('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Section</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h1 { font-size: 20px; margin: 0; }
+    a { color: #93c5fd; text-decoration: none; }
+    .task-block { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+    .task-block h3 { margin-top: 0; font-size: 15px; }
+    .content-box { color: #d1d5db; line-height: 1.6; white-space: pre-wrap; margin: 10px 0; }
+    button {
+      padding: 9px 16px; background: #4f46e5; color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #374151; cursor: not-allowed; }
+    textarea, input[type="text"] {
+      width: 100%; padding: 9px; margin-top: 6px; border-radius: 6px;
+      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      font-family: inherit;
+    }
+    .answer-box { background: #0f172a; padding: 12px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; }
+    .your-answer { border-left: 3px solid #4f46e5; }
+    .correct-answer { border-left: 3px solid #16a34a; margin-top: 10px; }
+    .label { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+    .locked-note { color: #888; font-size: 13px; margin-top: 6px; }
+    .task-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .task-item.done { color: #6b7280; text-decoration: line-through; }
+    #completeSection { margin-top: 24px; padding: 16px; background: #16213e; border-radius: 8px; }
+    #missingList { color: #f59e0b; font-size: 13px; margin-top: 8px; }
+    #message { color: #f87171; margin-top: 12px; }
+    .not-yours { color: #f59e0b; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1 id="pageTitle">Loading...</h1>
+    <a id="backLink" href="/dashboard.html">&larr; Back to Plan</a>
+  </div>
+
+  <div id="tasksContainer"></div>
+  <div id="completeSection"></div>
+  <div id="message"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const sectionId = params.get('id');
+    const planId = params.get('planId');
+    if (planId) document.getElementById('backLink').href = '/plan.html?id=' + planId;
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(options.headers || {}) },
+      });
+      const data = await res.json();
+      if (!res.ok) { const err = new Error(data.error || 'Request failed'); err.missing = data.missing; throw err; }
+      return data;
+    }
+
+    let currentPlan = null;
+    let currentSection = null;
+
+    function isMySection(section) {
+      if (user.isAdmin) return true;
+      if (!currentPlan) return true; // fail open on viewing - server still enforces the real rule
+      const myId = user.id;
+      if (section.assignedTo === 'DEVELOPER') return currentPlan.pairing.developer.id === myId;
+      return currentPlan.pairing.developee.id === myId;
+    }
+
+    function readingBlock(task) {
+      return `<div class="task-block"><h3>${task.text}</h3><div class="content-box">${task.content || '(No content written yet.)'}</div></div>`;
+    }
+
+    function questionBlock(task, mine) {
+      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      if (!task.submittedAt) {
+        if (!mine) {
+          return `<div class="task-block"><h3>${task.text}</h3>${contentHtml}<p class="not-yours">Not your task to answer.</p></div>`;
+        }
+        return `
+          <div class="task-block">
+            <h3>${task.text}</h3>
+            ${contentHtml}
+            <textarea id="answer-${task.id}" rows="4" placeholder="Your answer..."></textarea>
+            <div class="locked-note">Locks permanently once submitted.</div>
+            <button style="margin-top:8px;" onclick="submitAnswer('${task.id}')">Submit Answer</button>
+          </div>
+        `;
+      }
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${contentHtml}
+          <div class="answer-box your-answer"><div class="label">Submitted Answer</div>${task.submittedAnswer}</div>
+          <div class="answer-box correct-answer"><div class="label">Correct Answer</div>${task.correctAnswer}</div>
+        </div>
+      `;
+    }
+
+    function checklistBlock(task, mine) {
+      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      const itemsHtml = task.checklistItems.map((item) => `
+        <label class="task-item ${item.completed ? 'done' : ''}">
+          <input type="checkbox" ${item.completed ? 'checked' : ''} ${mine ? '' : 'disabled'} onchange="toggleChecklistItem('${item.id}')">
+          ${item.text}
+        </label>
+      `).join('');
+      return `<div class="task-block"><h3>${task.text}</h3>${contentHtml}<div>${itemsHtml}</div>${mine ? '' : '<p class="not-yours">Not your task to check off.</p>'}</div>`;
+    }
+
+    function multipleChoiceBlock(task, mine) {
+      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      if (!task.selectedOptionId) {
+        if (!mine) {
+          const optsHtml = task.choiceOptions.map((o) => `<div style="padding:4px 0;">${o.text}</div>`).join('');
+          return `<div class="task-block"><h3>${task.text}</h3>${contentHtml}<div>${optsHtml}</div><p class="not-yours">Not your task to answer.</p></div>`;
+        }
+        const optsHtml = task.choiceOptions.map((o) => `
+          <label class="task-item"><input type="radio" name="mc-${task.id}" value="${o.id}">${o.text}</label>
+        `).join('');
+        return `
+          <div class="task-block">
+            <h3>${task.text}</h3>
+            ${contentHtml}
+            <div>${optsHtml}</div>
+            <div class="locked-note">Locks permanently once submitted.</div>
+            <button style="margin-top:8px;" onclick="submitChoice('${task.id}')">Submit Answer</button>
+          </div>
+        `;
+      }
+      const resultHtml = task.choiceOptions.map((o) => {
+        const isMine = o.id === task.selectedOptionId;
+        const style = o.isCorrect ? 'color:#86efac; font-weight:600;' : (isMine ? 'color:#f87171;' : 'color:#9ca3af;');
+        return `<div style="padding:4px 0; ${style}">${isMine ? '→ ' : '　 '}${o.text}${o.isCorrect ? ' (correct)' : ''}</div>`;
+      }).join('');
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${contentHtml}
+          <div>${resultHtml}</div>
+          <p style="margin-top:8px; font-weight:600; color:${task.isCorrect ? '#86efac' : '#f87171'};">${task.isCorrect ? 'Correct!' : 'Incorrect.'}</p>
+        </div>
+      `;
+    }
+
+    async function loadSection() {
+      try {
+        const section = await apiCall('/sections/' + sectionId);
+        currentSection = section;
+        if (planId) {
+          try { currentPlan = await apiCall('/plans/' + planId); } catch (e) { currentPlan = null; }
+        }
+
+        document.getElementById('pageTitle').textContent = section.title;
+        const mine = isMySection(section);
+
+        const blocksHtml = section.tasks.map((t) => {
+          if (t.taskType === 'READING') return readingBlock(t);
+          if (t.taskType === 'QUESTION') return questionBlock(t, mine);
+          if (t.taskType === 'CHECKLIST') return checklistBlock(t, mine);
+          if (t.taskType === 'MULTIPLE_CHOICE') return multipleChoiceBlock(t, mine);
+          return '';
+        }).join('');
+        document.getElementById('tasksContainer').innerHTML = blocksHtml;
+
+        const completeDiv = document.getElementById('completeSection');
+        if (section.completed) {
+          completeDiv.innerHTML = '<p style="color:#86efac; font-weight:600;">This section is complete.</p>';
+        } else if (!mine) {
+          completeDiv.innerHTML = '<p class="not-yours">This section is assigned to someone else - only they (or an admin) can mark it complete.</p>';
+        } else {
+          completeDiv.innerHTML = `
+            <button onclick="completeSection()">Mark Section Complete</button>
+            <div id="missingList"></div>
+          `;
+        }
+      } catch (err) {
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function submitAnswer(taskId) {
+      const answer = document.getElementById('answer-' + taskId).value;
+      if (!answer.trim()) { alert('Please write an answer first.'); return; }
+      if (!confirm('This locks permanently once submitted. Continue?')) return;
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/submit-answer', { method: 'POST', body: JSON.stringify({ answer }) });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function toggleChecklistItem(itemId) {
+      try {
+        await apiCall('/modules/tasks/checklist-items/' + itemId + '/toggle', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function submitChoice(taskId) {
+      const selected = document.querySelector(`input[name="mc-${taskId}"]:checked`);
+      if (!selected) { alert('Please select an answer first.'); return; }
+      if (!confirm('This locks permanently once submitted. Continue?')) return;
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/submit-choice', { method: 'POST', body: JSON.stringify({ optionId: selected.value }) });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function completeSection() {
+      try {
+        await apiCall('/sections/' + sectionId + '/complete', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        const missingDiv = document.getElementById('missingList');
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
+    if (sectionId) loadSection();
+    else document.getElementById('message').textContent = 'No section specified.';
+  </script>
+</body>
+</html>

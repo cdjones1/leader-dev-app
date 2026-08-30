@@ -30,46 +30,15 @@ function stripHiddenAnswers(task) {
 }
 
 // --------------------------------------------------------------
-// TOGGLE a task's checked state. Only for READING tasks - the
-// other three types complete themselves in their own specific way
-// (submitting an answer, checking off every sub-item, picking an option).
-// --------------------------------------------------------------
-router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
-  const task = await prisma.moduleTask.findUnique({
-    where: { id: req.params.taskId },
-    include: { module: true },
-  });
-  if (!task) {
-    return res.status(404).json({ error: 'Task not found' });
-  }
-  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
-  if (task.taskType !== 'READING') {
-    return res.status(400).json({ error: 'Only reading tasks can be toggled directly' });
-  }
-
-  const updated = await prisma.moduleTask.update({
-    where: { id: task.id },
-    data: {
-      completed: !task.completed,
-      completedAt: !task.completed ? new Date() : null,
-    },
-  });
-
-  res.json(stripHiddenAnswers(updated));
-});
-
-// --------------------------------------------------------------
-// A single task's own page - includes checklist items and choice
-// options, with hidden answers stripped per stripHiddenAnswers above.
-// Viewing is open to any plan participant (or admin) regardless of
-// who it's assigned to - only ACTING on the task is role-restricted.
+// A single task's own data (used inside a section's page) -
+// includes checklist items and choice options, with hidden
+// answers stripped per stripHiddenAnswers above.
 // --------------------------------------------------------------
 router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
     include: {
-      module: true,
+      section: { include: { module: true } },
       checklistItems: { orderBy: { order: 'asc' } },
       choiceOptions: { orderBy: { order: 'asc' } },
     },
@@ -77,7 +46,7 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
+  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
 
   res.json(stripHiddenAnswers(task));
 });
@@ -88,13 +57,13 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
 router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
-    include: { module: true },
+    include: { section: { include: { module: true } } },
   });
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
+  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.section.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
   }
@@ -110,62 +79,50 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   const now = new Date();
   const updated = await prisma.moduleTask.update({
     where: { id: task.id },
-    data: { submittedAnswer: answer, submittedAt: now, completed: true, completedAt: now },
+    data: { submittedAnswer: answer, submittedAt: now },
   });
 
   res.json(updated); // safe to include correctAnswer now - this IS the reveal moment
 });
 
 // --------------------------------------------------------------
-// TOGGLE one checklist item within a CHECKLIST task. Whenever this
-// changes, the parent task's own "completed" status is recomputed:
-// complete only once every sub-item is checked.
+// TOGGLE one checklist item within a CHECKLIST task.
 // --------------------------------------------------------------
 router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, res) => {
   const item = await prisma.taskChecklistItem.findUnique({
     where: { id: req.params.itemId },
-    include: { moduleTask: { include: { module: true } } },
+    include: { moduleTask: { include: { section: { include: { module: true } } } } },
   });
   if (!item) {
     return res.status(404).json({ error: 'Checklist item not found' });
   }
-  if (!(await checkPlanAccess(req, res, item.moduleTask.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, item.moduleTask.module.planId, item.moduleTask.assignedTo))) return;
+  const planId = item.moduleTask.section.module.planId;
+  if (!(await checkPlanAccess(req, res, planId))) return;
+  if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.section.assignedTo))) return;
 
   const now = new Date();
-  await prisma.taskChecklistItem.update({
+  const updatedItem = await prisma.taskChecklistItem.update({
     where: { id: item.id },
     data: { completed: !item.completed, completedAt: !item.completed ? now : null },
   });
 
-  // Recompute the parent task's completed status from all its items.
-  const allItems = await prisma.taskChecklistItem.findMany({ where: { moduleTaskId: item.moduleTaskId } });
-  const allDone = allItems.every((i) => i.completed);
-
-  const updatedTask = await prisma.moduleTask.update({
-    where: { id: item.moduleTaskId },
-    data: { completed: allDone, completedAt: allDone ? now : null },
-    include: { checklistItems: { orderBy: { order: 'asc' } } },
-  });
-
-  res.json(updatedTask);
+  res.json(updatedItem);
 });
 
 // --------------------------------------------------------------
 // SUBMIT a choice for a MULTIPLE_CHOICE task. Locks in permanently
-// and is graded automatically right at submission time - no
-// separate grading step, no waiting on a person to review it.
+// and is graded automatically right at submission time.
 // --------------------------------------------------------------
 router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
-    include: { module: true, choiceOptions: true },
+    include: { section: { include: { module: true } }, choiceOptions: true },
   });
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.module.planId, task.assignedTo))) return;
+  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.section.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
   }
@@ -179,14 +136,11 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'optionId does not match one of this task\'s choices' });
   }
 
-  const now = new Date();
   const updated = await prisma.moduleTask.update({
     where: { id: task.id },
     data: {
       selectedOptionId: optionId,
       isCorrect: chosenOption.isCorrect, // graded automatically, right now, from the stored correct option
-      completed: true,
-      completedAt: now,
     },
     include: { choiceOptions: { orderBy: { order: 'asc' } } },
   });

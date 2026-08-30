@@ -8,12 +8,14 @@
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     h1 { font-size: 22px; margin: 0; }
     a { color: #93c5fd; text-decoration: none; }
-    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
-    .card h2 { margin-top: 0; font-size: 16px; }
+    .module-card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+    .module-card h2 { margin-top: 0; font-size: 16px; }
+    .section-card { background: #0f172a; padding: 14px; border-radius: 6px; margin-top: 12px; }
+    .section-card h3 { margin: 0 0 8px 0; font-size: 14px; color: #93c5fd; }
     label { display: block; margin-top: 10px; font-size: 13px; color: #aaa; }
-    input, textarea {
+    input, textarea, select {
       width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
-      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      border: 1px solid #333; background: #16213e; color: #eee; box-sizing: border-box;
       font-family: inherit;
     }
     button {
@@ -21,12 +23,13 @@
       border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
     }
     button:hover { background: #4338ca; }
-    .task-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #2a2a4a; }
+    .task-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #1e293b; }
     .task-row:last-child { border-bottom: none; }
     .task-row button { background: #7f1d1d; margin: 0; flex-shrink: 0; }
     .task-meta { color: #888; font-size: 12px; margin-top: 2px; }
-    .add-task-box { margin-top: 12px; padding: 12px; background: #0f172a; border-radius: 6px; }
+    .add-box { margin-top: 10px; padding: 10px; background: #16213e; border-radius: 6px; }
     .saved-note { color: #86efac; font-size: 12px; margin-left: 10px; }
+    .add-section-box { margin-top: 12px; padding: 10px; background: #0f172a; border: 1px dashed #333; border-radius: 6px; }
   </style>
 </head>
 <body>
@@ -34,7 +37,7 @@
     <h1>Module Content</h1>
     <a href="/dashboard.html">&larr; Back to Dashboard</a>
   </div>
-  <p style="color:#888;">Define the title, description, and checklist for each of the 8 modules. Every new plan copies this content when it's created - editing here won't change plans already in progress.</p>
+  <p style="color:#888;">Each module is built from sections - a section is its own page for whoever completes it, and marks itself done with one action at the end. Editing here only affects plans created after your changes.</p>
 
   <div id="templatesContainer">Loading...</div>
 
@@ -58,188 +61,110 @@
       return data;
     }
 
-    // Groups a list of tasks by their "section" label, preserving the
-    // order sections first appear in. Tasks with no section land in
-    // their own unlabeled group, rendered without a header.
-    function groupBySection(tasks) {
-      const groups = [];
-      const bySection = {};
-      for (const t of tasks) {
-        const key = t.section || '';
-        if (!bySection[key]) {
-          bySection[key] = { section: t.section || null, tasks: [] };
-          groups.push(bySection[key]);
-        }
-        bySection[key].tasks.push(t);
-      }
-      return groups;
-    }
+    let templatesBySeq = {};
+    let editingTaskId = {}; // keyed by sectionId
 
-    function templateCardHtml(seq, template) {
-      const title = template ? template.title : '';
-      const description = template ? template.description : '';
-      const tasks = template ? template.taskTemplates : [];
+    // ---------- Rendering ----------
 
-      const taskRows = groupBySection(tasks).map((group) => `
-        ${group.section ? `<div style="color:#93c5fd; font-size:12px; font-weight:600; margin-top:12px; text-transform:uppercase;">${group.section}</div>` : ''}
-        ${group.tasks.map((t) => `
-          <div class="task-row">
-            <div>
-              <strong>${t.text}</strong> <span class="task-meta">(${t.taskType}, assigned to ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
-              ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
-              ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
-              ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
-              ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
-            </div>
-            <div style="display:flex; gap:6px;">
-              <button style="background:#374151;" onclick='editTask(${seq}, ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
-              <button onclick="removeTask('${t.id}', ${seq})">Remove</button>
-            </div>
-          </div>
-        `).join('')}
-      `).join('');
-
+    function taskRowHtml(sectionId, t) {
       return `
-        <div class="card">
-          <h2>Module ${seq}</h2>
-          <label>Title</label>
-          <input type="text" id="title-${seq}" value="${title.replace(/"/g, '&quot;')}">
-          <label>Description</label>
-          <textarea id="description-${seq}" rows="2">${description}</textarea>
-          <button onclick="saveTemplate(${seq})">Save Title/Description</button>
-          <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
-
-          <label style="margin-top:16px;">Tasks</label>
-          <div id="tasks-${seq}">${taskRows}</div>
-
-          <div class="add-task-box">
-            <div id="formLabel-${seq}" style="color:#93c5fd; font-size:13px; margin-bottom:4px;">New Task</div>
-            <label>Task Title</label>
-            <input type="text" id="newTaskText-${seq}" placeholder="e.g. Read Chapter 1">
-            <label>Section (optional grouping label, e.g. "Reading Materials")</label>
-            <input type="text" id="newTaskSection-${seq}" placeholder="Leave blank for no section">
-            <label>Assigned To</label>
-            <select id="newTaskAssignedTo-${seq}">
-              <option value="DEVELOPEE">Developee (the person being developed)</option>
-              <option value="DEVELOPER">Developer (the one doing the developing)</option>
-            </select>
-            <label>Task Type</label>
-            <select id="newTaskType-${seq}" onchange="onTypeChange(${seq})">
-              <option value="READING">Reading (just read/mark complete)</option>
-              <option value="QUESTION">Question (open-ended, locked on submit)</option>
-              <option value="CHECKLIST">Checklist (multiple sub-items to check off)</option>
-              <option value="MULTIPLE_CHOICE">Multiple Choice (auto-graded)</option>
-            </select>
-            <label>Content (what they'll read on this task's page)</label>
-            <textarea id="newTaskContent-${seq}" rows="3" placeholder="The reading material or the question itself..."></textarea>
-            <div id="answerField-${seq}" style="display:none;">
-              <label>Correct Answer (revealed to them after they submit their own answer)</label>
-              <textarea id="newTaskAnswer-${seq}" rows="2"></textarea>
-            </div>
-            <div id="checklistField-${seq}" style="display:none;">
-              <label>Checklist Items</label>
-              <div id="checklistItems-${seq}"></div>
-              <button type="button" style="background:#374151;" onclick="addChecklistRow(${seq})">+ Add Item</button>
-            </div>
-            <div id="choicesField-${seq}" style="display:none;">
-              <label>Answer Choices (mark the one correct answer)</label>
-              <div id="choiceOptions-${seq}"></div>
-              <button type="button" style="background:#374151;" onclick="addChoiceRow(${seq})">+ Add Option</button>
-            </div>
-            <button id="saveTaskBtn-${seq}" onclick="addTask(${seq})">Add Task</button>
-            <button id="cancelEditBtn-${seq}" style="display:none; background:#374151;" onclick="cancelEdit(${seq})">Cancel Edit</button>
+        <div class="task-row">
+          <div>
+            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType})</span>
+            ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
+            ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
+            ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
+            ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button style="background:#374151;" onclick='editTask("${sectionId}", ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
+            <button onclick="removeTask('${t.id}', '${sectionId}')">Remove</button>
           </div>
         </div>
       `;
     }
 
-    let editingTaskId = {};
+    function sectionCardHtml(seq, section) {
+      const taskRows = section.taskTemplates.map((t) => taskRowHtml(section.id, t)).join('');
+      return `
+        <div class="section-card" id="section-${section.id}">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3>${section.title} <span class="task-meta">(assigned to ${section.assignedTo.toLowerCase()})</span></h3>
+            <div style="display:flex; gap:6px;">
+              <button style="background:#374151; margin:0;" onclick="editSection(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')}, '${section.assignedTo}')">Edit Section</button>
+              <button style="background:#7f1d1d; margin:0;" onclick="removeSection('${section.id}', ${seq})">Remove Section</button>
+            </div>
+          </div>
+          <div id="tasks-${section.id}">${taskRows}</div>
 
-    function onTypeChange(seq) {
-      const type = document.getElementById(`newTaskType-${seq}`).value;
-      document.getElementById(`answerField-${seq}`).style.display = type === 'QUESTION' ? 'block' : 'none';
-      document.getElementById(`checklistField-${seq}`).style.display = type === 'CHECKLIST' ? 'block' : 'none';
-      document.getElementById(`choicesField-${seq}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
-      if (type === 'CHECKLIST' && document.getElementById(`checklistItems-${seq}`).children.length === 0) {
-        addChecklistRow(seq); addChecklistRow(seq);
-      }
-      if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${seq}`).children.length === 0) {
-        addChoiceRow(seq); addChoiceRow(seq);
-      }
+          <div class="add-box">
+            <div id="formLabel-${section.id}" style="color:#93c5fd; font-size:12px;">New Task</div>
+            <label>Task Title</label>
+            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1">
+            <label>Task Type</label>
+            <select id="newTaskType-${section.id}" onchange="onTypeChange('${section.id}')">
+              <option value="READING">Reading (just content, no individual action)</option>
+              <option value="QUESTION">Question (open-ended, locked on submit)</option>
+              <option value="CHECKLIST">Checklist (sub-items to check off)</option>
+              <option value="MULTIPLE_CHOICE">Multiple Choice (auto-graded)</option>
+            </select>
+            <label>Content</label>
+            <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
+            <div id="answerField-${section.id}" style="display:none;">
+              <label>Correct Answer (revealed after they submit their own)</label>
+              <textarea id="newTaskAnswer-${section.id}" rows="2"></textarea>
+            </div>
+            <div id="checklistField-${section.id}" style="display:none;">
+              <label>Checklist Items</label>
+              <div id="checklistItems-${section.id}"></div>
+              <button type="button" style="background:#374151;" onclick="addChecklistRow('${section.id}')">+ Add Item</button>
+            </div>
+            <div id="choicesField-${section.id}" style="display:none;">
+              <label>Answer Choices (mark the correct one)</label>
+              <div id="choiceOptions-${section.id}"></div>
+              <button type="button" style="background:#374151;" onclick="addChoiceRow('${section.id}')">+ Add Option</button>
+            </div>
+            <button id="saveTaskBtn-${section.id}" onclick="addTask('${section.id}')">Add Task</button>
+            <button id="cancelEditBtn-${section.id}" style="display:none; background:#374151;" onclick="cancelEditTask('${section.id}')">Cancel Edit</button>
+          </div>
+        </div>
+      `;
     }
 
-    function addChecklistRow(seq, value = '') {
-      const container = document.getElementById(`checklistItems-${seq}`);
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex; gap:6px; margin-top:6px;';
-      row.innerHTML = `<input type="text" value="${value.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Checklist item text">
-        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
-      container.appendChild(row);
+    function templateCardHtml(seq, template) {
+      const title = template ? template.title : '';
+      const description = template ? template.description : '';
+      const sections = template ? template.sectionTemplates : [];
+
+      const sectionCards = sections.map((s) => sectionCardHtml(seq, s)).join('');
+
+      return `
+        <div class="module-card">
+          <h2>Module ${seq}</h2>
+          <label>Title</label>
+          <input type="text" id="title-${seq}" value="${(title || '').replace(/"/g, '&quot;')}">
+          <label>Description</label>
+          <textarea id="description-${seq}" rows="2">${description || ''}</textarea>
+          <button onclick="saveTemplate(${seq})">Save Title/Description</button>
+          <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
+
+          ${sectionCards}
+
+          <div class="add-section-box">
+            <label>New Section Title</label>
+            <input type="text" id="newSectionTitle-${seq}" placeholder="e.g. Reading Materials">
+            <label>Assigned To</label>
+            <select id="newSectionAssignedTo-${seq}">
+              <option value="DEVELOPEE">Developee (the person being developed)</option>
+              <option value="DEVELOPER">Developer (the one doing the developing)</option>
+            </select>
+            <button onclick="addSection(${seq})">Add Section</button>
+          </div>
+        </div>
+      `;
     }
 
-    function addChoiceRow(seq, text = '', isCorrect = false) {
-      const container = document.getElementById(`choiceOptions-${seq}`);
-      const row = document.createElement('div');
-      row.style.cssText = 'display:flex; gap:6px; margin-top:6px; align-items:center;';
-      row.innerHTML = `<input type="radio" name="correctChoice-${seq}" ${isCorrect ? 'checked' : ''} style="width:auto;">
-        <input type="text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Option text">
-        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
-      container.appendChild(row);
-    }
-
-    function readChecklistRows(seq) {
-      return [...document.getElementById(`checklistItems-${seq}`).children]
-        .map((row) => ({ text: row.querySelector('input[type="text"]').value.trim() }))
-        .filter((item) => item.text);
-    }
-
-    function readChoiceRows(seq) {
-      return [...document.getElementById(`choiceOptions-${seq}`).children]
-        .map((row) => ({
-          text: row.querySelector('input[type="text"]').value.trim(),
-          isCorrect: row.querySelector('input[type="radio"]').checked,
-        }))
-        .filter((opt) => opt.text);
-    }
-
-    function editTask(seq, task) {
-      editingTaskId[seq] = task.id;
-      document.getElementById(`newTaskText-${seq}`).value = task.text;
-      document.getElementById(`newTaskSection-${seq}`).value = task.section || '';
-      document.getElementById(`newTaskType-${seq}`).value = task.taskType;
-      document.getElementById(`newTaskAssignedTo-${seq}`).value = task.assignedTo || 'DEVELOPEE';
-      document.getElementById(`newTaskContent-${seq}`).value = task.content || '';
-      document.getElementById(`newTaskAnswer-${seq}`).value = task.correctAnswer || '';
-
-      document.getElementById(`checklistItems-${seq}`).innerHTML = '';
-      document.getElementById(`choiceOptions-${seq}`).innerHTML = '';
-      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(seq, item.text));
-      (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(seq, opt.text, opt.isCorrect));
-
-      onTypeChange(seq);
-      document.getElementById(`formLabel-${seq}`).textContent = 'Editing: ' + task.text;
-      document.getElementById(`saveTaskBtn-${seq}`).textContent = 'Update Task';
-      document.getElementById(`cancelEditBtn-${seq}`).style.display = 'inline-block';
-      document.getElementById(`newTaskText-${seq}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    function cancelEdit(seq) {
-      editingTaskId[seq] = null;
-      document.getElementById(`newTaskText-${seq}`).value = '';
-      document.getElementById(`newTaskSection-${seq}`).value = '';
-      document.getElementById(`newTaskAssignedTo-${seq}`).value = 'DEVELOPEE';
-      document.getElementById(`newTaskContent-${seq}`).value = '';
-      document.getElementById(`newTaskAnswer-${seq}`).value = '';
-      document.getElementById(`newTaskType-${seq}`).value = 'READING';
-      document.getElementById(`checklistItems-${seq}`).innerHTML = '';
-      document.getElementById(`choiceOptions-${seq}`).innerHTML = '';
-      onTypeChange(seq);
-      document.getElementById(`formLabel-${seq}`).textContent = 'New Task';
-      document.getElementById(`saveTaskBtn-${seq}`).textContent = 'Add Task';
-      document.getElementById(`cancelEditBtn-${seq}`).style.display = 'none';
-    }
-
-    let templatesBySeq = {};
+    // ---------- Loading ----------
 
     async function loadTemplates() {
       const templates = await apiCall('/module-templates');
@@ -253,6 +178,8 @@
       }
       container.innerHTML = html;
     }
+
+    // ---------- Module title/description ----------
 
     async function saveTemplate(seq) {
       const title = document.getElementById(`title-${seq}`).value;
@@ -268,45 +195,147 @@
       }
     }
 
-    async function addTask(seq) {
-      const text = document.getElementById(`newTaskText-${seq}`).value.trim();
-      const section = document.getElementById(`newTaskSection-${seq}`).value.trim();
-      const taskType = document.getElementById(`newTaskType-${seq}`).value;
-      const assignedTo = document.getElementById(`newTaskAssignedTo-${seq}`).value;
-      const content = document.getElementById(`newTaskContent-${seq}`).value;
-      const correctAnswer = document.getElementById(`newTaskAnswer-${seq}`).value;
-      const checklistItems = readChecklistRows(seq);
-      const choiceOptions = readChoiceRows(seq);
+    // ---------- Sections ----------
+
+    async function addSection(seq) {
+      const title = document.getElementById(`newSectionTitle-${seq}`).value.trim();
+      const assignedTo = document.getElementById(`newSectionAssignedTo-${seq}`).value;
+      if (!title) { alert('Give the section a title first.'); return; }
+      try {
+        await apiCall(`/module-templates/${seq}/sections`, { method: 'POST', body: JSON.stringify({ title, assignedTo }) });
+        loadTemplates();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function editSection(seq, sectionId, currentTitle, currentAssignedTo) {
+      const newTitle = prompt('Section title:', currentTitle);
+      if (newTitle === null) return;
+      const newAssignedTo = confirm('OK = Developer, Cancel = Developee. Who should this section be assigned to?') ? 'DEVELOPER' : 'DEVELOPEE';
+      apiCall(`/module-templates/sections/${sectionId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title: newTitle, assignedTo: newAssignedTo }),
+      }).then(loadTemplates).catch((err) => alert(err.message));
+    }
+
+    async function removeSection(sectionId, seq) {
+      if (!confirm('This removes the section and every task inside it. Continue?')) return;
+      try {
+        await apiCall(`/module-templates/sections/${sectionId}`, { method: 'DELETE' });
+        loadTemplates();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // ---------- Tasks within a section ----------
+
+    function onTypeChange(sectionId) {
+      const type = document.getElementById(`newTaskType-${sectionId}`).value;
+      document.getElementById(`answerField-${sectionId}`).style.display = type === 'QUESTION' ? 'block' : 'none';
+      document.getElementById(`checklistField-${sectionId}`).style.display = type === 'CHECKLIST' ? 'block' : 'none';
+      document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
+      if (type === 'CHECKLIST' && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
+        addChecklistRow(sectionId); addChecklistRow(sectionId);
+      }
+      if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${sectionId}`).children.length === 0) {
+        addChoiceRow(sectionId); addChoiceRow(sectionId);
+      }
+    }
+
+    function addChecklistRow(sectionId, value = '') {
+      const container = document.getElementById(`checklistItems-${sectionId}`);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:6px; margin-top:6px;';
+      row.innerHTML = `<input type="text" value="${value.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Checklist item text">
+        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+      container.appendChild(row);
+    }
+
+    function addChoiceRow(sectionId, text = '', isCorrect = false) {
+      const container = document.getElementById(`choiceOptions-${sectionId}`);
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:6px; margin-top:6px; align-items:center;';
+      row.innerHTML = `<input type="radio" name="correctChoice-${sectionId}" ${isCorrect ? 'checked' : ''} style="width:auto;">
+        <input type="text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Option text">
+        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+      container.appendChild(row);
+    }
+
+    function readChecklistRows(sectionId) {
+      return [...document.getElementById(`checklistItems-${sectionId}`).children]
+        .map((row) => ({ text: row.querySelector('input[type="text"]').value.trim() }))
+        .filter((item) => item.text);
+    }
+
+    function readChoiceRows(sectionId) {
+      return [...document.getElementById(`choiceOptions-${sectionId}`).children]
+        .map((row) => ({
+          text: row.querySelector('input[type="text"]').value.trim(),
+          isCorrect: row.querySelector('input[type="radio"]').checked,
+        }))
+        .filter((opt) => opt.text);
+    }
+
+    function editTask(sectionId, task) {
+      editingTaskId[sectionId] = task.id;
+      document.getElementById(`newTaskText-${sectionId}`).value = task.text;
+      document.getElementById(`newTaskType-${sectionId}`).value = task.taskType;
+      document.getElementById(`newTaskContent-${sectionId}`).value = task.content || '';
+      document.getElementById(`newTaskAnswer-${sectionId}`).value = task.correctAnswer || '';
+
+      document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
+      document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
+      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text));
+      (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(sectionId, opt.text, opt.isCorrect));
+
+      onTypeChange(sectionId);
+      document.getElementById(`formLabel-${sectionId}`).textContent = 'Editing: ' + task.text;
+      document.getElementById(`saveTaskBtn-${sectionId}`).textContent = 'Update Task';
+      document.getElementById(`cancelEditBtn-${sectionId}`).style.display = 'inline-block';
+      document.getElementById(`section-${sectionId}`).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function cancelEditTask(sectionId) {
+      editingTaskId[sectionId] = null;
+      document.getElementById(`newTaskText-${sectionId}`).value = '';
+      document.getElementById(`newTaskContent-${sectionId}`).value = '';
+      document.getElementById(`newTaskAnswer-${sectionId}`).value = '';
+      document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
+      document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
+      document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
+      onTypeChange(sectionId);
+      document.getElementById(`formLabel-${sectionId}`).textContent = 'New Task';
+      document.getElementById(`saveTaskBtn-${sectionId}`).textContent = 'Add Task';
+      document.getElementById(`cancelEditBtn-${sectionId}`).style.display = 'none';
+    }
+
+    async function addTask(sectionId) {
+      const text = document.getElementById(`newTaskText-${sectionId}`).value.trim();
+      const taskType = document.getElementById(`newTaskType-${sectionId}`).value;
+      const content = document.getElementById(`newTaskContent-${sectionId}`).value;
+      const correctAnswer = document.getElementById(`newTaskAnswer-${sectionId}`).value;
+      const checklistItems = readChecklistRows(sectionId);
+      const choiceOptions = readChoiceRows(sectionId);
 
       if (!text) return;
-      if (taskType === 'QUESTION' && !correctAnswer.trim()) {
-        alert('A question task needs a correct answer.');
-        return;
-      }
-      if (taskType === 'CHECKLIST' && checklistItems.length === 0) {
-        alert('Add at least one checklist item.');
-        return;
-      }
+      if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
+      if (taskType === 'CHECKLIST' && checklistItems.length === 0) { alert('Add at least one checklist item.'); return; }
       if (taskType === 'MULTIPLE_CHOICE') {
-        if (choiceOptions.length < 2) {
-          alert('Add at least 2 answer choices.');
-          return;
-        }
-        if (!choiceOptions.some((o) => o.isCorrect)) {
-          alert('Mark one option as the correct answer.');
-          return;
-        }
+        if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
+        if (!choiceOptions.some((o) => o.isCorrect)) { alert('Mark one option as the correct answer.'); return; }
       }
 
-      const editingId = editingTaskId[seq];
-      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions, assignedTo, section };
+      const editingId = editingTaskId[sectionId];
+      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions };
 
       try {
         if (editingId) {
           await apiCall(`/module-templates/tasks/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
-          editingTaskId[seq] = null;
+          editingTaskId[sectionId] = null;
         } else {
-          await apiCall(`/module-templates/${seq}/tasks`, { method: 'POST', body: JSON.stringify(body) });
+          await apiCall(`/module-templates/sections/${sectionId}/tasks`, { method: 'POST', body: JSON.stringify(body) });
         }
         loadTemplates();
       } catch (err) {
@@ -314,7 +343,7 @@
       }
     }
 
-    async function removeTask(taskId, seq) {
+    async function removeTask(taskId, sectionId) {
       try {
         await apiCall(`/module-templates/tasks/${taskId}`, { method: 'DELETE' });
         loadTemplates();

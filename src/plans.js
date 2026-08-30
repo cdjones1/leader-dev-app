@@ -65,11 +65,16 @@ router.post('/', requireAuth, async (req, res) => {
     const template = await prisma.moduleTemplate.findUnique({
       where: { sequenceOrder: seq },
       include: {
-        taskTemplates: {
+        sectionTemplates: {
           orderBy: { order: 'asc' },
           include: {
-            checklistItemTemplates: { orderBy: { order: 'asc' } },
-            choiceOptionTemplates: { orderBy: { order: 'asc' } },
+            taskTemplates: {
+              orderBy: { order: 'asc' },
+              include: {
+                checklistItemTemplates: { orderBy: { order: 'asc' } },
+                choiceOptionTemplates: { orderBy: { order: 'asc' } },
+              },
+            },
           },
         },
       },
@@ -86,35 +91,44 @@ router.post('/', requireAuth, async (req, res) => {
     });
 
     if (template) {
-      for (const taskTemplate of template.taskTemplates) {
-        const moduleTask = await prisma.moduleTask.create({
+      for (const sectionTemplate of template.sectionTemplates) {
+        const section = await prisma.moduleSection.create({
           data: {
             moduleId: module.id,
-            order: taskTemplate.order,
-            section: taskTemplate.section,
-            text: taskTemplate.text,
-            content: taskTemplate.content,
-            taskType: taskTemplate.taskType,
-            assignedTo: taskTemplate.assignedTo,
-            correctAnswer: taskTemplate.correctAnswer,
+            order: sectionTemplate.order,
+            title: sectionTemplate.title,
+            assignedTo: sectionTemplate.assignedTo,
           },
         });
 
-        for (const item of taskTemplate.checklistItemTemplates) {
-          await prisma.taskChecklistItem.create({
-            data: { moduleTaskId: moduleTask.id, order: item.order, text: item.text },
-          });
-        }
-
-        for (const option of taskTemplate.choiceOptionTemplates) {
-          await prisma.taskChoiceOption.create({
+        for (const taskTemplate of sectionTemplate.taskTemplates) {
+          const moduleTask = await prisma.moduleTask.create({
             data: {
-              moduleTaskId: moduleTask.id,
-              order: option.order,
-              text: option.text,
-              isCorrect: option.isCorrect,
+              sectionId: section.id,
+              order: taskTemplate.order,
+              text: taskTemplate.text,
+              content: taskTemplate.content,
+              taskType: taskTemplate.taskType,
+              correctAnswer: taskTemplate.correctAnswer,
             },
           });
+
+          for (const item of taskTemplate.checklistItemTemplates) {
+            await prisma.taskChecklistItem.create({
+              data: { moduleTaskId: moduleTask.id, order: item.order, text: item.text },
+            });
+          }
+
+          for (const option of taskTemplate.choiceOptionTemplates) {
+            await prisma.taskChoiceOption.create({
+              data: {
+                moduleTaskId: moduleTask.id,
+                order: option.order,
+                text: option.text,
+                isCorrect: option.isCorrect,
+              },
+            });
+          }
         }
       }
     }
@@ -163,11 +177,16 @@ router.get('/:id', requireAuth, async (req, res) => {
       modules: {
         orderBy: { sequenceOrder: 'asc' },
         include: {
-          tasks: {
+          sections: {
             orderBy: { order: 'asc' },
             include: {
-              checklistItems: { orderBy: { order: 'asc' } },
-              choiceOptions: { orderBy: { order: 'asc' } },
+              tasks: {
+                orderBy: { order: 'asc' },
+                include: {
+                  checklistItems: { orderBy: { order: 'asc' } },
+                  choiceOptions: { orderBy: { order: 'asc' } },
+                },
+              },
             },
           },
         },
@@ -186,7 +205,9 @@ router.get('/:id', requireAuth, async (req, res) => {
   // - QUESTION: strip correctAnswer until submittedAt is set
   // - MULTIPLE_CHOICE: strip each option's isCorrect until selectedOptionId is set
   for (const module of plan.modules) {
-    module.tasks = module.tasks.map((task) => stripHiddenAnswers(task));
+    for (const section of module.sections) {
+      section.tasks = section.tasks.map((task) => stripHiddenAnswers(task));
+    }
   }
 
   res.json(plan);
