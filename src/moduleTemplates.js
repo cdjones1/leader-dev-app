@@ -162,6 +162,26 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
+// Reorder the sections within a module template. Body: { sectionIds: [...] }
+// in the desired new order.
+router.put('/:sequenceOrder/sections/reorder', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { sectionIds } = req.body;
+  if (!Array.isArray(sectionIds) || sectionIds.length === 0) {
+    return res.status(400).json({ error: 'sectionIds must be a non-empty array' });
+  }
+
+  for (let i = 0; i < sectionIds.length; i++) {
+    await prisma.moduleSectionTemplate.update({
+      where: { id: sectionIds[i] },
+      data: { order: i + 1 },
+    });
+  }
+
+  res.json({ reordered: sectionIds.length });
+});
+
 // --------------------------------------------------------------
 // TASKS - now created within a specific section, not directly
 // under a module.
@@ -274,6 +294,26 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   }
 
   res.json(updated);
+});
+
+// Reorder the tasks within a section. Body: { taskIds: [...] } in the
+// desired new order.
+router.put('/sections/:sectionId/tasks/reorder', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { taskIds } = req.body;
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return res.status(400).json({ error: 'taskIds must be a non-empty array' });
+  }
+
+  for (let i = 0; i < taskIds.length; i++) {
+    await prisma.moduleTaskTemplate.update({
+      where: { id: taskIds[i] },
+      data: { order: i + 1 },
+    });
+  }
+
+  res.json({ reordered: taskIds.length });
 });
 
 // Remove one task.

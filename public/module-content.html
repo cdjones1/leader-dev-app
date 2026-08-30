@@ -30,6 +30,9 @@
     .add-box { margin-top: 10px; padding: 10px; background: #16213e; border-radius: 6px; }
     .saved-note { color: #86efac; font-size: 12px; margin-left: 10px; }
     .add-section-box { margin-top: 12px; padding: 10px; background: #0f172a; border: 1px dashed #333; border-radius: 6px; }
+    .drag-handle { cursor: grab; color: #555; margin-right: 8px; user-select: none; }
+    .drag-handle:active { cursor: grabbing; }
+    .dragging { opacity: 0.4; }
   </style>
 </head>
 <body>
@@ -68,8 +71,9 @@
 
     function taskRowHtml(sectionId, t) {
       return `
-        <div class="task-row">
-          <div>
+        <div class="task-row" data-id="${t.id}">
+          <span class="drag-handle">⠿</span>
+          <div style="flex:1;">
             <strong>${t.text}</strong> <span class="task-meta">(${t.taskType})</span>
             ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
@@ -87,9 +91,9 @@
     function sectionCardHtml(seq, section) {
       const taskRows = section.taskTemplates.map((t) => taskRowHtml(section.id, t)).join('');
       return `
-        <div class="section-card" id="section-${section.id}">
+        <div class="section-card" id="section-${section.id}" data-id="${section.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3>${section.title} <span class="task-meta">(assigned to ${section.assignedTo.toLowerCase()})</span></h3>
+            <h3><span class="drag-handle">⠿</span>${section.title} <span class="task-meta">(assigned to ${section.assignedTo.toLowerCase()})</span></h3>
             <div style="display:flex; gap:6px;">
               <button style="background:#374151; margin:0;" onclick="editSection(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')}, '${section.assignedTo}')">Edit Section</button>
               <button style="background:#7f1d1d; margin:0;" onclick="removeSection('${section.id}', ${seq})">Remove Section</button>
@@ -150,7 +154,7 @@
           <button onclick="saveTemplate(${seq})">Save Title/Description</button>
           <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
 
-          ${sectionCards}
+          <div id="sections-${seq}">${sectionCards}</div>
 
           <div class="add-section-box">
             <label>New Section Title</label>
@@ -179,6 +183,88 @@
         html += templateCardHtml(seq, templatesBySeq[seq] || null);
       }
       container.innerHTML = html;
+
+      // Wire up drag-and-drop for every sections list and every
+      // section's own task list, now that they're in the DOM.
+      for (let seq = 1; seq <= 8; seq++) {
+        const template = templatesBySeq[seq];
+        if (!template) continue;
+        makeSortable(document.getElementById(`sections-${seq}`), '.section-card', (orderedIds) => {
+          reorderSections(seq, orderedIds);
+        });
+        for (const section of template.sectionTemplates) {
+          makeSortable(document.getElementById(`tasks-${section.id}`), '.task-row', (orderedIds) => {
+            reorderTasks(section.id, orderedIds);
+          });
+        }
+      }
+    }
+
+    // ---------- Drag-and-drop (plain HTML5, no library) ----------
+
+    function makeSortable(container, itemSelector, onReorder) {
+      if (!container) return;
+      let draggedEl = null;
+
+      container.querySelectorAll(itemSelector).forEach((el) => {
+        el.setAttribute('draggable', 'true');
+
+        el.addEventListener('dragstart', () => {
+          draggedEl = el;
+          el.classList.add('dragging');
+        });
+
+        el.addEventListener('dragend', () => {
+          el.classList.remove('dragging');
+          draggedEl = null;
+          const orderedIds = [...container.querySelectorAll(itemSelector)].map((item) => item.dataset.id);
+          onReorder(orderedIds);
+        });
+      });
+
+      // Only attach the container-level dragover listener once per
+      // container - re-running loadTemplates() rebuilds the DOM fresh
+      // each time, so this is safe to call on every render.
+      container.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!draggedEl) return;
+        const afterElement = getDragAfterElement(container, itemSelector, e.clientY);
+        if (afterElement == null) {
+          container.appendChild(draggedEl);
+        } else {
+          container.insertBefore(draggedEl, afterElement);
+        }
+      });
+    }
+
+    function getDragAfterElement(container, itemSelector, y) {
+      const items = [...container.querySelectorAll(`${itemSelector}:not(.dragging)`)];
+      return items.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset, element: child };
+        }
+        return closest;
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    async function reorderSections(seq, sectionIds) {
+      try {
+        await apiCall(`/module-templates/${seq}/sections/reorder`, { method: 'PUT', body: JSON.stringify({ sectionIds }) });
+      } catch (err) {
+        alert(err.message);
+        loadTemplates(); // snap back to the real order if the save failed
+      }
+    }
+
+    async function reorderTasks(sectionId, taskIds) {
+      try {
+        await apiCall(`/module-templates/sections/${sectionId}/tasks/reorder`, { method: 'PUT', body: JSON.stringify({ taskIds }) });
+      } catch (err) {
+        alert(err.message);
+        loadTemplates();
+      }
     }
 
     // ---------- Module title/description ----------
