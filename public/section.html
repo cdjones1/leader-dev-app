@@ -11,10 +11,10 @@
     }
     * { box-sizing: border-box; }
     body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     h1 { font-size: 22px; margin: 0; }
     a { color: var(--accent); text-decoration: none; }
-    .task-block { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    .task-block { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; margin-bottom: 16px; }
     .task-block h3 { margin-top: 0; font-size: 15px; }
     .content-box { color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; margin: 10px 0; }
     button {
@@ -35,12 +35,12 @@
     .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
     .task-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .task-item.done { color: #a39d94; text-decoration: line-through; }
-    #completeSection { margin-top: 24px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    #completeSection { margin-top: 24px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
     #missingList { color: #9a5b00; font-size: 13px; margin-top: 8px; }
     #message { color: #9b1c1c; margin-top: 12px; }
     .notice-box {
       background: #eef4fc; border-left: 3px solid #3b82f6; border-radius: 8px;
-      padding: 16px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto;
+      padding: 16px; margin-bottom: 16px;
     }
     .notice-box .notice-label {
       font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #1e40af;
@@ -49,7 +49,7 @@
     .notice-box .notice-text { color: #1e3a5f; line-height: 1.6; white-space: pre-wrap; }
     .warning-box {
       background: #fdecec; border-left: 3px solid #ef4444; border-radius: 8px;
-      padding: 16px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto;
+      padding: 16px; margin-bottom: 16px;
     }
     .warning-box .warning-label {
       font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #9b1c1c;
@@ -57,17 +57,59 @@
     }
     .warning-box .warning-text { color: #7a1414; line-height: 1.6; white-space: pre-wrap; }
     .not-yours { color: #9a5b00; margin-top: 8px; }
+
+    .layout { display: flex; gap: 32px; max-width: 1100px; margin: 0 auto; align-items: flex-start; }
+    .sidebar { width: 260px; flex-shrink: 0; position: sticky; top: 32px; }
+    .sidebar-label { color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 10px; }
+    .sidebar-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px;
+      margin-bottom: 4px; cursor: pointer; text-decoration: none; color: var(--text);
+    }
+    .sidebar-item:hover { background: #f4f2ee; }
+    .sidebar-item.current { background: #fdeaea; color: var(--accent); font-weight: 700; }
+    .sidebar-dot { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+    .sidebar-dot.complete { background: #dcf7e3; color: #1a7a3a; }
+    .sidebar-dot.partial { background: #fef3c7; color: #92700a; }
+    .sidebar-dot.empty { background: #e9e5df; color: transparent; }
+    .sidebar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+    .all-done-box { text-align: center; padding: 10px; background: #eaf7ee; color: #1a7a3a; border-radius: 8px; font-weight: 700; font-size: 13px; margin-top: 6px; }
+    .legend { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 14px; font-size: 13px; color: var(--text-muted); }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    .main-col { flex: 1; min-width: 0; }
+    .eyebrow-count { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+    .section-heading { font-size: 32px; font-weight: 800; margin: 0 0 20px; }
+    .footer-nav { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border); margin-top: 24px; padding-top: 20px; }
+    .prev-link { color: var(--text-muted); font-weight: 600; text-decoration: none; }
+    .prev-link.disabled { visibility: hidden; }
+    button.next-btn { background: #1a7a3a; padding: 13px 22px; font-size: 15px; }
+    button.next-btn:hover { background: #14602e; }
   </style>
 </head>
 <body>
-  <div class="header">
+  <div class="header" style="max-width:1100px;">
     <h1 id="pageTitle">Loading...</h1>
     <a id="backLink" href="/dashboard.html">&larr; Back to Plan</a>
   </div>
 
-  <div id="tasksContainer" style="max-width:700px; margin:0 auto;"></div>
-  <div id="completeSection"></div>
-  <div id="message" style="max-width:700px; margin:12px auto 0;"></div>
+  <div class="layout">
+    <div class="sidebar">
+      <div class="sidebar-label">SECTIONS</div>
+      <div id="sidebarList"></div>
+      <div class="legend">
+        <div class="legend-row"><span class="legend-dot" style="background:#1a7a3a;"></span> Complete</div>
+        <div class="legend-row"><span class="legend-dot" style="background:#92700a;"></span> Partially complete</div>
+      </div>
+    </div>
+    <div class="main-col">
+      <div class="eyebrow-count" id="sectionCount"></div>
+      <h2 class="section-heading" id="sectionHeading"></h2>
+      <div id="tasksContainer"></div>
+      <div id="completeSection"></div>
+      <div id="message"></div>
+    </div>
+  </div>
 
   <script>
     const token = localStorage.getItem('token');
@@ -187,14 +229,45 @@
     // Finds this section's position among its siblings within the same
     // module, using the full plan (which has modules -> sections in order).
     function findSectionContext(section) {
-      if (!currentPlan) return { index: -1, siblings: [], isLast: false, nextSection: null };
+      if (!currentPlan) return { index: -1, siblings: [], isLast: false, nextSection: null, previousSection: null };
       const module = currentPlan.modules.find((m) => m.id === section.moduleId);
-      if (!module) return { index: -1, siblings: [], isLast: false, nextSection: null };
+      if (!module) return { index: -1, siblings: [], isLast: false, nextSection: null, previousSection: null };
       const siblings = module.sections; // already ordered by the server
       const index = siblings.findIndex((s) => s.id === section.id);
       const isLast = index === siblings.length - 1;
       const nextSection = isLast ? null : siblings[index + 1];
-      return { index, siblings, isLast, nextSection, moduleId: module.id };
+      const previousSection = index > 0 ? siblings[index - 1] : null;
+      return { index, siblings, isLast, nextSection, previousSection, moduleId: module.id };
+    }
+
+    // A section with no completed status but at least one task touched
+    // (an answer submitted, a choice picked, some checklist items checked)
+    // shows as "partially complete" in the sidebar - purely a display
+    // hint, not a stored state.
+    function isPartiallyStarted(section) {
+      if (section.completed) return false;
+      return (section.tasks || []).some((t) =>
+        t.submittedAt || t.selectedOptionId || (t.checklistItems || []).some((i) => i.completed)
+      );
+    }
+
+    function renderSidebar(context, currentSectionId) {
+      const listDiv = document.getElementById('sidebarList');
+      const rows = context.siblings.map((s) => {
+        const isCurrent = s.id === currentSectionId;
+        let dotClass = 'empty', dotGlyph = '';
+        if (s.completed) { dotClass = 'complete'; dotGlyph = '✓'; }
+        else if (isPartiallyStarted(s)) { dotClass = 'partial'; dotGlyph = '●'; }
+        return `
+          <a class="sidebar-item ${isCurrent ? 'current' : ''}" href="/section.html?id=${s.id}&planId=${planId}">
+            <span class="sidebar-dot ${dotClass}">${dotGlyph}</span>
+            <span class="sidebar-title">${s.title}</span>
+          </a>
+        `;
+      }).join('');
+
+      const allDone = context.siblings.length > 0 && context.siblings.every((s) => s.completed);
+      listDiv.innerHTML = rows + (allDone ? '<div class="all-done-box">✓ All sections done</div>' : '');
     }
 
     async function loadSection() {
@@ -206,6 +279,13 @@
         }
 
         document.getElementById('pageTitle').textContent = section.title;
+        document.getElementById('sectionHeading').textContent = section.title;
+
+        const context = findSectionContext(section);
+        if (context.siblings.length > 0) {
+          document.getElementById('sectionCount').textContent = `Section ${context.index + 1} of ${context.siblings.length}`;
+          renderSidebar(context, section.id);
+        }
 
         const blocksHtml = section.tasks.map((t) => {
           const mine = isMyTask(t);
@@ -219,15 +299,29 @@
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;
 
-        const { isLast, nextSection } = findSectionContext(section);
+        const { isLast, nextSection, previousSection } = context;
         const completeDiv = document.getElementById('completeSection');
+
+        const prevHtml = previousSection
+          ? `<a class="prev-link" href="/section.html?id=${previousSection.id}&planId=${planId}">&larr; Previous</a>`
+          : `<span class="prev-link disabled">&larr; Previous</span>`;
 
         if (section.completed) {
           // Already done - just offer plain navigation, no re-validation needed.
           if (isLast) {
-            completeDiv.innerHTML = '<p style="color:#1a7a3a; font-weight:600;">This section is complete - it was the last one in this module.</p>';
+            completeDiv.innerHTML = `
+              <div class="footer-nav">
+                ${prevHtml}
+                <p style="color:#1a7a3a; font-weight:600; margin:0;">This section is complete - it was the last one in this module.</p>
+              </div>
+            `;
           } else if (nextSection) {
-            completeDiv.innerHTML = `<button onclick="goToSection('${nextSection.id}')">Next Section</button>`;
+            completeDiv.innerHTML = `
+              <div class="footer-nav">
+                ${prevHtml}
+                <button class="next-btn" onclick="goToSection('${nextSection.id}')">Next section &rarr;</button>
+              </div>
+            `;
           }
         } else {
           // Not yet complete: one button, available to any participant -
@@ -236,9 +330,12 @@
           // was allowed to complete THAT specific piece). If something's
           // still missing, the same warning list shows instead of
           // letting anyone skip ahead.
-          const label = isLast ? 'Complete Module' : 'Next Section';
+          const label = isLast ? 'Complete Module' : 'Next section &rarr;';
           completeDiv.innerHTML = `
-            <button onclick="completeAndAdvance()">${label}</button>
+            <div class="footer-nav">
+              ${prevHtml}
+              <button class="next-btn" onclick="completeAndAdvance()">${label}</button>
+            </div>
             <div id="missingList"></div>
           `;
         }
