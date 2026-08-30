@@ -4,10 +4,16 @@
   <meta charset="UTF-8">
   <title>Leadership Development Tracker - Login</title>
   <style>
+    :root {
+      --accent: #d6222a; --accent-dark: #b71c23;
+      --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+      --text: #1a1a1a; --text-muted: #6b6560;
+    }
+    * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, sans-serif;
-      background: #1a1a2e;
-      color: #eee;
+      font-family: -apple-system, "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -15,38 +21,39 @@
       margin: 0;
     }
     .card {
-      background: #16213e;
+      background: var(--card);
+      border: 1px solid var(--border);
       padding: 40px;
-      border-radius: 12px;
+      border-radius: 14px;
       width: 320px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     }
     h1 { font-size: 20px; margin-top: 0; }
-    label { display: block; margin-top: 16px; font-size: 14px; color: #aaa; }
+    label { display: block; margin-top: 16px; font-size: 13px; color: var(--text-muted); }
     input {
       width: 100%;
       padding: 10px;
       margin-top: 6px;
       border-radius: 6px;
-      border: 1px solid #333;
-      background: #0f172a;
-      color: #eee;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
       box-sizing: border-box;
     }
     button {
       width: 100%;
       margin-top: 24px;
       padding: 12px;
-      background: #4f46e5;
+      background: var(--accent);
       color: white;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 15px;
+      font-weight: 600;
       cursor: pointer;
     }
-    button:hover { background: #4338ca; }
+    button:hover { background: var(--accent-dark); }
     #error {
-      color: #f87171;
+      color: #9b1c1c;
       margin-top: 12px;
       font-size: 14px;
       display: none;

@@ -4,33 +4,39 @@
   <meta charset="UTF-8">
   <title>Module Content</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    :root {
+      --accent: #d6222a; --accent-dark: #b71c23;
+      --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+      --text: #1a1a1a; --text-muted: #6b6560;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    h1 { font-size: 22px; margin: 0; }
-    a { color: #93c5fd; text-decoration: none; }
-    .module-card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
+    h1 { font-size: 28px; margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+    .module-card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 14px; margin-bottom: 16px; }
     .module-card h2 { margin-top: 0; font-size: 16px; }
-    .section-card { background: #0f172a; padding: 14px; border-radius: 6px; margin-top: 12px; }
-    .section-card h3 { margin: 0 0 8px 0; font-size: 14px; color: #93c5fd; }
-    label { display: block; margin-top: 10px; font-size: 13px; color: #aaa; }
+    .section-card { background: #f4f2ee; padding: 14px; border-radius: 8px; margin-top: 12px; }
+    .section-card h3 { margin: 0 0 8px 0; font-size: 14px; color: var(--accent); }
+    label { display: block; margin-top: 10px; font-size: 13px; color: var(--text-muted); }
     input, textarea, select {
       width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
-      border: 1px solid #333; background: #16213e; color: #eee; box-sizing: border-box;
+      border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
       font-family: inherit;
     }
     button {
-      margin-top: 10px; padding: 7px 14px; background: #4f46e5; color: white;
-      border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
+      margin-top: 10px; padding: 7px 14px; background: var(--accent); color: white;
+      border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;
     }
-    button:hover { background: #4338ca; }
-    .task-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #1e293b; }
+    button:hover { background: var(--accent-dark); }
+    .task-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border); }
     .task-row:last-child { border-bottom: none; }
-    .task-row button { background: #7f1d1d; margin: 0; flex-shrink: 0; }
-    .task-meta { color: #888; font-size: 12px; margin-top: 2px; }
-    .add-box { margin-top: 10px; padding: 10px; background: #16213e; border-radius: 6px; }
-    .saved-note { color: #86efac; font-size: 12px; margin-left: 10px; }
-    .add-section-box { margin-top: 12px; padding: 10px; background: #0f172a; border: 1px dashed #333; border-radius: 6px; }
-    .drag-handle { cursor: grab; color: #555; margin-right: 8px; user-select: none; }
+    .task-row button { background: #9b1c1c; margin: 0; flex-shrink: 0; }
+    .task-meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+    .add-box { margin-top: 10px; padding: 10px; background: #fff; border: 1px solid var(--border); border-radius: 8px; }
+    .saved-note { color: #1a7a3a; font-size: 12px; margin-left: 10px; }
+    .add-section-box { margin-top: 12px; padding: 10px; background: #f4f2ee; border: 1px dashed var(--border); border-radius: 8px; }
+    .drag-handle { cursor: grab; color: #a39d94; margin-right: 8px; user-select: none; }
     .drag-handle:active { cursor: grabbing; }
     .dragging { opacity: 0.4; }
   </style>
@@ -40,7 +46,7 @@
     <h1>Module Content</h1>
     <a href="/dashboard.html">&larr; Back to Dashboard</a>
   </div>
-  <p style="color:#888;">Each module is built from sections - a section is its own page for whoever completes it, and marks itself done with one action at the end. Editing here only affects plans created after your changes.</p>
+  <p style="color:var(--text-muted);">Each module is built from sections - a section is its own page for whoever completes it, and marks itself done with one action at the end. Editing here only affects plans created after your changes.</p>
 
   <div id="templatesContainer">Loading...</div>
 
@@ -81,7 +87,7 @@
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
           </div>
           <div style="display:flex; gap:6px;">
-            <button style="background:#374151;" onclick='editTask("${sectionId}", ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
+            <button style="background:#8a8378;" onclick='editTask("${sectionId}", ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
             <button onclick="removeTask('${t.id}', '${sectionId}')">Remove</button>
           </div>
         </div>
@@ -95,14 +101,14 @@
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <h3><span class="drag-handle">⠿</span>${section.title}</h3>
             <div style="display:flex; gap:6px;">
-              <button style="background:#374151; margin:0;" onclick="editSectionTitle(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')})">Edit Section</button>
-              <button style="background:#7f1d1d; margin:0;" onclick="removeSection('${section.id}', ${seq})">Remove Section</button>
+              <button style="background:#8a8378; margin:0;" onclick="editSectionTitle(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')})">Edit Section</button>
+              <button style="background:#9b1c1c; margin:0;" onclick="removeSection('${section.id}', ${seq})">Remove Section</button>
             </div>
           </div>
           <div id="tasks-${section.id}">${taskRows}</div>
 
           <div class="add-box">
-            <div id="formLabel-${section.id}" style="color:#93c5fd; font-size:12px;">New Task</div>
+            <div id="formLabel-${section.id}" style="color:var(--accent); font-size:12px;">New Task</div>
             <label>Task Title</label>
             <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning)">
             <label>Assigned To</label>
@@ -128,15 +134,15 @@
             <div id="checklistField-${section.id}" style="display:none;">
               <label>Checklist Items</label>
               <div id="checklistItems-${section.id}"></div>
-              <button type="button" style="background:#374151;" onclick="addChecklistRow('${section.id}')">+ Add Item</button>
+              <button type="button" style="background:#8a8378;" onclick="addChecklistRow('${section.id}')">+ Add Item</button>
             </div>
             <div id="choicesField-${section.id}" style="display:none;">
               <label>Answer Choices (mark the correct one)</label>
               <div id="choiceOptions-${section.id}"></div>
-              <button type="button" style="background:#374151;" onclick="addChoiceRow('${section.id}')">+ Add Option</button>
+              <button type="button" style="background:#8a8378;" onclick="addChoiceRow('${section.id}')">+ Add Option</button>
             </div>
             <button id="saveTaskBtn-${section.id}" onclick="addTask('${section.id}')">Add Task</button>
-            <button id="cancelEditBtn-${section.id}" style="display:none; background:#374151;" onclick="cancelEditTask('${section.id}')">Cancel Edit</button>
+            <button id="cancelEditBtn-${section.id}" style="display:none; background:#8a8378;" onclick="cancelEditTask('${section.id}')">Cancel Edit</button>
           </div>
         </div>
       `;
@@ -335,7 +341,7 @@
       const row = document.createElement('div');
       row.style.cssText = 'display:flex; gap:6px; margin-top:6px;';
       row.innerHTML = `<input type="text" value="${value.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Checklist item text">
-        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+        <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
       container.appendChild(row);
     }
 
@@ -345,7 +351,7 @@
       row.style.cssText = 'display:flex; gap:6px; margin-top:6px; align-items:center;';
       row.innerHTML = `<input type="radio" name="correctChoice-${sectionId}" ${isCorrect ? 'checked' : ''} style="width:auto;">
         <input type="text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Option text">
-        <button type="button" style="background:#7f1d1d; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+        <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
       container.appendChild(row);
     }
 

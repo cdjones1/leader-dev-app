@@ -4,53 +4,59 @@
   <meta charset="UTF-8">
   <title>Section</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    h1 { font-size: 20px; margin: 0; }
-    a { color: #93c5fd; text-decoration: none; }
-    .task-block { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 16px; }
-    .task-block h3 { margin-top: 0; font-size: 15px; }
-    .content-box { color: #d1d5db; line-height: 1.6; white-space: pre-wrap; margin: 10px 0; }
-    button {
-      padding: 9px 16px; background: #4f46e5; color: white;
-      border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+    :root {
+      --accent: #d6222a; --accent-dark: #b71c23;
+      --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+      --text: #1a1a1a; --text-muted: #6b6560;
     }
-    button:hover { background: #4338ca; }
-    button:disabled { background: #374151; cursor: not-allowed; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    h1 { font-size: 22px; margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+    .task-block { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 10px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    .task-block h3 { margin-top: 0; font-size: 15px; }
+    .content-box { color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; margin: 10px 0; }
+    button {
+      padding: 9px 16px; background: var(--accent); color: white;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
+    }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { background: #d8d3cc; color: #a39d94; cursor: not-allowed; }
     textarea, input[type="text"] {
       width: 100%; padding: 9px; margin-top: 6px; border-radius: 6px;
-      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
       font-family: inherit;
     }
-    .answer-box { background: #0f172a; padding: 12px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; }
-    .your-answer { border-left: 3px solid #4f46e5; }
-    .correct-answer { border-left: 3px solid #16a34a; margin-top: 10px; }
-    .label { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
-    .locked-note { color: #888; font-size: 13px; margin-top: 6px; }
+    .answer-box { background: #f4f2ee; padding: 12px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; }
+    .your-answer { border-left: 3px solid var(--accent); }
+    .correct-answer { border-left: 3px solid #1a7a3a; margin-top: 10px; }
+    .label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
     .task-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-    .task-item.done { color: #6b7280; text-decoration: line-through; }
-    #completeSection { margin-top: 24px; padding: 16px; background: #16213e; border-radius: 8px; }
-    #missingList { color: #f59e0b; font-size: 13px; margin-top: 8px; }
-    #message { color: #f87171; margin-top: 12px; }
+    .task-item.done { color: #a39d94; text-decoration: line-through; }
+    #completeSection { margin-top: 24px; padding: 16px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; max-width: 700px; margin-left: auto; margin-right: auto; }
+    #missingList { color: #9a5b00; font-size: 13px; margin-top: 8px; }
+    #message { color: #9b1c1c; margin-top: 12px; }
     .notice-box {
-      background: #1e293b; border-left: 3px solid #3b82f6; border-radius: 6px;
-      padding: 16px; margin-bottom: 16px;
+      background: #eef4fc; border-left: 3px solid #3b82f6; border-radius: 8px;
+      padding: 16px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto;
     }
     .notice-box .notice-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #60a5fa;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #1e40af;
       text-transform: uppercase; margin-bottom: 6px;
     }
-    .notice-box .notice-text { color: #dbeafe; line-height: 1.6; white-space: pre-wrap; }
+    .notice-box .notice-text { color: #1e3a5f; line-height: 1.6; white-space: pre-wrap; }
     .warning-box {
-      background: #2d1414; border-left: 3px solid #ef4444; border-radius: 6px;
-      padding: 16px; margin-bottom: 16px;
+      background: #fdecec; border-left: 3px solid #ef4444; border-radius: 8px;
+      padding: 16px; margin-bottom: 16px; max-width: 700px; margin-left: auto; margin-right: auto;
     }
     .warning-box .warning-label {
-      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #f87171;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: #9b1c1c;
       text-transform: uppercase; margin-bottom: 6px;
     }
-    .warning-box .warning-text { color: #fecaca; line-height: 1.6; white-space: pre-wrap; }
-    .not-yours { color: #f59e0b; margin-top: 8px; }
+    .warning-box .warning-text { color: #7a1414; line-height: 1.6; white-space: pre-wrap; }
+    .not-yours { color: #9a5b00; margin-top: 8px; }
   </style>
 </head>
 <body>
@@ -59,9 +65,9 @@
     <a id="backLink" href="/dashboard.html">&larr; Back to Plan</a>
   </div>
 
-  <div id="tasksContainer"></div>
+  <div id="tasksContainer" style="max-width:700px; margin:0 auto;"></div>
   <div id="completeSection"></div>
-  <div id="message"></div>
+  <div id="message" style="max-width:700px; margin:12px auto 0;"></div>
 
   <script>
     const token = localStorage.getItem('token');
@@ -165,7 +171,7 @@
       }
       const resultHtml = task.choiceOptions.map((o) => {
         const isMine = o.id === task.selectedOptionId;
-        const style = o.isCorrect ? 'color:#86efac; font-weight:600;' : (isMine ? 'color:#f87171;' : 'color:#9ca3af;');
+        const style = o.isCorrect ? 'color:#1a7a3a; font-weight:600;' : (isMine ? 'color:#9b1c1c;' : 'color:#6b6560;');
         return `<div style="padding:4px 0; ${style}">${isMine ? '→ ' : '　 '}${o.text}${o.isCorrect ? ' (correct)' : ''}</div>`;
       }).join('');
       return `
@@ -173,7 +179,7 @@
           <h3>${task.text}</h3>
           ${contentHtml}
           <div>${resultHtml}</div>
-          <p style="margin-top:8px; font-weight:600; color:${task.isCorrect ? '#86efac' : '#f87171'};">${task.isCorrect ? 'Correct!' : 'Incorrect.'}</p>
+          <p style="margin-top:8px; font-weight:600; color:${task.isCorrect ? '#1a7a3a' : '#9b1c1c'};">${task.isCorrect ? 'Correct!' : 'Incorrect.'}</p>
         </div>
       `;
     }
@@ -219,7 +225,7 @@
         if (section.completed) {
           // Already done - just offer plain navigation, no re-validation needed.
           if (isLast) {
-            completeDiv.innerHTML = '<p style="color:#86efac; font-weight:600;">This section is complete - it was the last one in this module.</p>';
+            completeDiv.innerHTML = '<p style="color:#1a7a3a; font-weight:600;">This section is complete - it was the last one in this module.</p>';
           } else if (nextSection) {
             completeDiv.innerHTML = `<button onclick="goToSection('${nextSection.id}')">Next Section</button>`;
           }

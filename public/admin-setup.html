@@ -4,33 +4,39 @@
   <meta charset="UTF-8">
   <title>Admin Setup</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    :root {
+      --accent: #d6222a; --accent-dark: #b71c23;
+      --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+      --text: #1a1a1a; --text-muted: #6b6560;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    h1 { font-size: 22px; margin: 0; }
-    a { color: #93c5fd; text-decoration: none; }
-    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+    h1 { font-size: 28px; margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+    .card { background: var(--card); border: 1px solid var(--border); padding: 20px; border-radius: 14px; margin-bottom: 24px; }
     h2 { font-size: 16px; margin-top: 0; }
-    label { display: block; margin-top: 12px; font-size: 14px; color: #aaa; }
+    label { display: block; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
     select, input {
       width: 100%; padding: 8px; margin-top: 4px; border-radius: 6px;
-      border: 1px solid #333; background: #0f172a; color: #eee; box-sizing: border-box;
+      border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
     }
     button {
-      margin-top: 16px; padding: 10px 18px; background: #4f46e5; color: white;
-      border: none; border-radius: 6px; cursor: pointer; font-size: 14px;
+      margin-top: 16px; padding: 10px 18px; background: var(--accent); color: white;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600;
     }
-    button:hover { background: #4338ca; }
-    button.danger { background: #7f1d1d; }
-    button.danger:hover { background: #991b1b; }
+    button:hover { background: var(--accent-dark); }
+    button.danger { background: #9b1c1c; }
+    button.danger:hover { background: #7a1414; }
     .pairing-row {
       display: flex; justify-content: space-between; align-items: center;
-      padding: 12px 0; border-bottom: 1px solid #2a2a4a;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
     }
     .pairing-row:last-child { border-bottom: none; }
     .pairing-row button { margin-top: 0; margin-left: 8px; }
-    .cleanup-card { border: 1px solid #7f1d1d; }
-    #message { color: #86efac; margin-top: 12px; }
-    #errorMessage { color: #f87171; margin-top: 12px; }
+    .cleanup-card { border: 1px solid #f3c6c6; background: #fff9f9; }
+    #message { color: #1a7a3a; margin-top: 12px; }
+    #errorMessage { color: #9b1c1c; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -55,23 +61,23 @@
     <div id="pairingsList">Loading...</div>
   </div>
 
-  <h2 style="margin-top:32px; color:#fca5a5;">Cleanup (permanent, use with care)</h2>
+  <h2 style="margin-top:32px; color:#9b1c1c;">Cleanup (permanent, use with care)</h2>
 
   <div class="card cleanup-card">
     <h2>All Plans</h2>
-    <p style="color:#888; font-size:13px;">Deleting a plan is permanent - it removes all its modules, tasks, assessments, and history. The pairing and both people stay intact.</p>
+    <p style="color:var(--text-muted); font-size:13px;">Deleting a plan is permanent - it removes all its modules, tasks, assessments, and history. The pairing and both people stay intact.</p>
     <div id="plansList">Loading...</div>
   </div>
 
   <div class="card cleanup-card">
     <h2>All Pairings</h2>
-    <p style="color:#888; font-size:13px;">A pairing can only be deleted once it has no plans left - delete those first, above.</p>
+    <p style="color:var(--text-muted); font-size:13px;">A pairing can only be deleted once it has no plans left - delete those first, above.</p>
     <div id="pairingsCleanupList">Loading...</div>
   </div>
 
   <div class="card cleanup-card">
     <h2>All Users</h2>
-    <p style="color:#888; font-size:13px;">A user can only be deleted once they're not part of any pairing - delete those first, above. You can't delete your own account.</p>
+    <p style="color:var(--text-muted); font-size:13px;">A user can only be deleted once they're not part of any pairing - delete those first, above. You can't delete your own account.</p>
     <div id="usersCleanupList">Loading...</div>
   </div>
 
@@ -226,7 +232,7 @@
             <strong>${p.pairing.developee.name}</strong> developed by <strong>${p.pairing.developer.name}</strong>
             (${p.status}) - created ${new Date(p.createdAt).toLocaleDateString()}
           </div>
-          <button style="background:#7f1d1d;" onclick="deletePlan('${p.id}')">Delete</button>
+          <button style="background:#9b1c1c;" onclick="deletePlan('${p.id}')">Delete</button>
         </div>
       `).join('');
     }

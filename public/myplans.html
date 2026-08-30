@@ -4,21 +4,28 @@
   <meta charset="UTF-8">
   <title>My Plans</title>
   <style>
-    body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #eee; margin: 0; padding: 32px; }
+    :root {
+      --accent: #d6222a; --accent-dark: #b71c23;
+      --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+      --text: #1a1a1a; --text-muted: #6b6560;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    h1 { font-size: 22px; margin: 0; }
-    a.back { color: #93c5fd; text-decoration: none; }
-    button { padding: 8px 16px; background: #374151; color: #eee; border: none; border-radius: 6px; cursor: pointer; }
+    h1 { font-size: 28px; margin: 0; }
+    a.back { color: var(--accent); text-decoration: none; }
+    button { padding: 9px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    button:hover { background: var(--accent-dark); }
     .plan-row {
       display: flex; justify-content: space-between; align-items: center;
-      background: #16213e; padding: 16px 20px; border-radius: 8px; margin-bottom: 8px;
-      text-decoration: none; color: #eee;
+      background: var(--card); border: 1px solid var(--border); padding: 18px 20px; border-radius: 10px; margin-bottom: 10px;
+      text-decoration: none; color: var(--text);
     }
-    .plan-row:hover { background: #1e2a4a; }
-    .tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .tag-IN_PROGRESS { background: #1e3a8a; color: #bfdbfe; }
-    .tag-COMPLETE { background: #14532d; color: #bbf7d0; }
-    #message { color: #aaa; }
+    .plan-row:hover { border-color: var(--accent); background: #fff7f5; }
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 700; }
+    .tag-IN_PROGRESS { background: #dbeafe; color: #1e40af; }
+    .tag-COMPLETE { background: #dcf7e3; color: #1a7a3a; }
+    #message { color: var(--text-muted); }
   </style>
 </head>
 <body>
@@ -50,7 +57,7 @@
       const navLinks = document.getElementById('navLinks');
       const links = [];
       if (user.isAdmin) {
-        links.push('<a href="/dashboard.html" style="color:#93c5fd; text-decoration:none; margin-right:16px;">Admin Dashboard</a>');
+        links.push('<a href="/dashboard.html" style="color:var(--accent); text-decoration:none; margin-right:16px;">Admin Dashboard</a>');
       }
       navLinks.innerHTML = links.join('') + '<button onclick="logout()">Log Out</button>';
     }
@@ -74,7 +81,7 @@
           <a class="plan-row" href="/plan.html?id=${p.planId}">
             <div>
               <strong>${p.developee}</strong> (developed by ${p.developer})
-              <span style="color:#888; margin-left:8px;">- you are the ${p.myRole.toLowerCase()}</span>
+              <span style="color:var(--text-muted); margin-left:8px;">- you are the ${p.myRole.toLowerCase()}</span>
             </div>
             <span class="tag tag-${p.status}">${p.status.replace('_', ' ')}</span>
           </a>
