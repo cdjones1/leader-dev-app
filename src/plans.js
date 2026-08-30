@@ -97,7 +97,6 @@ router.post('/', requireAuth, async (req, res) => {
             moduleId: module.id,
             order: sectionTemplate.order,
             title: sectionTemplate.title,
-            assignedTo: sectionTemplate.assignedTo,
           },
         });
 
@@ -109,6 +108,7 @@ router.post('/', requireAuth, async (req, res) => {
               text: taskTemplate.text,
               content: taskTemplate.content,
               taskType: taskTemplate.taskType,
+              assignedTo: taskTemplate.assignedTo,
               correctAnswer: taskTemplate.correctAnswer,
             },
           });

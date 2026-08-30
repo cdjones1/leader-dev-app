@@ -9,7 +9,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsAssignedRole } = require('./access');
+const { checkPlanAccess } = require('./access');
 
 const router = express.Router();
 
@@ -87,7 +87,10 @@ router.post('/:sectionId/complete', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Section not found' });
   }
   if (!(await checkPlanAccess(req, res, section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, section.module.planId, section.assignedTo))) return;
+  // No specific-role check here - whoever's a participant can advance
+  // once everything's genuinely done. Each individual task's own
+  // action (submitting an answer, checking off items) already
+  // enforced who was allowed to do THAT specific piece.
   if (section.completed) {
     return res.status(400).json({ error: 'This section is already marked complete' });
   }

@@ -110,7 +110,7 @@
         <div class="task-checklist">
           ${module.sections.map((s) => `
             <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}" style="text-decoration:none; display:block;">
-              ${s.completed ? '✓' : '○'} ${s.title} <span style="color:#6b7280; font-size:12px;">(${s.assignedTo.toLowerCase()})</span>
+              ${s.completed ? '✓' : '○'} ${s.title}
             </a>
           `).join('')}
         </div>

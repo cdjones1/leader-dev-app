@@ -180,7 +180,6 @@ model ModuleSection {
   module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   order       Int
   title       String
-  assignedTo  AssignedRole @default(DEVELOPEE) // who completes this whole section
   completed   Boolean   @default(false)
   completedAt DateTime?
 
@@ -192,6 +191,11 @@ model ModuleSection {
 // individual completion), QUESTION (locks on submit, reveals
 // reference answer), CHECKLIST (sub-items to check off),
 // MULTIPLE_CHOICE (auto-graded on submit).
+// assignedTo lives HERE, per task - a section can mix tasks for
+// both the developer and developee. Advancing past the section
+// only requires everything to actually be done, not any one
+// person's permission - each task's own action already enforces
+// who's allowed to do that specific piece.
 // ------------------------------------------------------------
 enum TaskType {
   READING
@@ -210,6 +214,7 @@ model ModuleTask {
   text            String    // short title
   content         String    @default("") // reading material / the question itself
   taskType        TaskType  @default(READING)
+  assignedTo      AssignedRole @default(DEVELOPEE)
   correctAnswer   String?   // QUESTION only - NEVER sent to the browser until submitted
   submittedAnswer String?   // QUESTION - the developee's locked-in answer
   submittedAt     DateTime? // QUESTION - once set, can never be changed again
@@ -264,7 +269,6 @@ model ModuleSectionTemplate {
   moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id], onDelete: Cascade)
   order            Int
   title            String
-  assignedTo       AssignedRole @default(DEVELOPEE)
 
   taskTemplates ModuleTaskTemplate[]
 }
@@ -277,6 +281,7 @@ model ModuleTaskTemplate {
   text             String
   content          String   @default("")
   taskType         TaskType @default(READING)
+  assignedTo       AssignedRole @default(DEVELOPEE)
   correctAnswer    String?
 
   checklistItemTemplates ChecklistItemTemplate[]

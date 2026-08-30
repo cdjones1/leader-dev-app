@@ -63,7 +63,7 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.section.assignedTo))) return;
+  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
   }
@@ -98,7 +98,7 @@ router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, re
   }
   const planId = item.moduleTask.section.module.planId;
   if (!(await checkPlanAccess(req, res, planId))) return;
-  if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.section.assignedTo))) return;
+  if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.assignedTo))) return;
 
   const now = new Date();
   const updatedItem = await prisma.taskChecklistItem.update({
@@ -122,7 +122,7 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.section.assignedTo))) return;
+  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
   }

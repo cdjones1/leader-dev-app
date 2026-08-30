@@ -86,11 +86,11 @@
     let currentPlan = null;
     let currentSection = null;
 
-    function isMySection(section) {
+    function isMyTask(task) {
       if (user.isAdmin) return true;
       if (!currentPlan) return true; // fail open on viewing - server still enforces the real rule
       const myId = user.id;
-      if (section.assignedTo === 'DEVELOPER') return currentPlan.pairing.developer.id === myId;
+      if (task.assignedTo === 'DEVELOPER') return currentPlan.pairing.developer.id === myId;
       return currentPlan.pairing.developee.id === myId;
     }
 
@@ -200,9 +200,9 @@
         }
 
         document.getElementById('pageTitle').textContent = section.title;
-        const mine = isMySection(section);
 
         const blocksHtml = section.tasks.map((t) => {
+          const mine = isMyTask(t);
           if (t.taskType === 'READING') return readingBlock(t);
           if (t.taskType === 'NOTICE') return noticeBlock(t);
           if (t.taskType === 'WARNING') return warningBlock(t);
@@ -216,9 +216,7 @@
         const { isLast, nextSection } = findSectionContext(section);
         const completeDiv = document.getElementById('completeSection');
 
-        if (!mine && !section.completed) {
-          completeDiv.innerHTML = '<p class="not-yours">This section is assigned to someone else - only they (or an admin) can mark it complete.</p>';
-        } else if (section.completed) {
+        if (section.completed) {
           // Already done - just offer plain navigation, no re-validation needed.
           if (isLast) {
             completeDiv.innerHTML = '<p style="color:#86efac; font-weight:600;">This section is complete - it was the last one in this module.</p>';
@@ -226,10 +224,12 @@
             completeDiv.innerHTML = `<button onclick="goToSection('${nextSection.id}')">Next Section</button>`;
           }
         } else {
-          // Not yet complete: one button, labeled for what happens next.
-          // Clicking it always tries to complete this section first - if
-          // anything's missing, the same warning list shows instead of
-          // letting them skip ahead.
+          // Not yet complete: one button, available to any participant -
+          // clicking it validates that every task in the section is
+          // actually done (each task's own action already enforced who
+          // was allowed to complete THAT specific piece). If something's
+          // still missing, the same warning list shows instead of
+          // letting anyone skip ahead.
           const label = isLast ? 'Complete Module' : 'Next Section';
           completeDiv.innerHTML = `
             <button onclick="completeAndAdvance()">${label}</button>

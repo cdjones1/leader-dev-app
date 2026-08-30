@@ -33,9 +33,12 @@ function resolveTaskTitle(text, taskType) {
   return null; // still missing and required
 }
 
-function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
+function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
+  }
+  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
+    return 'assignedTo must be DEVELOPER or DEVELOPEE';
   }
   if (taskType === 'QUESTION' && !correctAnswer) {
     return 'A QUESTION task needs a correctAnswer for it to be gradeable';
@@ -114,12 +117,9 @@ router.post('/:sequenceOrder/sections', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  const { title, assignedTo } = req.body;
+  const { title } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
-  }
-  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
-    return res.status(400).json({ error: 'assignedTo must be DEVELOPER or DEVELOPEE' });
   }
 
   const template = await prisma.moduleTemplate.findUnique({ where: { sequenceOrder } });
@@ -134,23 +134,19 @@ router.post('/:sequenceOrder/sections', requireAuth, async (req, res) => {
       moduleTemplateId: template.id,
       order: existingCount + 1,
       title,
-      assignedTo: assignedTo || 'DEVELOPEE',
     },
   });
 
   res.status(201).json(section);
 });
 
-// Update a section's title/assignment.
+// Update a section's title.
 router.put('/sections/:sectionId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { title, assignedTo } = req.body;
+  const { title } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
-  }
-  if (assignedTo && !['DEVELOPER', 'DEVELOPEE'].includes(assignedTo)) {
-    return res.status(400).json({ error: 'assignedTo must be DEVELOPER or DEVELOPEE' });
   }
 
   const existing = await prisma.moduleSectionTemplate.findUnique({ where: { id: req.params.sectionId } });
@@ -160,7 +156,7 @@ router.put('/sections/:sectionId', requireAuth, async (req, res) => {
 
   const updated = await prisma.moduleSectionTemplate.update({
     where: { id: req.params.sectionId },
-    data: { title, assignedTo: assignedTo || 'DEVELOPEE' },
+    data: { title },
   });
 
   res.json(updated);
@@ -202,12 +198,12 @@ router.put('/:sequenceOrder/sections/reorder', requireAuth, async (req, res) => 
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -226,6 +222,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       text: resolvedText,
       content: content || '',
       taskType: taskType || 'READING',
+      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });
@@ -258,12 +255,12 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -279,6 +276,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       text: resolvedText,
       content: content || '',
       taskType: taskType || 'READING',
+      assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });

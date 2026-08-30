@@ -74,7 +74,7 @@
         <div class="task-row" data-id="${t.id}">
           <span class="drag-handle">⠿</span>
           <div style="flex:1;">
-            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType})</span>
+            <strong>${t.text}</strong> <span class="task-meta">(${t.taskType}, assigned to ${t.assignedTo ? t.assignedTo.toLowerCase() : 'developee'})</span>
             ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
@@ -93,9 +93,9 @@
       return `
         <div class="section-card" id="section-${section.id}" data-id="${section.id}">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3><span class="drag-handle">⠿</span>${section.title} <span class="task-meta">(assigned to ${section.assignedTo.toLowerCase()})</span></h3>
+            <h3><span class="drag-handle">⠿</span>${section.title}</h3>
             <div style="display:flex; gap:6px;">
-              <button style="background:#374151; margin:0;" onclick="editSection(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')}, '${section.assignedTo}')">Edit Section</button>
+              <button style="background:#374151; margin:0;" onclick="editSectionTitle(${seq}, '${section.id}', ${JSON.stringify(section.title).replace(/"/g, '&quot;')})">Edit Section</button>
               <button style="background:#7f1d1d; margin:0;" onclick="removeSection('${section.id}', ${seq})">Remove Section</button>
             </div>
           </div>
@@ -105,6 +105,11 @@
             <div id="formLabel-${section.id}" style="color:#93c5fd; font-size:12px;">New Task</div>
             <label>Task Title</label>
             <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning)">
+            <label>Assigned To</label>
+            <select id="newTaskAssignedTo-${section.id}">
+              <option value="DEVELOPEE">Developee (the person being developed)</option>
+              <option value="DEVELOPER">Developer (the one doing the developing)</option>
+            </select>
             <label>Task Type</label>
             <select id="newTaskType-${section.id}" onchange="onTypeChange('${section.id}')">
               <option value="READING">Reading (just content, no individual action)</option>
@@ -159,11 +164,6 @@
           <div class="add-section-box">
             <label>New Section Title</label>
             <input type="text" id="newSectionTitle-${seq}" placeholder="e.g. Reading Materials">
-            <label>Assigned To</label>
-            <select id="newSectionAssignedTo-${seq}">
-              <option value="DEVELOPEE">Developee (the person being developed)</option>
-              <option value="DEVELOPER">Developer (the one doing the developing)</option>
-            </select>
             <button onclick="addSection(${seq})">Add Section</button>
           </div>
         </div>
@@ -287,23 +287,21 @@
 
     async function addSection(seq) {
       const title = document.getElementById(`newSectionTitle-${seq}`).value.trim();
-      const assignedTo = document.getElementById(`newSectionAssignedTo-${seq}`).value;
       if (!title) { alert('Give the section a title first.'); return; }
       try {
-        await apiCall(`/module-templates/${seq}/sections`, { method: 'POST', body: JSON.stringify({ title, assignedTo }) });
+        await apiCall(`/module-templates/${seq}/sections`, { method: 'POST', body: JSON.stringify({ title }) });
         loadTemplates();
       } catch (err) {
         alert(err.message);
       }
     }
 
-    function editSection(seq, sectionId, currentTitle, currentAssignedTo) {
+    function editSectionTitle(seq, sectionId, currentTitle) {
       const newTitle = prompt('Section title:', currentTitle);
       if (newTitle === null) return;
-      const newAssignedTo = confirm('OK = Developer, Cancel = Developee. Who should this section be assigned to?') ? 'DEVELOPER' : 'DEVELOPEE';
       apiCall(`/module-templates/sections/${sectionId}`, {
         method: 'PUT',
-        body: JSON.stringify({ title: newTitle, assignedTo: newAssignedTo }),
+        body: JSON.stringify({ title: newTitle }),
       }).then(loadTemplates).catch((err) => alert(err.message));
     }
 
@@ -369,6 +367,7 @@
     function editTask(sectionId, task) {
       editingTaskId[sectionId] = task.id;
       document.getElementById(`newTaskText-${sectionId}`).value = task.text;
+      document.getElementById(`newTaskAssignedTo-${sectionId}`).value = task.assignedTo || 'DEVELOPEE';
       document.getElementById(`newTaskType-${sectionId}`).value = task.taskType;
       document.getElementById(`newTaskContent-${sectionId}`).value = task.content || '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = task.correctAnswer || '';
@@ -388,6 +387,7 @@
     function cancelEditTask(sectionId) {
       editingTaskId[sectionId] = null;
       document.getElementById(`newTaskText-${sectionId}`).value = '';
+      document.getElementById(`newTaskAssignedTo-${sectionId}`).value = 'DEVELOPEE';
       document.getElementById(`newTaskContent-${sectionId}`).value = '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = '';
       document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
@@ -401,6 +401,7 @@
 
     async function addTask(sectionId) {
       const text = document.getElementById(`newTaskText-${sectionId}`).value.trim();
+      const assignedTo = document.getElementById(`newTaskAssignedTo-${sectionId}`).value;
       const taskType = document.getElementById(`newTaskType-${sectionId}`).value;
       const content = document.getElementById(`newTaskContent-${sectionId}`).value;
       const correctAnswer = document.getElementById(`newTaskAnswer-${sectionId}`).value;
@@ -417,7 +418,7 @@
       }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, content, taskType, correctAnswer, checklistItems, choiceOptions };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions };
 
       try {
         if (editingId) {
