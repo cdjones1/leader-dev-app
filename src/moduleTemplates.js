@@ -21,6 +21,18 @@ function requireAdmin(req, res) {
 
 const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
 
+// Notice and Warning tasks are never shown by their title to the
+// person viewing the section - the title is purely a label for the
+// admin's own list, so it doesn't need to be required for those two.
+const TITLE_OPTIONAL_TYPES = ['NOTICE', 'WARNING'];
+
+function resolveTaskTitle(text, taskType) {
+  if (text && text.trim()) return text.trim();
+  if (taskType === 'NOTICE') return 'Info';
+  if (taskType === 'WARNING') return 'Important';
+  return null; // still missing and required
+}
+
 function validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
@@ -191,7 +203,8 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
-  if (!text) {
+  const resolvedText = resolveTaskTitle(text, taskType);
+  if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
   const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
@@ -210,7 +223,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
     data: {
       sectionTemplateId: section.id,
       order: existingCount + 1,
-      text,
+      text: resolvedText,
       content: content || '',
       taskType: taskType || 'READING',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
@@ -246,7 +259,8 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const { text, content, taskType, correctAnswer, checklistItems, choiceOptions } = req.body;
-  if (!text) {
+  const resolvedText = resolveTaskTitle(text, taskType);
+  if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
   const shapeError = validateTaskShape({ taskType, correctAnswer, checklistItems, choiceOptions });
@@ -262,7 +276,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   const updated = await prisma.moduleTaskTemplate.update({
     where: { id: req.params.taskId },
     data: {
-      text,
+      text: resolvedText,
       content: content || '',
       taskType: taskType || 'READING',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,

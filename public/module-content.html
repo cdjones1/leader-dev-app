@@ -104,7 +104,7 @@
           <div class="add-box">
             <div id="formLabel-${section.id}" style="color:#93c5fd; font-size:12px;">New Task</div>
             <label>Task Title</label>
-            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1">
+            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning)">
             <label>Task Type</label>
             <select id="newTaskType-${section.id}" onchange="onTypeChange('${section.id}')">
               <option value="READING">Reading (just content, no individual action)</option>
@@ -407,7 +407,8 @@
       const checklistItems = readChecklistRows(sectionId);
       const choiceOptions = readChoiceRows(sectionId);
 
-      if (!text) return;
+      const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING';
+      if (!text && !titleOptional) { alert('This task type needs a title.'); return; }
       if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
       if (taskType === 'CHECKLIST' && checklistItems.length === 0) { alert('Add at least one checklist item.'); return; }
       if (taskType === 'MULTIPLE_CHOICE') {
