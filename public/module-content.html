@@ -344,12 +344,19 @@
       }
     }
 
-    function addChecklistRow(sectionId, value = '') {
+    function addChecklistRow(sectionId, text = '', description = '', link = '') {
       const container = document.getElementById(`checklistItems-${sectionId}`);
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex; gap:6px; margin-top:6px;';
-      row.innerHTML = `<input type="text" value="${value.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Checklist item text">
-        <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+      row.className = 'checklist-item-row';
+      row.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 8px;';
+      row.innerHTML = `
+        <div style="display:flex; gap:6px;">
+          <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Item title">
+          <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.checklist-item-row').remove()">✕</button>
+        </div>
+        <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Short description (optional)">
+        <input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">
+      `;
       container.appendChild(row);
     }
 
@@ -365,7 +372,11 @@
 
     function readChecklistRows(sectionId) {
       return [...document.getElementById(`checklistItems-${sectionId}`).children]
-        .map((row) => ({ text: row.querySelector('input[type="text"]').value.trim() }))
+        .map((row) => ({
+          text: row.querySelector('.ci-text').value.trim(),
+          description: row.querySelector('.ci-desc').value.trim(),
+          link: row.querySelector('.ci-link').value.trim(),
+        }))
         .filter((item) => item.text);
     }
 
@@ -389,7 +400,7 @@
 
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
-      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text));
+      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || ''));
       (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(sectionId, opt.text, opt.isCorrect));
 
       onTypeChange(sectionId);

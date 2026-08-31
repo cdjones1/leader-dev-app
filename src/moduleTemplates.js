@@ -234,7 +234,13 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (taskType === 'CHECKLIST') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
-        data: { taskTemplateId: task.id, order: i + 1, text: checklistItems[i].text },
+        data: {
+          taskTemplateId: task.id,
+          order: i + 1,
+          text: checklistItems[i].text,
+          description: checklistItems[i].description || null,
+          link: checklistItems[i].link || null,
+        },
       });
     }
   }
@@ -292,7 +298,13 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (taskType === 'CHECKLIST') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
-        data: { taskTemplateId: updated.id, order: i + 1, text: checklistItems[i].text },
+        data: {
+          taskTemplateId: updated.id,
+          order: i + 1,
+          text: checklistItems[i].text,
+          description: checklistItems[i].description || null,
+          link: checklistItems[i].link || null,
+        },
       });
     }
   }

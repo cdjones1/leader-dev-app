@@ -246,9 +246,13 @@
     function checklistBlock(task, mine) {
       const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
       const itemsHtml = task.checklistItems.map((item) => `
-        <label class="task-item ${item.completed ? 'done' : ''}">
+        <label class="action-item ${item.completed ? 'checked' : ''} ${mine ? '' : 'disabled'}" style="margin-bottom:10px;">
           <input type="checkbox" ${item.completed ? 'checked' : ''} ${mine ? '' : 'disabled'} onchange="toggleChecklistItem('${item.id}')">
-          ${item.text}
+          <div>
+            <div class="ai-title">${item.text}</div>
+            ${item.description ? `<div class="ai-desc">${item.description}</div>` : ''}
+            ${item.link ? `<a class="ai-link" href="${item.link}" target="_blank" rel="noopener">Open link &#8599;</a>` : ''}
+          </div>
         </label>
       `).join('');
       return `<div class="task-block"><h3>${task.text}</h3>${contentHtml}<div>${itemsHtml}</div>${mine ? '' : '<p class="not-yours">Not your task to check off.</p>'}</div>`;

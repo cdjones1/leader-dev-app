@@ -236,7 +236,9 @@ model TaskChecklistItem {
   moduleTaskId String
   moduleTask  ModuleTask @relation(fields: [moduleTaskId], references: [id], onDelete: Cascade)
   order       Int
-  text        String
+  text        String    // the item's title
+  description String?   // optional short description shown under the title
+  link        String?   // optional external link ("Open link")
   completed   Boolean   @default(false)
   completedAt DateTime?
 }
@@ -300,6 +302,8 @@ model ChecklistItemTemplate {
   taskTemplate     ModuleTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
   order            Int
   text             String
+  description      String?
+  link             String?
 }
 
 model ChoiceOptionTemplate {
