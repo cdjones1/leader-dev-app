@@ -158,6 +158,23 @@ router.post('/', requireAuth, async (req, res) => {
 // LIST plans the logged-in user is a participant on.
 // --------------------------------------------------------------
 router.get('/mine', requireAuth, async (req, res) => {
+  // Admins see every plan, not just ones they're personally a participant
+  // on - otherwise a plan they never joined as developer/developee would
+  // be invisible to them, even though they're allowed to open it directly.
+  if (req.user.isAdmin) {
+    const allPlans = await prisma.developmentPlan.findMany({
+      include: { pairing: { include: { developer: true, developee: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return res.json(allPlans.map((plan) => ({
+      planId: plan.id,
+      myRole: 'ADMIN',
+      status: plan.status,
+      developer: plan.pairing.developer.name,
+      developee: plan.pairing.developee.name,
+    })));
+  }
+
   const participantRows = await prisma.planParticipant.findMany({
     where: { userId: req.user.userId },
     include: { plan: { include: { pairing: { include: { developer: true, developee: true } } } } },

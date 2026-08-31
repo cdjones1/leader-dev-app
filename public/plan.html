@@ -101,6 +101,8 @@
       <div class="subbrand" id="brandSub"></div>
     </div>
     <div style="display:flex; align-items:center;">
+      <a href="/myplans.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">My Plans</a>
+      <a id="adminDashLink" href="/dashboard.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Admin Dashboard</a>
       <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
       <a class="signout" href="#" onclick="signOut()">Sign out</a>
     </div>
@@ -142,6 +144,9 @@
 
     document.getElementById('welcomeName').textContent = 'Hello, ' + (user.name ? user.name.split(' ')[0] : '') + '.';
     document.getElementById('whoName').textContent = user.name || '';
+    if (user.isAdmin) {
+      document.getElementById('adminDashLink').style.display = 'inline';
+    }
 
     function signOut() {
       localStorage.removeItem('token');
