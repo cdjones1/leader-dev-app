@@ -204,6 +204,8 @@ enum TaskType {
   QUESTION
   CHECKLIST
   MULTIPLE_CHOICE
+  ACTION_ITEM
+  VIDEO
 }
 
 model ModuleTask {
@@ -220,6 +222,9 @@ model ModuleTask {
   submittedAt     DateTime? // QUESTION - once set, can never be changed again
   selectedOptionId String?  // MULTIPLE_CHOICE - which option they picked, locked in
   isCorrect        Boolean? // MULTIPLE_CHOICE - computed and stored at submission time
+  link             String?  // ACTION_ITEM only - optional external link ("Open link")
+  completed        Boolean   @default(false) // ACTION_ITEM only - checked off independently
+  completedAt      DateTime?
 
   checklistItems TaskChecklistItem[]
   choiceOptions  TaskChoiceOption[]
@@ -283,6 +288,7 @@ model ModuleTaskTemplate {
   taskType         TaskType @default(READING)
   assignedTo       AssignedRole @default(DEVELOPEE)
   correctAnswer    String?
+  link             String?
 
   checklistItemTemplates ChecklistItemTemplate[]
   choiceOptionTemplates  ChoiceOptionTemplate[]

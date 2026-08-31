@@ -124,9 +124,15 @@
               <option value="QUESTION">Question (open-ended, locked on submit)</option>
               <option value="CHECKLIST">Checklist (sub-items to check off)</option>
               <option value="MULTIPLE_CHOICE">Multiple Choice (auto-graded)</option>
+              <option value="ACTION_ITEM">Action Item (own checkbox, optional link)</option>
+              <option value="VIDEO">Video (YouTube, Vimeo, or direct file link)</option>
             </select>
-            <label>Content</label>
+            <label>Content (description shown under the title)</label>
             <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
+            <div id="linkField-${section.id}" style="display:none;">
+              <label id="linkFieldLabel-${section.id}">Link (optional)</label>
+              <input type="text" id="newTaskLink-${section.id}" placeholder="https://...">
+            </div>
             <div id="answerField-${section.id}" style="display:none;">
               <label>Correct Answer (revealed after they submit their own)</label>
               <textarea id="newTaskAnswer-${section.id}" rows="2"></textarea>
@@ -328,6 +334,8 @@
       document.getElementById(`answerField-${sectionId}`).style.display = type === 'QUESTION' ? 'block' : 'none';
       document.getElementById(`checklistField-${sectionId}`).style.display = type === 'CHECKLIST' ? 'block' : 'none';
       document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
+      document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO') ? 'block' : 'none';
+      document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : 'Link (optional)';
       if (type === 'CHECKLIST' && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
         addChecklistRow(sectionId); addChecklistRow(sectionId);
       }
@@ -377,6 +385,7 @@
       document.getElementById(`newTaskType-${sectionId}`).value = task.taskType;
       document.getElementById(`newTaskContent-${sectionId}`).value = task.content || '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = task.correctAnswer || '';
+      document.getElementById(`newTaskLink-${sectionId}`).value = task.link || '';
 
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
@@ -396,6 +405,7 @@
       document.getElementById(`newTaskAssignedTo-${sectionId}`).value = 'DEVELOPEE';
       document.getElementById(`newTaskContent-${sectionId}`).value = '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = '';
+      document.getElementById(`newTaskLink-${sectionId}`).value = '';
       document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
@@ -411,12 +421,14 @@
       const taskType = document.getElementById(`newTaskType-${sectionId}`).value;
       const content = document.getElementById(`newTaskContent-${sectionId}`).value;
       const correctAnswer = document.getElementById(`newTaskAnswer-${sectionId}`).value;
+      const link = document.getElementById(`newTaskLink-${sectionId}`).value.trim();
       const checklistItems = readChecklistRows(sectionId);
       const choiceOptions = readChoiceRows(sectionId);
 
       const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING';
       if (!text && !titleOptional) { alert('This task type needs a title.'); return; }
       if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
+      if (taskType === 'VIDEO' && !link) { alert('A video task needs a link to the video.'); return; }
       if (taskType === 'CHECKLIST' && checklistItems.length === 0) { alert('Add at least one checklist item.'); return; }
       if (taskType === 'MULTIPLE_CHOICE') {
         if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
@@ -424,7 +436,7 @@
       }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link };
 
       try {
         if (editingId) {

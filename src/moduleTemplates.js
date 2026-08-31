@@ -19,7 +19,7 @@ function requireAdmin(req, res) {
   return true;
 }
 
-const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE'];
+const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO'];
 
 // Notice and Warning tasks are never shown by their title to the
 // person viewing the section - the title is purely a label for the
@@ -33,7 +33,7 @@ function resolveTaskTitle(text, taskType) {
   return null; // still missing and required
 }
 
-function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions }) {
+function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
   }
@@ -42,6 +42,9 @@ function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems
   }
   if (taskType === 'QUESTION' && !correctAnswer) {
     return 'A QUESTION task needs a correctAnswer for it to be gradeable';
+  }
+  if (taskType === 'VIDEO' && !link) {
+    return 'A VIDEO task needs a link to the video';
   }
   if (taskType === 'CHECKLIST' && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
     return 'A CHECKLIST task needs at least one checklist item';
@@ -198,12 +201,12 @@ router.put('/:sequenceOrder/sections/reorder', requireAuth, async (req, res) => 
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -223,6 +226,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       content: content || '',
       taskType: taskType || 'READING',
       assignedTo: assignedTo || 'DEVELOPEE',
+      link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
     },
   });
@@ -255,12 +259,12 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -278,6 +282,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       taskType: taskType || 'READING',
       assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
+      link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
     },
   });
 

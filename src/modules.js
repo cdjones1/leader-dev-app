@@ -149,7 +149,34 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
-// OPEN a module — starts its 5-day countdown.
+// TOGGLE an ACTION_ITEM task's checked state. Each one is
+// completed independently - no submit/lock involved, just a
+// checkbox someone can check and uncheck freely.
+// --------------------------------------------------------------
+router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
+  const task = await prisma.moduleTask.findUnique({
+    where: { id: req.params.taskId },
+    include: { section: { include: { module: true } } },
+  });
+  if (!task) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
+  if (task.taskType !== 'ACTION_ITEM') {
+    return res.status(400).json({ error: 'Only action-item tasks can be toggled directly' });
+  }
+
+  const updated = await prisma.moduleTask.update({
+    where: { id: task.id },
+    data: {
+      completed: !task.completed,
+      completedAt: !task.completed ? new Date() : null,
+    },
+  });
+
+  res.json(updated);
+});
 // Only allowed if it's currently NOT_STARTED (can't re-open a
 // completed or locked module this way — that's a separate action).
 // --------------------------------------------------------------

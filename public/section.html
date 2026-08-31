@@ -58,6 +58,17 @@
     .warning-box .warning-text { color: #7a1414; line-height: 1.6; white-space: pre-wrap; }
     .not-yours { color: #9a5b00; margin-top: 8px; }
 
+    .action-item {
+      display: flex; gap: 14px; align-items: flex-start; background: var(--card);
+      border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px;
+    }
+    .action-item.checked { background: #eefaf1; border-color: #bfe8cc; }
+    .action-item input[type="checkbox"] { width: 22px; height: 22px; margin-top: 2px; accent-color: #1a7a3a; flex-shrink: 0; }
+    .action-item.disabled input[type="checkbox"] { opacity: 0.5; }
+    .action-item .ai-title { font-weight: 700; font-size: 16px; }
+    .action-item .ai-desc { color: var(--text-muted); margin-top: 4px; }
+    .action-item .ai-link { display: inline-block; margin-top: 8px; color: var(--accent); font-weight: 700; text-decoration: none; }
+
     .layout { display: flex; gap: 32px; max-width: 1100px; margin: 0 auto; align-items: flex-start; }
     .sidebar { width: 260px; flex-shrink: 0; position: sticky; top: 32px; }
     .sidebar-label { color: var(--text-muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; margin-bottom: 10px; }
@@ -144,6 +155,58 @@
 
     function readingBlock(task) {
       return `<div class="task-block"><h3>${task.text}</h3><div class="content-box">${task.content || '(No content written yet.)'}</div></div>`;
+    }
+
+    // Turns a plain YouTube/Vimeo URL into an embeddable player URL.
+    // Falls back to a direct <video> tag for file links, or a plain
+    // link if the format isn't recognized at all.
+    function videoEmbedUrl(url) {
+      const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
+      if (ytMatch) return { type: 'iframe', src: `https://www.youtube.com/embed/${ytMatch[1]}` };
+
+      const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+      if (vimeoMatch) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+
+      if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) return { type: 'video', src: url };
+
+      return { type: 'link', src: url };
+    }
+
+    function videoBlock(task) {
+      const embed = task.link ? videoEmbedUrl(task.link) : null;
+      let playerHtml = '<p style="color:var(--text-muted);">(No video link set.)</p>';
+      if (embed) {
+        if (embed.type === 'iframe') {
+          playerHtml = `<div style="position:relative; padding-bottom:56.25%; height:0; border-radius:8px; overflow:hidden;">
+            <iframe src="${embed.src}" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>`;
+        } else if (embed.type === 'video') {
+          playerHtml = `<video controls style="width:100%; border-radius:8px;"><source src="${embed.src}"></video>`;
+        } else {
+          playerHtml = `<a href="${embed.src}" target="_blank" rel="noopener">Open video &#8599;</a>`;
+        }
+      }
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${playerHtml}
+          ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+        </div>
+      `;
+    }
+
+    function actionItemBlock(task) {
+      const mine = isMyTask(task);
+      return `
+        <label class="action-item ${task.completed ? 'checked' : ''} ${mine ? '' : 'disabled'}">
+          <input type="checkbox" ${task.completed ? 'checked' : ''} ${mine ? '' : 'disabled'} onchange="toggleActionItem('${task.id}')">
+          <div>
+            <div class="ai-title">${task.text}</div>
+            ${task.content ? `<div class="ai-desc">${task.content}</div>` : ''}
+            ${task.link ? `<a class="ai-link" href="${task.link}" target="_blank" rel="noopener">Open link &#8599;</a>` : ''}
+          </div>
+        </label>
+      `;
     }
 
     function noticeBlock(task) {
@@ -247,7 +310,7 @@
     function isPartiallyStarted(section) {
       if (section.completed) return false;
       return (section.tasks || []).some((t) =>
-        t.submittedAt || t.selectedOptionId || (t.checklistItems || []).some((i) => i.completed)
+        t.submittedAt || t.selectedOptionId || t.completed || (t.checklistItems || []).some((i) => i.completed)
       );
     }
 
@@ -295,6 +358,8 @@
           if (t.taskType === 'QUESTION') return questionBlock(t, mine);
           if (t.taskType === 'CHECKLIST') return checklistBlock(t, mine);
           if (t.taskType === 'MULTIPLE_CHOICE') return multipleChoiceBlock(t, mine);
+          if (t.taskType === 'ACTION_ITEM') return actionItemBlock(t);
+          if (t.taskType === 'VIDEO') return videoBlock(t);
           return '';
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;
@@ -363,6 +428,15 @@
     async function toggleChecklistItem(itemId) {
       try {
         await apiCall('/modules/tasks/checklist-items/' + itemId + '/toggle', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function toggleActionItem(taskId) {
+      try {
+        await apiCall('/modules/tasks/' + taskId + '/toggle', { method: 'POST' });
         loadSection();
       } catch (err) {
         alert(err.message);

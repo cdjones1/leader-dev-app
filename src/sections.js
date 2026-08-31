@@ -69,6 +69,9 @@ function findIncompleteRequirements(tasks) {
     if (task.taskType === 'CHECKLIST' && !task.checklistItems.every((i) => i.completed)) {
       missing.push(`"${task.text}" still has unchecked items`);
     }
+    if (task.taskType === 'ACTION_ITEM' && !task.completed) {
+      missing.push(`"${task.text}" is not checked off yet`);
+    }
   }
   return missing;
 }
