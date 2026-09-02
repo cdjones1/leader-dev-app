@@ -63,11 +63,17 @@ function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems
   return null;
 }
 
-// List all 8 templates with their sections and each section's tasks.
+// List all 8 templates FOR A SPECIFIC PATH, with their sections and each section's tasks.
 router.get('/', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
+  const { pathId } = req.query;
+  if (!pathId) {
+    return res.status(400).json({ error: 'pathId query parameter is required' });
+  }
+
   const templates = await prisma.moduleTemplate.findMany({
+    where: { pathId },
     include: {
       sectionTemplates: {
         orderBy: { order: 'asc' },
@@ -88,13 +94,22 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(templates);
 });
 
-// Create or update the template for a given sequence position (1-8).
-router.put('/:sequenceOrder', requireAuth, async (req, res) => {
+// Create or update the template for a given sequence position (1-8)
+// WITHIN A SPECIFIC PATH. Uses literal "path"/"module" markers in the
+// URL (not just two bare wildcard segments) so this can never collide
+// with another route, regardless of registration order.
+router.put('/path/:pathId/module/:sequenceOrder', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
+  const { pathId } = req.params;
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
   if (sequenceOrder < 1 || sequenceOrder > 8) {
     return res.status(400).json({ error: 'sequenceOrder must be between 1 and 8' });
+  }
+
+  const path = await prisma.developmentPath.findUnique({ where: { id: pathId } });
+  if (!path) {
+    return res.status(404).json({ error: 'Path not found' });
   }
 
   const { title, description } = req.body;
@@ -103,9 +118,9 @@ router.put('/:sequenceOrder', requireAuth, async (req, res) => {
   }
 
   const template = await prisma.moduleTemplate.upsert({
-    where: { sequenceOrder },
+    where: { pathId_sequenceOrder: { pathId, sequenceOrder } },
     update: { title, description: description || '' },
-    create: { sequenceOrder, title, description: description || '' },
+    create: { pathId, sequenceOrder, title, description: description || '' },
   });
 
   res.json(template);
@@ -115,17 +130,20 @@ router.put('/:sequenceOrder', requireAuth, async (req, res) => {
 // SECTIONS - each becomes its own page once copied into a real plan.
 // --------------------------------------------------------------
 
-// Add a section to a module template.
-router.post('/:sequenceOrder/sections', requireAuth, async (req, res) => {
+// Add a section to a specific path's module template.
+router.post('/path/:pathId/module/:sequenceOrder/sections', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
+  const { pathId } = req.params;
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
   const { title } = req.body;
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
   }
 
-  const template = await prisma.moduleTemplate.findUnique({ where: { sequenceOrder } });
+  const template = await prisma.moduleTemplate.findUnique({
+    where: { pathId_sequenceOrder: { pathId, sequenceOrder } },
+  });
   if (!template) {
     return res.status(404).json({ error: 'No template exists yet for this module - create it first with PUT' });
   }
@@ -141,6 +159,30 @@ router.post('/:sequenceOrder/sections', requireAuth, async (req, res) => {
   });
 
   res.status(201).json(section);
+});
+
+// Reorder the sections within a module template. Body: { sectionIds: [...] }
+// in the desired new order. Doesn't need to know which path/module -
+// it just reorders the specific section IDs given.
+// IMPORTANT: this must be registered BEFORE '/sections/:sectionId'
+// below - otherwise Express would match "reorder" as if it were a
+// section ID and this route would never be reached.
+router.put('/sections/reorder', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { sectionIds } = req.body;
+  if (!Array.isArray(sectionIds) || sectionIds.length === 0) {
+    return res.status(400).json({ error: 'sectionIds must be a non-empty array' });
+  }
+
+  for (let i = 0; i < sectionIds.length; i++) {
+    await prisma.moduleSectionTemplate.update({
+      where: { id: sectionIds[i] },
+      data: { order: i + 1 },
+    });
+  }
+
+  res.json({ reordered: sectionIds.length });
 });
 
 // Update a section's title.
@@ -171,26 +213,6 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
 
   await prisma.moduleSectionTemplate.delete({ where: { id: req.params.sectionId } });
   res.status(204).send();
-});
-
-// Reorder the sections within a module template. Body: { sectionIds: [...] }
-// in the desired new order.
-router.put('/:sequenceOrder/sections/reorder', requireAuth, async (req, res) => {
-  if (!requireAdmin(req, res)) return;
-
-  const { sectionIds } = req.body;
-  if (!Array.isArray(sectionIds) || sectionIds.length === 0) {
-    return res.status(400).json({ error: 'sectionIds must be a non-empty array' });
-  }
-
-  for (let i = 0; i < sectionIds.length; i++) {
-    await prisma.moduleSectionTemplate.update({
-      where: { id: sectionIds[i] },
-      data: { order: i + 1 },
-    });
-  }
-
-  res.json({ reordered: sectionIds.length });
 });
 
 // --------------------------------------------------------------

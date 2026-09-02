@@ -82,6 +82,7 @@
             <div>
               <strong>${p.developee}</strong> (developed by ${p.developer})
               <span style="color:var(--text-muted); margin-left:8px;">- you are the ${p.myRole.toLowerCase()}</span>
+              ${p.pathName ? `<span style="color:var(--text-muted); margin-left:8px;">· ${p.pathName}</span>` : ''}
             </div>
             <span class="tag tag-${p.status}">${p.status.replace('_', ' ')}</span>
           </a>

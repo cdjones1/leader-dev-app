@@ -48,7 +48,18 @@
   </div>
   <p style="color:var(--text-muted);">Each module is built from sections - a section is its own page for whoever completes it, and marks itself done with one action at the end. Editing here only affects plans created after your changes.</p>
 
-  <div id="templatesContainer">Loading...</div>
+  <div class="module-card">
+    <h2>Development Path</h2>
+    <p style="color:var(--text-muted); font-size:13px;">Each path (e.g. "Front of House Senior Team Member") has its own separate set of 8 modules. Pick one to edit, or create a new one.</p>
+    <label>Select Path</label>
+    <select id="pathSelect" onchange="onPathSelected()"></select>
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)">
+      <button onclick="createPath()" style="white-space:nowrap;">+ New Path</button>
+    </div>
+  </div>
+
+  <div id="templatesContainer"></div>
 
   <script>
     const token = localStorage.getItem('token');
@@ -58,6 +69,8 @@
       document.body.innerHTML = '<p>This page is admin-only.</p>';
       throw new Error('not admin');
     }
+
+    let currentPathId = null;
 
     async function apiCall(url, options = {}) {
       const res = await fetch(url, {
@@ -182,10 +195,56 @@
       `;
     }
 
+    // ---------- Path management ----------
+
+    async function loadPaths() {
+      const paths = await apiCall('/paths');
+      const select = document.getElementById('pathSelect');
+
+      if (paths.length === 0) {
+        select.innerHTML = '<option value="">No paths yet - create one below</option>';
+        currentPathId = null;
+        document.getElementById('templatesContainer').innerHTML = '';
+        return;
+      }
+
+      select.innerHTML = paths.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+
+      // Keep whatever was already selected if it still exists, otherwise default to the first path.
+      if (!currentPathId || !paths.some((p) => p.id === currentPathId)) {
+        currentPathId = paths[0].id;
+      }
+      select.value = currentPathId;
+      loadTemplates();
+    }
+
+    function onPathSelected() {
+      currentPathId = document.getElementById('pathSelect').value;
+      loadTemplates();
+    }
+
+    async function createPath() {
+      const name = document.getElementById('newPathName').value.trim();
+      if (!name) { alert('Give the new path a name first.'); return; }
+      try {
+        const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name }) });
+        document.getElementById('newPathName').value = '';
+        currentPathId = path.id;
+        loadPaths();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     // ---------- Loading ----------
 
     async function loadTemplates() {
-      const templates = await apiCall('/module-templates');
+      if (!currentPathId) {
+        document.getElementById('templatesContainer').innerHTML = '';
+        return;
+      }
+
+      const templates = await apiCall('/module-templates?pathId=' + currentPathId);
       templatesBySeq = {};
       templates.forEach((t) => { templatesBySeq[t.sequenceOrder] = t; });
 
@@ -263,7 +322,7 @@
 
     async function reorderSections(seq, sectionIds) {
       try {
-        await apiCall(`/module-templates/${seq}/sections/reorder`, { method: 'PUT', body: JSON.stringify({ sectionIds }) });
+        await apiCall(`/module-templates/sections/reorder`, { method: 'PUT', body: JSON.stringify({ sectionIds }) });
       } catch (err) {
         alert(err.message);
         loadTemplates(); // snap back to the real order if the save failed
@@ -285,7 +344,7 @@
       const title = document.getElementById(`title-${seq}`).value;
       const description = document.getElementById(`description-${seq}`).value;
       try {
-        await apiCall(`/module-templates/${seq}`, { method: 'PUT', body: JSON.stringify({ title, description }) });
+        await apiCall(`/module-templates/path/${currentPathId}/module/${seq}`, { method: 'PUT', body: JSON.stringify({ title, description }) });
         const savedNote = document.getElementById(`saved-${seq}`);
         savedNote.style.display = 'inline';
         setTimeout(() => { savedNote.style.display = 'none'; }, 2000);
@@ -301,7 +360,7 @@
       const title = document.getElementById(`newSectionTitle-${seq}`).value.trim();
       if (!title) { alert('Give the section a title first.'); return; }
       try {
-        await apiCall(`/module-templates/${seq}/sections`, { method: 'POST', body: JSON.stringify({ title }) });
+        await apiCall(`/module-templates/path/${currentPathId}/module/${seq}/sections`, { method: 'POST', body: JSON.stringify({ title }) });
         loadTemplates();
       } catch (err) {
         alert(err.message);
@@ -471,7 +530,7 @@
       }
     }
 
-    loadTemplates();
+    loadPaths();
   </script>
 </body>
 </html>

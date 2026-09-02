@@ -79,6 +79,8 @@ model DevelopmentPlan {
   id        String     @id @default(uuid())
   pairingId String
   pairing   DeveloperPairing @relation(fields: [pairingId], references: [id])
+  pathId    String?    // which path this plan was built from - informational only, the plan's own modules/sections/tasks are already fully copied
+  pathName  String?    // the path's name at creation time, so history reads correctly even if the path is later renamed or deleted
   status    PlanStatus @default(IN_PROGRESS)
   createdAt DateTime   @default(now())
   startedAt DateTime?  // set the moment module 1 is actually opened - this is when the real 40-day clock begins, not when the plan record was created
@@ -261,13 +263,34 @@ model TaskChoiceOption {
 // Editing a template later does NOT change plans already in progress -
 // same principle as pairing history: don't silently rewrite the past.
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// DEVELOPMENT PATHS — distinct named curricula (e.g. "Front of
+// House Senior Team Member" vs a different role). Each path has
+// its own separate set of 8 modules. pathId stays optional so
+// content built before paths existed keeps working without a
+// forced migration - it just belongs to whichever path it's
+// assigned to (or none, until assigned).
+// ------------------------------------------------------------
+model DevelopmentPath {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String   @default("")
+  createdAt   DateTime @default(now())
+
+  moduleTemplates ModuleTemplate[]
+}
+
 model ModuleTemplate {
   id            String   @id @default(uuid())
-  sequenceOrder Int      @unique // 1 through 8
+  pathId        String?
+  path          DevelopmentPath? @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  sequenceOrder Int      // 1 through 8, unique WITHIN a path
   title         String
   description   String
 
   sectionTemplates ModuleSectionTemplate[]
+
+  @@unique([pathId, sequenceOrder])
 }
 
 model ModuleSectionTemplate {

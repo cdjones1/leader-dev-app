@@ -58,6 +58,8 @@
 
   <div class="card">
     <h2>Existing Pairings</h2>
+    <label>Path to use for new plans</label>
+    <select id="planPathSelect"></select>
     <div id="pairingsList">Loading...</div>
   </div>
 
@@ -208,9 +210,24 @@
       }
     }
 
+    async function loadPathOptions() {
+      const paths = await apiCall('/paths');
+      const select = document.getElementById('planPathSelect');
+      if (paths.length === 0) {
+        select.innerHTML = '<option value="">No paths yet - create one in Module Content first</option>';
+        return;
+      }
+      select.innerHTML = paths.map((p) => `<option value="${p.id}">${p.name}</option>`).join('');
+    }
+
     async function startPlan(pairingId) {
+      const pathId = document.getElementById('planPathSelect').value;
+      if (!pathId) {
+        alert('Pick a development path first (or create one in Module Content).');
+        return;
+      }
       try {
-        const plan = await apiCall('/plans', { method: 'POST', body: JSON.stringify({ pairingId }) });
+        const plan = await apiCall('/plans', { method: 'POST', body: JSON.stringify({ pairingId, pathId }) });
         window.location.href = '/plan.html?id=' + plan.id;
       } catch (err) {
         alert(err.message);
@@ -230,7 +247,7 @@
         <div class="pairing-row">
           <div>
             <strong>${p.pairing.developee.name}</strong> developed by <strong>${p.pairing.developer.name}</strong>
-            (${p.status}) - created ${new Date(p.createdAt).toLocaleDateString()}
+            (${p.status}) ${p.pathName ? `- ${p.pathName}` : ''} - created ${new Date(p.createdAt).toLocaleDateString()}
           </div>
           <button style="background:#9b1c1c;" onclick="deletePlan('${p.id}')">Delete</button>
         </div>
@@ -255,6 +272,7 @@
 
     loadUsers();
     loadPairings();
+    loadPathOptions();
   </script>
 </body>
 </html>

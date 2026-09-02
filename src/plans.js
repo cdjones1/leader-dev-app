@@ -43,9 +43,12 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Only an admin can start a new development plan' });
   }
 
-  const { pairingId } = req.body;
+  const { pairingId, pathId } = req.body;
   if (!pairingId) {
     return res.status(400).json({ error: 'pairingId is required' });
+  }
+  if (!pathId) {
+    return res.status(400).json({ error: 'pathId is required - pick which development path to use' });
   }
 
   const pairing = await prisma.developerPairing.findUnique({ where: { id: pairingId } });
@@ -53,7 +56,16 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Pairing not found' });
   }
 
-  const plan = await prisma.developmentPlan.create({ data: { pairingId } });
+  const path = await prisma.developmentPath.findUnique({ where: { id: pathId } });
+  if (!path) {
+    return res.status(404).json({ error: 'Path not found' });
+  }
+
+  // pathName is stored as a permanent snapshot - if the path is later
+  // renamed or deleted, this plan's history still reads correctly.
+  const plan = await prisma.developmentPlan.create({
+    data: { pairingId, pathId, pathName: path.name },
+  });
 
   // All 8 modules are created NOT_STARTED, including module 1 - nothing
   // auto-opens anymore. The plan's real clock (startedAt) only begins
@@ -63,7 +75,7 @@ router.post('/', requireAuth, async (req, res) => {
   // yet, and that's fine, the module just starts blank.
   for (let seq = 1; seq <= 8; seq++) {
     const template = await prisma.moduleTemplate.findUnique({
-      where: { sequenceOrder: seq },
+      where: { pathId_sequenceOrder: { pathId, sequenceOrder: seq } },
       include: {
         sectionTemplates: {
           orderBy: { order: 'asc' },
@@ -170,6 +182,7 @@ router.get('/mine', requireAuth, async (req, res) => {
       planId: plan.id,
       myRole: 'ADMIN',
       status: plan.status,
+      pathName: plan.pathName,
       developer: plan.pairing.developer.name,
       developee: plan.pairing.developee.name,
     })));
@@ -184,6 +197,7 @@ router.get('/mine', requireAuth, async (req, res) => {
     planId: row.plan.id,
     myRole: row.participantRole,
     status: row.plan.status,
+    pathName: row.plan.pathName,
     developer: row.plan.pairing.developer.name,
     developee: row.plan.pairing.developee.name,
   }));
