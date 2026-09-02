@@ -51,8 +51,13 @@
   <div class="module-card">
     <h2>Development Path</h2>
     <p style="color:var(--text-muted); font-size:13px;">Each path (e.g. "Front of House Senior Team Member") has its own separate set of 8 modules. Pick one to edit, or create a new one.</p>
-    <label>Select Path</label>
-    <select id="pathSelect" onchange="onPathSelected()"></select>
+    <div style="display:flex; gap:8px; align-items:flex-end;">
+      <div style="flex:1;">
+        <label>Select Path</label>
+        <select id="pathSelect" onchange="onPathSelected()"></select>
+      </div>
+      <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
+    </div>
     <div style="display:flex; gap:8px; margin-top:14px;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)">
       <button onclick="createPath()" style="white-space:nowrap;">+ New Path</button>
@@ -71,6 +76,7 @@
     }
 
     let currentPathId = null;
+    let pathsById = {};
 
     async function apiCall(url, options = {}) {
       const res = await fetch(url, {
@@ -199,6 +205,8 @@
 
     async function loadPaths() {
       const paths = await apiCall('/paths');
+      pathsById = {};
+      paths.forEach((p) => { pathsById[p.id] = p; });
       const select = document.getElementById('pathSelect');
 
       if (paths.length === 0) {
@@ -230,6 +238,22 @@
         const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name }) });
         document.getElementById('newPathName').value = '';
         currentPathId = path.id;
+        loadPaths();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function renamePath() {
+      if (!currentPathId) { alert('Select a path first.'); return; }
+      const currentPath = pathsById[currentPathId];
+      const newName = prompt('New name for this path:', currentPath ? currentPath.name : '');
+      if (newName === null || !newName.trim()) return;
+      try {
+        await apiCall(`/paths/${currentPathId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ name: newName.trim(), description: currentPath ? currentPath.description : '' }),
+        });
         loadPaths();
       } catch (err) {
         alert(err.message);
