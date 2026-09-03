@@ -30,9 +30,14 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { name, description } = req.body;
+  const { name, description, moduleCount } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'name is required' });
+  }
+
+  const count = moduleCount ? parseInt(moduleCount, 10) : 8;
+  if (!Number.isInteger(count) || count < 1) {
+    return res.status(400).json({ error: 'moduleCount must be a positive whole number' });
   }
 
   const existing = await prisma.developmentPath.findUnique({ where: { name: name.trim() } });
@@ -41,7 +46,7 @@ router.post('/', requireAuth, async (req, res) => {
   }
 
   const path = await prisma.developmentPath.create({
-    data: { name: name.trim(), description: description || '' },
+    data: { name: name.trim(), description: description || '', moduleCount: count },
   });
 
   res.status(201).json(path);

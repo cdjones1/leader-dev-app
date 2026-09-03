@@ -103,13 +103,13 @@ router.put('/path/:pathId/module/:sequenceOrder', requireAuth, async (req, res) 
 
   const { pathId } = req.params;
   const sequenceOrder = parseInt(req.params.sequenceOrder, 10);
-  if (sequenceOrder < 1 || sequenceOrder > 8) {
-    return res.status(400).json({ error: 'sequenceOrder must be between 1 and 8' });
-  }
 
   const path = await prisma.developmentPath.findUnique({ where: { id: pathId } });
   if (!path) {
     return res.status(404).json({ error: 'Path not found' });
+  }
+  if (sequenceOrder < 1 || sequenceOrder > path.moduleCount) {
+    return res.status(400).json({ error: `sequenceOrder must be between 1 and ${path.moduleCount} for this path` });
   }
 
   const { title, description } = req.body;

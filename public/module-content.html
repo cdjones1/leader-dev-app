@@ -59,7 +59,8 @@
       <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
     </div>
     <div style="display:flex; gap:8px; margin-top:14px;">
-      <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)">
+      <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2;">
+      <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
       <button onclick="createPath()" style="white-space:nowrap;">+ New Path</button>
     </div>
   </div>
@@ -233,10 +234,12 @@
 
     async function createPath() {
       const name = document.getElementById('newPathName').value.trim();
+      const moduleCount = document.getElementById('newPathModuleCount').value || 8;
       if (!name) { alert('Give the new path a name first.'); return; }
       try {
-        const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name }) });
+        const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name, moduleCount }) });
         document.getElementById('newPathName').value = '';
+        document.getElementById('newPathModuleCount').value = '8';
         currentPathId = path.id;
         loadPaths();
       } catch (err) {
@@ -272,16 +275,18 @@
       templatesBySeq = {};
       templates.forEach((t) => { templatesBySeq[t.sequenceOrder] = t; });
 
+      const moduleCount = (pathsById[currentPathId] && pathsById[currentPathId].moduleCount) || 8;
+
       const container = document.getElementById('templatesContainer');
       let html = '';
-      for (let seq = 1; seq <= 8; seq++) {
+      for (let seq = 1; seq <= moduleCount; seq++) {
         html += templateCardHtml(seq, templatesBySeq[seq] || null);
       }
       container.innerHTML = html;
 
       // Wire up drag-and-drop for every sections list and every
       // section's own task list, now that they're in the DOM.
-      for (let seq = 1; seq <= 8; seq++) {
+      for (let seq = 1; seq <= moduleCount; seq++) {
         const template = templatesBySeq[seq];
         if (!template) continue;
         makeSortable(document.getElementById(`sections-${seq}`), '.section-card', (orderedIds) => {

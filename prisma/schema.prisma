@@ -81,6 +81,7 @@ model DevelopmentPlan {
   pairing   DeveloperPairing @relation(fields: [pairingId], references: [id])
   pathId    String?    // which path this plan was built from - informational only, the plan's own modules/sections/tasks are already fully copied
   pathName  String?    // the path's name at creation time, so history reads correctly even if the path is later renamed or deleted
+  moduleCount Int      @default(8) // how many modules THIS plan has - snapshotted at creation, so a path's module count changing later never affects plans already running
   status    PlanStatus @default(IN_PROGRESS)
   createdAt DateTime   @default(now())
   startedAt DateTime?  // set the moment module 1 is actually opened - this is when the real 40-day clock begins, not when the plan record was created
@@ -275,6 +276,7 @@ model DevelopmentPath {
   id          String   @id @default(uuid())
   name        String   @unique
   description String   @default("")
+  moduleCount Int      @default(8) // how many modules this path has - the assessment/review gates always land at the halfway point and at the end, whatever that count is
   createdAt   DateTime @default(now())
 
   moduleTemplates ModuleTemplate[]

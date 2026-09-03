@@ -169,16 +169,19 @@
     }
 
     function buildSequence(plan) {
+      const moduleCount = plan.moduleCount || plan.modules.length;
+      const midpoint = Math.ceil(moduleCount / 2);
       const seq = [];
       for (const m of plan.modules) {
         seq.push({ type: 'module', data: m, label: `Module ${m.sequenceOrder}${m.title ? ' — ' + m.title : ''}`, done: m.status === 'COMPLETED' });
-        if (m.sequenceOrder === 4 || m.sequenceOrder === 8) {
-          const gate = m.sequenceOrder === 4 ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+        if (m.sequenceOrder === midpoint || m.sequenceOrder === moduleCount) {
+          const isMidpoint = m.sequenceOrder === midpoint;
+          const gate = isMidpoint ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
           const review = plan.reviewSteps.find((r) => r.gatePosition === gate);
-          const label = m.sequenceOrder === 4 ? 'Study & Review — Modules 1-4' : 'Study & Review — Modules 5-8';
+          const label = isMidpoint ? `Study & Review — Modules 1-${midpoint}` : `Study & Review — Modules ${midpoint + 1}-${moduleCount}`;
           seq.push({ type: 'review', data: review, label, done: review ? review.status === 'COMPLETED' : false });
           const assessment = plan.assessments.find((a) => a.gatePosition === gate);
-          const aLabel = m.sequenceOrder === 4 ? 'Assessment Part 1 — Modules 1-4' : 'Assessment Part 2 — Modules 5-8';
+          const aLabel = isMidpoint ? `Assessment Part 1 — Modules 1-${midpoint}` : `Assessment Part 2 — Modules ${midpoint + 1}-${moduleCount}`;
           seq.push({ type: 'assessment', data: assessment, label: aLabel, done: assessment ? assessment.status === 'PASSED' : false });
         }
       }

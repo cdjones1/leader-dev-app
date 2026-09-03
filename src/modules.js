@@ -7,6 +7,7 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsAssignedRole } = require('./access');
+const { midpointModule, gateAfterModule } = require('./gates');
 
 const router = express.Router();
 
@@ -208,15 +209,20 @@ router.post('/:id/open', requireAuth, async (req, res) => {
     }
   }
 
-  // Module 5 has an ADDITIONAL gate on top of the sequencing rule
-  // above: the midterm assessment (after module 4) must have PASSED.
-  if (module.sequenceOrder === 5) {
+  // The module right after the midpoint has an ADDITIONAL gate on
+  // top of the sequencing rule above: the midterm assessment (right
+  // after the midpoint module) must have PASSED. Uses the module's
+  // OWN plan's moduleCount, so this works correctly whether the plan
+  // has 8 modules, 6, or any other count.
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: module.planId } });
+  const midpoint = midpointModule(plan.moduleCount);
+  if (module.sequenceOrder === midpoint + 1) {
     const midterm = await prisma.assessment.findUnique({
       where: { planId_gatePosition: { planId: module.planId, gatePosition: 'AFTER_MODULE_4' } },
     });
     if (!midterm || midterm.status !== 'PASSED') {
       return res.status(400).json({
-        error: 'Module 5 is locked until the midterm assessment (after module 4) has passed',
+        error: `Module ${module.sequenceOrder} is locked until the midterm assessment (after module ${midpoint}) has passed`,
       });
     }
   }
@@ -275,10 +281,13 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     data: { moduleId, eventType: 'COMPLETED', actorId: req.user.userId },
   });
 
-  // Modules 4 and 8 lead into a "Study and Review" step before the
-  // assessment - not straight to the assessment itself anymore.
-  if (module.sequenceOrder === 4 || module.sequenceOrder === 8) {
-    const gatePosition = module.sequenceOrder === 4 ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+  // The midpoint and final modules lead into a "Study and Review"
+  // step before the assessment - not straight to the assessment
+  // itself. Uses this plan's OWN moduleCount, so this correctly finds
+  // the right gate regardless of how many modules the plan has.
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: module.planId } });
+  const gatePosition = gateAfterModule(module.sequenceOrder, plan.moduleCount);
+  if (gatePosition) {
     const reviewStep = await prisma.reviewStep.create({
       data: { planId: module.planId, gatePosition, status: 'OPEN', openedAt: new Date() },
     });

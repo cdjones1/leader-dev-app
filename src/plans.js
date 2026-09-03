@@ -8,7 +8,6 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess } = require('./access');
-
 const router = express.Router();
 
 // Shared answer-hiding rule, used everywhere a task might be sent
@@ -61,19 +60,22 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Path not found' });
   }
 
-  // pathName is stored as a permanent snapshot - if the path is later
-  // renamed or deleted, this plan's history still reads correctly.
+  // pathName and moduleCount are stored as permanent snapshots - if
+  // the path is later renamed, has its module count changed, or is
+  // deleted, this plan's history and behavior stay exactly as they
+  // were when it was created.
   const plan = await prisma.developmentPlan.create({
-    data: { pairingId, pathId, pathName: path.name },
+    data: { pairingId, pathId, pathName: path.name, moduleCount: path.moduleCount },
   });
 
-  // All 8 modules are created NOT_STARTED, including module 1 - nothing
-  // auto-opens anymore. The plan's real clock (startedAt) only begins
-  // once someone actually clicks to open module 1.
+  // All of this path's modules are created NOT_STARTED, including
+  // module 1 - nothing auto-opens anymore. The plan's real clock
+  // (startedAt) only begins once someone actually clicks to open
+  // module 1.
   // Content (title/description/tasks) is copied from the matching
   // template, if one exists yet - templates might not be filled in
   // yet, and that's fine, the module just starts blank.
-  for (let seq = 1; seq <= 8; seq++) {
+  for (let seq = 1; seq <= path.moduleCount; seq++) {
     const template = await prisma.moduleTemplate.findUnique({
       where: { pathId_sequenceOrder: { pathId, sequenceOrder: seq } },
       include: {
