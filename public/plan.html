@@ -389,7 +389,7 @@
             <option value="PASS">Pass</option>
             <option value="FAIL">Fail</option>
           </select>
-          <button style="margin-top:16px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
+          <button id="submitGradeBtn" style="margin-top:16px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
         </div>
       `;
     }
@@ -475,6 +475,13 @@
     }
 
     async function gradeAssessment(assessmentId) {
+      const submitBtn = document.getElementById('submitGradeBtn');
+      if (submitBtn) {
+        if (submitBtn.disabled) return; // already submitting - ignore a second click entirely
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+      }
+
       const score = parseInt(document.getElementById('score').value, 10);
       const comments = document.getElementById('comments').value;
       const overallResult = document.getElementById('overallResult').value;
@@ -489,7 +496,20 @@
         });
         loadPlan();
       } catch (err) {
+        // If it turns out this was already graded (e.g. a duplicate
+        // submission that arrived a moment after the first one succeeded),
+        // that's not really a failure from the user's point of view -
+        // just refresh to show the real, already-graded state instead of
+        // a confusing error.
+        if (err.message && err.message.toLowerCase().includes('cannot grade an assessment with status')) {
+          loadPlan();
+          return;
+        }
         alert(err.message);
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Grade';
+        }
       }
     }
 

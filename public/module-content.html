@@ -57,6 +57,7 @@
         <select id="pathSelect" onchange="onPathSelected()"></select>
       </div>
       <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
+      <button onclick="deletePath()" style="background:#9b1c1c; white-space:nowrap;">Delete Path</button>
     </div>
     <div style="display:flex; gap:8px; margin-top:14px;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2;">
@@ -257,6 +258,23 @@
           method: 'PUT',
           body: JSON.stringify({ name: newName.trim(), description: currentPath ? currentPath.description : '' }),
         });
+        loadPaths();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deletePath() {
+      if (!currentPathId) { alert('Select a path first.'); return; }
+      const currentPath = pathsById[currentPathId];
+      const name = currentPath ? currentPath.name : 'this path';
+      const confirmed = confirm(
+        `Delete "${name}" permanently?\n\nThis removes all of its modules, sections, and tasks - it cannot be undone.\n\nAny plans already created from this path are NOT affected - they keep their own copy of the content regardless of what happens here.`
+      );
+      if (!confirmed) return;
+      try {
+        await apiCall(`/paths/${currentPathId}`, { method: 'DELETE' });
+        currentPathId = null;
         loadPaths();
       } catch (err) {
         alert(err.message);
