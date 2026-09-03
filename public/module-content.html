@@ -59,9 +59,11 @@
       <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
       <button onclick="deletePath()" style="background:#9b1c1c; white-space:nowrap;">Delete Path</button>
     </div>
-    <div style="display:flex; gap:8px; margin-top:14px;">
-      <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2;">
+    <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+      <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
       <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
+      <input type="number" id="newPathGoalDays" placeholder="Goal days" value="30" min="1" style="flex:0 0 100px;">
+      <input type="number" id="newPathMaxDays" placeholder="Max days" value="40" min="1" style="flex:0 0 100px;">
       <button onclick="createPath()" style="white-space:nowrap;">+ New Path</button>
     </div>
   </div>
@@ -236,11 +238,15 @@
     async function createPath() {
       const name = document.getElementById('newPathName').value.trim();
       const moduleCount = document.getElementById('newPathModuleCount').value || 8;
+      const goalDays = document.getElementById('newPathGoalDays').value || 30;
+      const maxDays = document.getElementById('newPathMaxDays').value || 40;
       if (!name) { alert('Give the new path a name first.'); return; }
       try {
-        const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name, moduleCount }) });
+        const path = await apiCall('/paths', { method: 'POST', body: JSON.stringify({ name, moduleCount, goalDays, maxDays }) });
         document.getElementById('newPathName').value = '';
         document.getElementById('newPathModuleCount').value = '8';
+        document.getElementById('newPathGoalDays').value = '30';
+        document.getElementById('newPathMaxDays').value = '40';
         currentPathId = path.id;
         loadPaths();
       } catch (err) {

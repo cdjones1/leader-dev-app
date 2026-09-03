@@ -411,25 +411,27 @@
         renderHero(sequence, plan, isDeveloperHere, user.isAdmin);
 
         const timelineDiv = document.getElementById('timelineCard');
+        const goalDays = plan.goalDays || 30;
+        const maxDays = plan.maxDays || 40;
         if (!plan.startedAt) {
           timelineDiv.innerHTML = `
             <div class="timeline-card">
               <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Not started yet</div></div>
-              <div class="tl-dates">The 40-day clock begins once Module 1 is opened.</div>
+              <div class="tl-dates">The ${maxDays}-day clock begins once Module 1 is opened.</div>
             </div>
           `;
         } else {
           const startDate = new Date(plan.startedAt);
-          const goalDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-          const maxDate = new Date(startDate.getTime() + 40 * 24 * 60 * 60 * 1000);
+          const goalDate = new Date(startDate.getTime() + goalDays * 24 * 60 * 60 * 1000);
+          const maxDate = new Date(startDate.getTime() + maxDays * 24 * 60 * 60 * 1000);
           const daysElapsed = Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
-          const overdue = plan.status === 'IN_PROGRESS' && daysElapsed >= 40;
+          const overdue = plan.status === 'IN_PROGRESS' && daysElapsed >= maxDays;
           timelineDiv.innerHTML = `
             <div class="timeline-card ${overdue ? 'overdue' : ''}">
-              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Day ${daysElapsed} of 30${overdue ? ' — past the 40-day max' : ''}</div></div>
+              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Day ${daysElapsed} of ${goalDays}${overdue ? ` — past the ${maxDays}-day max` : ''}</div></div>
               <div class="tl-dates">
-                <div><strong>30-day goal:</strong> ${goalDate.toLocaleDateString()}</div>
-                <div><strong>40-day max:</strong> ${maxDate.toLocaleDateString()}</div>
+                <div><strong>${goalDays}-day goal:</strong> ${goalDate.toLocaleDateString()}</div>
+                <div><strong>${maxDays}-day max:</strong> ${maxDate.toLocaleDateString()}</div>
               </div>
             </div>
           `;

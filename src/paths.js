@@ -30,7 +30,7 @@ router.get('/', requireAuth, async (req, res) => {
 router.post('/', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { name, description, moduleCount } = req.body;
+  const { name, description, moduleCount, goalDays, maxDays } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'name is required' });
   }
@@ -40,13 +40,25 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'moduleCount must be a positive whole number' });
   }
 
+  const goal = goalDays ? parseInt(goalDays, 10) : 30;
+  const max = maxDays ? parseInt(maxDays, 10) : 40;
+  if (!Number.isInteger(goal) || goal < 1) {
+    return res.status(400).json({ error: 'goalDays must be a positive whole number' });
+  }
+  if (!Number.isInteger(max) || max < 1) {
+    return res.status(400).json({ error: 'maxDays must be a positive whole number' });
+  }
+  if (max < goal) {
+    return res.status(400).json({ error: 'maxDays must be greater than or equal to goalDays' });
+  }
+
   const existing = await prisma.developmentPath.findUnique({ where: { name: name.trim() } });
   if (existing) {
     return res.status(409).json({ error: 'A path with that name already exists' });
   }
 
   const path = await prisma.developmentPath.create({
-    data: { name: name.trim(), description: description || '', moduleCount: count },
+    data: { name: name.trim(), description: description || '', moduleCount: count, goalDays: goal, maxDays: max },
   });
 
   res.status(201).json(path);

@@ -65,7 +65,14 @@ router.post('/', requireAuth, async (req, res) => {
   // deleted, this plan's history and behavior stay exactly as they
   // were when it was created.
   const plan = await prisma.developmentPlan.create({
-    data: { pairingId, pathId, pathName: path.name, moduleCount: path.moduleCount },
+    data: {
+      pairingId,
+      pathId,
+      pathName: path.name,
+      moduleCount: path.moduleCount,
+      goalDays: path.goalDays,
+      maxDays: path.maxDays,
+    },
   });
 
   // All of this path's modules are created NOT_STARTED, including

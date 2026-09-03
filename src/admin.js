@@ -132,33 +132,23 @@ router.delete('/users/:id', requireAuth, async (req, res) => {
 router.get('/needs-attention', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const FORTY_DAYS_IN_MS = 40 * 24 * 60 * 60 * 1000;
-  const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
-  const fortyDaysAgo = new Date(Date.now() - FORTY_DAYS_IN_MS);
-  const thirtyDaysAgo = new Date(Date.now() - THIRTY_DAYS_IN_MS);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
   const includePairingPeople = {
     plan: { include: { pairing: { include: { developer: true, developee: true } } } },
   };
 
-  const [stalledModules, overduePlans, dueSoonPlans, problemAssessments] = await Promise.all([
+  const [stalledModules, allActivePlans, problemAssessments] = await Promise.all([
     prisma.module.findMany({
       where: { status: 'LOCKED' },
       include: includePairingPeople,
     }),
+    // Every plan's goalDays/maxDays can differ now (each path sets its
+    // own), so a single database-level date cutoff can't tell overdue
+    // apart from due-soon across every plan at once - fetch every
+    // started, in-progress plan and do the real day math per plan below.
     prisma.developmentPlan.findMany({
-      where: { status: 'IN_PROGRESS', startedAt: { not: null, lt: fortyDaysAgo } },
-      include: { pairing: { include: { developer: true, developee: true } } },
-    }),
-    // Due soon: past the 30-day mark, but NOT yet past 40 (those already
-    // show up as plan_overdue above - no need to show the same plan twice).
-    // A plan that hasn't been started yet (startedAt is null) never
-    // shows up here - its clock literally hasn't begun.
-    prisma.developmentPlan.findMany({
-      where: {
-        status: 'IN_PROGRESS',
-        startedAt: { not: null, lt: thirtyDaysAgo, gte: fortyDaysAgo },
-      },
+      where: { status: 'IN_PROGRESS', startedAt: { not: null } },
       include: { pairing: { include: { developer: true, developee: true } } },
     }),
     prisma.assessment.findMany({
@@ -166,6 +156,22 @@ router.get('/needs-attention', requireAuth, async (req, res) => {
       include: includePairingPeople,
     }),
   ]);
+
+  // A plan that hasn't been started yet never appears here - its own
+  // clock hasn't begun (already guaranteed by the startedAt filter
+  // above, kept here as the readable rule this logic follows).
+  const overduePlans = allActivePlans.filter((plan) => {
+    const daysElapsed = (Date.now() - plan.startedAt) / MS_PER_DAY;
+    return daysElapsed >= plan.maxDays;
+  });
+
+  // Due soon: past this plan's own goalDays, but not yet past its own
+  // maxDays (those already show up as plan_overdue above - no need to
+  // show the same plan twice).
+  const dueSoonPlans = allActivePlans.filter((plan) => {
+    const daysElapsed = (Date.now() - plan.startedAt) / MS_PER_DAY;
+    return daysElapsed >= plan.goalDays && daysElapsed < plan.maxDays;
+  });
 
   const needsMeetingAssessments = problemAssessments.filter((a) => a.status === 'LOCKED_NEEDS_MEETING');
   const finalLockAssessments = problemAssessments.filter((a) => a.status === 'LOCKED_FINAL');
