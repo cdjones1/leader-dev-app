@@ -132,6 +132,7 @@ router.post('/', requireAuth, async (req, res) => {
               assignedTo: taskTemplate.assignedTo,
               correctAnswer: taskTemplate.correctAnswer,
               link: taskTemplate.link,
+              pageReference: taskTemplate.pageReference,
             },
           });
 

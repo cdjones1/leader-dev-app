@@ -28,10 +28,15 @@
       border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
       font-family: inherit;
     }
-    .answer-box { background: #f4f2ee; padding: 12px; border-radius: 6px; margin-top: 10px; white-space: pre-wrap; }
-    .your-answer { border-left: 3px solid var(--accent); }
-    .correct-answer { border-left: 3px solid #1a7a3a; margin-top: 10px; }
-    .label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+    .answer-box { background: #f4f2ee; padding: 14px 16px; border-radius: 10px; margin-top: 8px; white-space: pre-wrap; }
+    .model-answer-box { background: #eefaf1; border: 1px solid #bfe8cc; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .model-answer-label { color: #1a7a3a; display: flex; align-items: center; gap: 6px; margin-top: 16px; }
+    .model-answer-check { width: 16px; height: 16px; border-radius: 50%; background: #1a7a3a; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+    .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .question-badge { display: inline-block; background: var(--accent); color: white; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 6px 14px; border-radius: 6px; }
+    .question-pageref { color: var(--text-muted); font-size: 14px; }
+    .question-text { font-size: 18px; font-weight: 700; line-height: 1.4; margin-bottom: 16px; }
     .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
     .task-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
     .task-item.done { color: #a39d94; text-decoration: line-through; }
@@ -218,15 +223,22 @@
     }
 
     function questionBlock(task, mine) {
-      const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
+      const headerHtml = `
+        <div class="question-header">
+          <span class="question-badge">${task.text}</span>
+          ${task.pageReference ? `<span class="question-pageref">${task.pageReference}</span>` : ''}
+        </div>
+      `;
+      const questionTextHtml = task.content ? `<div class="question-text">${task.content}</div>` : '';
+
       if (!task.submittedAt) {
         if (!mine) {
-          return `<div class="task-block"><h3>${task.text}</h3>${contentHtml}<p class="not-yours">Not your task to answer.</p></div>`;
+          return `<div class="task-block">${headerHtml}${questionTextHtml}<p class="not-yours">Not your task to answer.</p></div>`;
         }
         return `
           <div class="task-block">
-            <h3>${task.text}</h3>
-            ${contentHtml}
+            ${headerHtml}
+            ${questionTextHtml}
             <textarea id="answer-${task.id}" rows="4" placeholder="Your answer..."></textarea>
             <div class="locked-note">Locks permanently once submitted.</div>
             <button style="margin-top:8px;" onclick="submitAnswer('${task.id}')">Submit Answer</button>
@@ -235,10 +247,12 @@
       }
       return `
         <div class="task-block">
-          <h3>${task.text}</h3>
-          ${contentHtml}
-          <div class="answer-box your-answer"><div class="label">Submitted Answer</div>${task.submittedAnswer}</div>
-          <div class="answer-box correct-answer"><div class="label">Correct Answer</div>${task.correctAnswer}</div>
+          ${headerHtml}
+          ${questionTextHtml}
+          <div class="label">Your Answer</div>
+          <div class="answer-box">${task.submittedAnswer}</div>
+          <div class="label model-answer-label"><span class="model-answer-check">&#10003;</span>Model Answer</div>
+          <div class="answer-box model-answer-box">${task.correctAnswer}</div>
         </div>
       `;
     }

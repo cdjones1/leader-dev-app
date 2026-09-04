@@ -133,7 +133,7 @@
           <div class="add-box">
             <div id="formLabel-${section.id}" style="color:var(--accent); font-size:12px;">New Task</div>
             <label>Task Title</label>
-            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning)">
+            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning/Question)">
             <label>Assigned To</label>
             <select id="newTaskAssignedTo-${section.id}">
               <option value="DEVELOPEE">Developee (the person being developed)</option>
@@ -157,6 +157,8 @@
               <input type="text" id="newTaskLink-${section.id}" placeholder="https://...">
             </div>
             <div id="answerField-${section.id}" style="display:none;">
+              <label>Page Reference (optional, e.g. "p. 12" or "pages 5-8")</label>
+              <input type="text" id="newTaskPageRef-${section.id}" placeholder="p. 12">
               <label>Correct Answer (revealed after they submit their own)</label>
               <textarea id="newTaskAnswer-${section.id}" rows="2"></textarea>
             </div>
@@ -508,6 +510,7 @@
       document.getElementById(`newTaskType-${sectionId}`).value = task.taskType;
       document.getElementById(`newTaskContent-${sectionId}`).value = task.content || '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = task.correctAnswer || '';
+      document.getElementById(`newTaskPageRef-${sectionId}`).value = task.pageReference || '';
       document.getElementById(`newTaskLink-${sectionId}`).value = task.link || '';
 
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
@@ -528,6 +531,7 @@
       document.getElementById(`newTaskAssignedTo-${sectionId}`).value = 'DEVELOPEE';
       document.getElementById(`newTaskContent-${sectionId}`).value = '';
       document.getElementById(`newTaskAnswer-${sectionId}`).value = '';
+      document.getElementById(`newTaskPageRef-${sectionId}`).value = '';
       document.getElementById(`newTaskLink-${sectionId}`).value = '';
       document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
@@ -544,11 +548,12 @@
       const taskType = document.getElementById(`newTaskType-${sectionId}`).value;
       const content = document.getElementById(`newTaskContent-${sectionId}`).value;
       const correctAnswer = document.getElementById(`newTaskAnswer-${sectionId}`).value;
+      const pageReference = document.getElementById(`newTaskPageRef-${sectionId}`).value.trim();
       const link = document.getElementById(`newTaskLink-${sectionId}`).value.trim();
       const checklistItems = readChecklistRows(sectionId);
       const choiceOptions = readChoiceRows(sectionId);
 
-      const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING';
+      const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING' || taskType === 'QUESTION';
       if (!text && !titleOptional) { alert('This task type needs a title.'); return; }
       if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
       if (taskType === 'VIDEO' && !link) { alert('A video task needs a link to the video.'); return; }
@@ -559,7 +564,7 @@
       }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference };
 
       try {
         if (editingId) {

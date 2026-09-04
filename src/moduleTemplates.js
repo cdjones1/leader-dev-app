@@ -24,12 +24,13 @@ const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'M
 // Notice and Warning tasks are never shown by their title to the
 // person viewing the section - the title is purely a label for the
 // admin's own list, so it doesn't need to be required for those two.
-const TITLE_OPTIONAL_TYPES = ['NOTICE', 'WARNING'];
+const TITLE_OPTIONAL_TYPES = ['NOTICE', 'WARNING', 'QUESTION'];
 
 function resolveTaskTitle(text, taskType) {
   if (text && text.trim()) return text.trim();
   if (taskType === 'NOTICE') return 'Info';
   if (taskType === 'WARNING') return 'Important';
+  if (taskType === 'QUESTION') return 'Study Question';
   return null; // still missing and required
 }
 
@@ -223,7 +224,7 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -250,6 +251,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       assignedTo: assignedTo || 'DEVELOPEE',
       link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
+      pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
     },
   });
 
@@ -287,7 +289,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -310,6 +312,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       taskType: taskType || 'READING',
       assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
+      pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
       link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
     },
   });

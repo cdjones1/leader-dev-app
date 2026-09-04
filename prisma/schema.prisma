@@ -223,6 +223,7 @@ model ModuleTask {
   taskType        TaskType  @default(READING)
   assignedTo      AssignedRole @default(DEVELOPEE)
   correctAnswer   String?   // QUESTION only - NEVER sent to the browser until submitted
+  pageReference   String?   // QUESTION only - e.g. "p. 12" or "pages 5-8", shown alongside the question
   submittedAnswer String?   // QUESTION - the developee's locked-in answer
   submittedAt     DateTime? // QUESTION - once set, can never be changed again
   selectedOptionId String?  // MULTIPLE_CHOICE - which option they picked, locked in
@@ -320,6 +321,7 @@ model ModuleTaskTemplate {
   assignedTo       AssignedRole @default(DEVELOPEE)
   correctAnswer    String?
   link             String?
+  pageReference    String?
 
   checklistItemTemplates ChecklistItemTemplate[]
   choiceOptionTemplates  ChoiceOptionTemplate[]
