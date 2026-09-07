@@ -285,6 +285,7 @@ model DevelopmentPath {
   createdAt   DateTime @default(now())
 
   moduleTemplates ModuleTemplate[]
+  assessmentQuestionTemplates AssessmentQuestionTemplate[]
 }
 
 model ModuleTemplate {
@@ -394,8 +395,86 @@ model Assessment {
   createdAt    DateTime         @default(now())
 
   attempts     AssessmentAttempt[]
+  questions    AssessmentQuestion[]
 
   @@unique([planId, gatePosition]) // only one midterm and one final per plan
+}
+
+// ------------------------------------------------------------
+// ASSESSMENT QUESTIONS - authored per path + gate (so each path's
+// midterm and final can have their own content), then copied into
+// real questions the moment the review step completes and the
+// actual Assessment gets created for a plan.
+//
+// Answering works like Study Questions: open-ended, locks
+// permanently once submitted, reveals the model answer right then.
+// Responses are tied to a specific ATTEMPT NUMBER (not just the
+// question), so failing an attempt and retrying gives fresh,
+// separate answers - the old attempt's answers stay exactly as
+// they were, never overwritten.
+// ------------------------------------------------------------
+// questionType: 'SHORT_ANSWER' (developer grades it manually, model
+// answer never shown to the developee) or 'MULTIPLE_CHOICE' (auto-
+// graded immediately, since it's objectively checkable).
+model AssessmentQuestionTemplate {
+  id            String          @id @default(uuid())
+  pathId        String
+  path          DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  gatePosition  GatePosition
+  order         Int
+  text          String
+  content       String          @default("")
+  questionType  String          @default("SHORT_ANSWER")
+  correctAnswer String?         // SHORT_ANSWER only - the model answer the developer compares against
+  pageReference String?
+
+  choiceOptionTemplates AssessmentChoiceOptionTemplate[]
+}
+
+model AssessmentChoiceOptionTemplate {
+  id                String                     @id @default(uuid())
+  questionTemplateId String
+  questionTemplate  AssessmentQuestionTemplate @relation(fields: [questionTemplateId], references: [id], onDelete: Cascade)
+  order             Int
+  text              String
+  isCorrect         Boolean
+}
+
+model AssessmentQuestion {
+  id            String     @id @default(uuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  order         Int
+  text          String
+  content       String     @default("")
+  questionType  String     @default("SHORT_ANSWER")
+  correctAnswer String?
+  pageReference String?
+
+  choiceOptions AssessmentChoiceOption[]
+  responses     AssessmentQuestionResponse[]
+}
+
+model AssessmentChoiceOption {
+  id         String             @id @default(uuid())
+  questionId String
+  question   AssessmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  order      Int
+  text       String
+  isCorrect  Boolean
+}
+
+model AssessmentQuestionResponse {
+  id               String             @id @default(uuid())
+  questionId       String
+  question         AssessmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptNumber    Int                // which attempt this answer belongs to - a retry gets fresh answers, not overwritten history
+  submittedAnswer  String?            // SHORT_ANSWER - never shown back to the developee as "correct/incorrect", only to the developer while grading
+  selectedOptionId String?            // MULTIPLE_CHOICE - which option they picked, locked in
+  isCorrect        Boolean?           // MULTIPLE_CHOICE - computed and stored at submission time, auto-graded
+  submittedAt      DateTime           @default(now())
+
+  @@unique([questionId, attemptNumber]) // one locked-in answer per question per attempt
 }
 
 model AssessmentAttempt {

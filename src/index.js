@@ -10,6 +10,7 @@ const pairingRoutes = require('./pairings');
 const reviewStepRoutes = require('./reviewSteps');
 const moduleTemplateRoutes = require('./moduleTemplates');
 const pathRoutes = require('./paths');
+const assessmentQuestionRoutes = require('./assessmentQuestions');
 const sectionRoutes = require('./sections');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
@@ -30,6 +31,7 @@ app.use('/pairings', pairingRoutes);
 app.use('/review-steps', reviewStepRoutes);
 app.use('/module-templates', moduleTemplateRoutes);
 app.use('/paths', pathRoutes);
+app.use('/assessment-questions', assessmentQuestionRoutes);
 app.use('/sections', sectionRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

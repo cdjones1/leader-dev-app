@@ -9,9 +9,165 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsDeveloperOnPlan } = require('./access');
+const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, getParticipantRole } = require('./access');
 
 const router = express.Router();
+
+// --------------------------------------------------------------
+// VIEW an assessment's questions, for the CURRENT attempt.
+//
+// SHORT_ANSWER: the developee's own submitted answer echoes back
+// once submitted (so they can review what they wrote), but the
+// model answer is only ever shown to the developer/admin - never
+// the developee, regardless of grading status.
+//
+// MULTIPLE_CHOICE: the developee's own pick echoes back once
+// submitted too, but whether it was CORRECT stays hidden from
+// EVERYONE - including the developer - until this attempt has
+// actually been graded. The whole test is held back together and
+// only reveals once the developer finalizes the overall grade.
+// --------------------------------------------------------------
+router.get('/:id/questions', requireAuth, async (req, res) => {
+  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  if (!assessment) {
+    return res.status(404).json({ error: 'Assessment not found' });
+  }
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+
+  const role = req.user.isAdmin ? 'ADMIN' : await getParticipantRole(req.user.userId, assessment.planId);
+  const canSeeShortAnswerModel = role === 'ADMIN' || role === 'DEVELOPER';
+
+  const attemptNumber = assessment.attemptCount + 1;
+
+  // "Graded" means an attempt row already exists for this attempt
+  // number - attempts are only ever created at grading time, so this
+  // is exactly the signal that the developer has finished grading it.
+  const gradedAttempt = await prisma.assessmentAttempt.findFirst({
+    where: { assessmentId: assessment.id, attemptNumber },
+  });
+  const isGraded = !!gradedAttempt;
+
+  const questions = await prisma.assessmentQuestion.findMany({
+    where: { assessmentId: assessment.id },
+    orderBy: { order: 'asc' },
+    include: {
+      responses: { where: { attemptNumber } },
+      choiceOptions: { orderBy: { order: 'asc' } },
+    },
+  });
+
+  const shaped = questions.map((q) => {
+    const response = q.responses[0] || null;
+    const base = {
+      id: q.id,
+      order: q.order,
+      text: q.text,
+      content: q.content,
+      pageReference: q.pageReference,
+      questionType: q.questionType,
+    };
+
+    if (q.questionType === 'MULTIPLE_CHOICE') {
+      if (response) {
+        base.selectedOptionId = response.selectedOptionId;
+      }
+      // Correctness never shows until the whole test is graded -
+      // options themselves are safe to show either way (no isCorrect
+      // leaked), just without isCorrect until graded.
+      base.choiceOptions = q.choiceOptions.map((o) => (isGraded ? o : { id: o.id, order: o.order, text: o.text }));
+      if (isGraded && response) {
+        base.isCorrect = response.isCorrect;
+      }
+      return base;
+    }
+
+    // SHORT_ANSWER
+    if (response) {
+      base.submittedAnswer = response.submittedAnswer;
+      base.submittedAt = response.submittedAt;
+    }
+    if (canSeeShortAnswerModel) {
+      base.correctAnswer = q.correctAnswer;
+    }
+    return base;
+  });
+
+  res.json({ attemptNumber, isGraded, questions: shaped });
+});
+
+// --------------------------------------------------------------
+// SUBMIT THE WHOLE TEST at once, for the CURRENT attempt. Only the
+// developee does this. Every question needs an answer in the same
+// submission - there's no partial/incremental submission anymore.
+// Locks in permanently for this attempt; a later retry (a new
+// attempt number) gets a fresh, separate set of answers.
+//
+// Body: { responses: [{ questionId, answer }, { questionId, optionId }, ...] }
+// --------------------------------------------------------------
+router.post('/:id/submit-test', requireAuth, async (req, res) => {
+  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  if (!assessment) {
+    return res.status(404).json({ error: 'Assessment not found' });
+  }
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, assessment.planId, 'DEVELOPEE'))) return;
+  if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    return res.status(400).json({ error: `Cannot submit while the assessment status is ${assessment.status}` });
+  }
+
+  const attemptNumber = assessment.attemptCount + 1;
+  const alreadySubmitted = await prisma.assessmentQuestionResponse.findFirst({
+    where: { attemptNumber, question: { assessmentId: assessment.id } },
+  });
+  if (alreadySubmitted) {
+    return res.status(400).json({ error: 'This test was already submitted for this attempt - it cannot be changed' });
+  }
+
+  const questions = await prisma.assessmentQuestion.findMany({
+    where: { assessmentId: assessment.id },
+    include: { choiceOptions: true },
+  });
+
+  const { responses } = req.body;
+  if (!Array.isArray(responses)) {
+    return res.status(400).json({ error: 'responses must be an array' });
+  }
+  const responseByQuestionId = {};
+  for (const r of responses) responseByQuestionId[r.questionId] = r;
+
+  const missing = questions.filter((q) => {
+    const r = responseByQuestionId[q.id];
+    if (!r) return true;
+    if (q.questionType === 'MULTIPLE_CHOICE') return !r.optionId;
+    return !r.answer || !r.answer.trim();
+  });
+  if (missing.length > 0) {
+    return res.status(400).json({
+      error: 'Every question needs an answer before the test can be submitted',
+      missing: missing.map((q) => q.text),
+    });
+  }
+
+  // Everything checks out - lock all of it in together.
+  for (const q of questions) {
+    const r = responseByQuestionId[q.id];
+    if (q.questionType === 'MULTIPLE_CHOICE') {
+      const chosenOption = q.choiceOptions.find((o) => o.id === r.optionId);
+      if (!chosenOption) {
+        return res.status(400).json({ error: `optionId for "${q.text}" does not match one of its choices` });
+      }
+      await prisma.assessmentQuestionResponse.create({
+        data: { questionId: q.id, attemptNumber, selectedOptionId: r.optionId, isCorrect: chosenOption.isCorrect },
+      });
+    } else {
+      await prisma.assessmentQuestionResponse.create({
+        data: { questionId: q.id, attemptNumber, submittedAnswer: r.answer },
+      });
+    }
+  }
+
+  res.json({ submitted: questions.length });
+});
 
 // --------------------------------------------------------------
 // GRADE an assessment attempt.
@@ -40,6 +196,21 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
   }
 
   const attemptNumber = assessment.attemptCount + 1;
+
+  // Every question authored for this assessment needs an answer
+  // locked in for THIS attempt before it can be graded - otherwise
+  // the developer would be grading blind on whatever's missing.
+  const questions = await prisma.assessmentQuestion.findMany({
+    where: { assessmentId },
+    include: { responses: { where: { attemptNumber } } },
+  });
+  const unanswered = questions.filter((q) => q.responses.length === 0);
+  if (unanswered.length > 0) {
+    return res.status(400).json({
+      error: 'Not every question has an answer yet for this attempt',
+      missing: unanswered.map((q) => q.text),
+    });
+  }
 
   const attempt = await prisma.assessmentAttempt.create({
     data: {

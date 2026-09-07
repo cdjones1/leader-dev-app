@@ -70,6 +70,19 @@
 
   <div id="templatesContainer"></div>
 
+  <div class="module-card">
+    <h2>Midterm Assessment Questions</h2>
+    <p style="color:var(--text-muted); font-size:13px;">Answered by the developee, like Study Questions - locks and reveals the model answer once submitted. A fresh attempt (after a failed one) gets fresh answers.</p>
+    <div id="midtermQuestions-list"></div>
+    <div class="add-box" id="midterm-add-box"></div>
+  </div>
+
+  <div class="module-card">
+    <h2>Final Assessment Questions</h2>
+    <div id="finalQuestions-list"></div>
+    <div class="add-box" id="final-add-box"></div>
+  </div>
+
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -294,6 +307,10 @@
     async function loadTemplates() {
       if (!currentPathId) {
         document.getElementById('templatesContainer').innerHTML = '';
+        document.getElementById('midtermQuestions-list').innerHTML = '';
+        document.getElementById('midterm-add-box').innerHTML = '';
+        document.getElementById('finalQuestions-list').innerHTML = '';
+        document.getElementById('final-add-box').innerHTML = '';
         return;
       }
 
@@ -323,6 +340,157 @@
             reorderTasks(section.id, orderedIds);
           });
         }
+      }
+
+      loadAssessmentQuestions('midterm', 'AFTER_MODULE_4');
+      loadAssessmentQuestions('final', 'AFTER_MODULE_8');
+    }
+
+    // ---------- Assessment questions (midterm / final) ----------
+
+    let assessmentQuestionEditingId = { midterm: null, final: null };
+
+    function assessmentQuestionRowHtml(gateKey, q) {
+      return `
+        <div class="task-row" data-id="${q.id}">
+          <div style="flex:1;">
+            <strong>${q.text}</strong>
+            ${q.pageReference ? `<span class="task-meta"> - ${q.pageReference}</span>` : ''}
+            ${q.content ? `<div class="task-meta">${q.content.slice(0, 100)}${q.content.length > 100 ? '...' : ''}</div>` : ''}
+            ${q.questionType === 'MULTIPLE_CHOICE'
+              ? `<div class="task-meta">Multiple choice - ${(q.choiceOptionTemplates || []).length} option(s)</div>`
+              : `<div class="task-meta">Short answer - model answer: ${q.correctAnswer}</div>`}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button style="background:#8a8378;" onclick='editAssessmentQuestion("${gateKey}", ${JSON.stringify(q).replace(/'/g, "&apos;")})'>Edit</button>
+            <button onclick="removeAssessmentQuestion('${gateKey}', '${q.id}')">Remove</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function assessmentQuestionFormHtml(gateKey) {
+      return `
+        <div id="aqFormLabel-${gateKey}" style="color:var(--accent); font-size:12px;">New Question</div>
+        <label>Title</label>
+        <input type="text" id="aqText-${gateKey}" placeholder="e.g. Fill in the blank">
+        <label>Question Type</label>
+        <select id="aqType-${gateKey}" onchange="onAssessmentQuestionTypeChange('${gateKey}')">
+          <option value="SHORT_ANSWER">Short Answer (developer grades it manually)</option>
+          <option value="MULTIPLE_CHOICE">Multiple Choice (auto-graded)</option>
+        </select>
+        <label>Question / Content</label>
+        <textarea id="aqContent-${gateKey}" rows="2"></textarea>
+        <div id="aqAnswerField-${gateKey}">
+          <label>Model Answer</label>
+          <textarea id="aqAnswer-${gateKey}" rows="2"></textarea>
+        </div>
+        <div id="aqChoicesField-${gateKey}" style="display:none;">
+          <label>Answer Choices (mark the correct one)</label>
+          <div id="choiceOptions-${gateKey}"></div>
+          <button type="button" style="background:#8a8378;" onclick="addChoiceRow('${gateKey}')">+ Add Option</button>
+        </div>
+        <label>Page Reference (optional)</label>
+        <input type="text" id="aqPageRef-${gateKey}" placeholder="p. 55">
+        <button id="aqSaveBtn-${gateKey}" onclick="saveAssessmentQuestion('${gateKey}')">Add Question</button>
+        <button id="aqCancelBtn-${gateKey}" style="display:none; background:#8a8378;" onclick="cancelEditAssessmentQuestion('${gateKey}')">Cancel Edit</button>
+      `;
+    }
+
+    function onAssessmentQuestionTypeChange(gateKey) {
+      const type = document.getElementById(`aqType-${gateKey}`).value;
+      document.getElementById(`aqAnswerField-${gateKey}`).style.display = type === 'SHORT_ANSWER' ? 'block' : 'none';
+      document.getElementById(`aqChoicesField-${gateKey}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
+      if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${gateKey}`).children.length === 0) {
+        addChoiceRow(gateKey); addChoiceRow(gateKey);
+      }
+    }
+
+    async function loadAssessmentQuestions(gateKey, gatePosition) {
+      const listDiv = document.getElementById(`${gateKey}Questions-list`);
+      const addBox = document.getElementById(`${gateKey}-add-box`);
+      if (!currentPathId) { listDiv.innerHTML = ''; addBox.innerHTML = ''; return; }
+
+      const questions = await apiCall(`/assessment-questions?pathId=${currentPathId}&gatePosition=${gatePosition}`);
+      listDiv.innerHTML = questions.map((q) => assessmentQuestionRowHtml(gateKey, q)).join('');
+      addBox.innerHTML = assessmentQuestionFormHtml(gateKey);
+
+      makeSortable(listDiv, '.task-row', (orderedIds) => {
+        apiCall('/assessment-questions/reorder', { method: 'PUT', body: JSON.stringify({ questionIds: orderedIds }) })
+          .catch((err) => { alert(err.message); loadAssessmentQuestions(gateKey, gatePosition); });
+      });
+    }
+
+    async function saveAssessmentQuestion(gateKey) {
+      const gatePosition = gateKey === 'midterm' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+      const text = document.getElementById(`aqText-${gateKey}`).value.trim();
+      const questionType = document.getElementById(`aqType-${gateKey}`).value;
+      const content = document.getElementById(`aqContent-${gateKey}`).value;
+      const correctAnswer = document.getElementById(`aqAnswer-${gateKey}`).value.trim();
+      const pageReference = document.getElementById(`aqPageRef-${gateKey}`).value.trim();
+      const choiceOptions = readChoiceRows(gateKey);
+
+      if (!text) { alert('Give the question a title.'); return; }
+      if (questionType === 'SHORT_ANSWER' && !correctAnswer) { alert('A model answer is required so the developer can grade this.'); return; }
+      if (questionType === 'MULTIPLE_CHOICE') {
+        if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
+        if (!choiceOptions.some((o) => o.isCorrect)) { alert('Mark one option as the correct answer.'); return; }
+      }
+
+      const editingId = assessmentQuestionEditingId[gateKey];
+      const body = { text, questionType, content, correctAnswer, choiceOptions, pageReference };
+
+      try {
+        if (editingId) {
+          await apiCall(`/assessment-questions/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
+          assessmentQuestionEditingId[gateKey] = null;
+        } else {
+          await apiCall(`/assessment-questions/path/${currentPathId}/gate/${gatePosition}`, { method: 'POST', body: JSON.stringify(body) });
+        }
+        loadAssessmentQuestions(gateKey, gatePosition);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function editAssessmentQuestion(gateKey, q) {
+      assessmentQuestionEditingId[gateKey] = q.id;
+      document.getElementById(`aqText-${gateKey}`).value = q.text;
+      document.getElementById(`aqType-${gateKey}`).value = q.questionType || 'SHORT_ANSWER';
+      document.getElementById(`aqContent-${gateKey}`).value = q.content || '';
+      document.getElementById(`aqAnswer-${gateKey}`).value = q.correctAnswer || '';
+      document.getElementById(`aqPageRef-${gateKey}`).value = q.pageReference || '';
+
+      document.getElementById(`choiceOptions-${gateKey}`).innerHTML = '';
+      (q.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(gateKey, opt.text, opt.isCorrect));
+
+      onAssessmentQuestionTypeChange(gateKey);
+      document.getElementById(`aqFormLabel-${gateKey}`).textContent = 'Editing: ' + q.text;
+      document.getElementById(`aqSaveBtn-${gateKey}`).textContent = 'Update Question';
+      document.getElementById(`aqCancelBtn-${gateKey}`).style.display = 'inline-block';
+    }
+
+    function cancelEditAssessmentQuestion(gateKey) {
+      assessmentQuestionEditingId[gateKey] = null;
+      document.getElementById(`aqText-${gateKey}`).value = '';
+      document.getElementById(`aqType-${gateKey}`).value = 'SHORT_ANSWER';
+      document.getElementById(`aqContent-${gateKey}`).value = '';
+      document.getElementById(`aqAnswer-${gateKey}`).value = '';
+      document.getElementById(`aqPageRef-${gateKey}`).value = '';
+      document.getElementById(`choiceOptions-${gateKey}`).innerHTML = '';
+      onAssessmentQuestionTypeChange(gateKey);
+      document.getElementById(`aqFormLabel-${gateKey}`).textContent = 'New Question';
+      document.getElementById(`aqSaveBtn-${gateKey}`).textContent = 'Add Question';
+      document.getElementById(`aqCancelBtn-${gateKey}`).style.display = 'none';
+    }
+
+    async function removeAssessmentQuestion(gateKey, questionId) {
+      const gatePosition = gateKey === 'midterm' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+      try {
+        await apiCall(`/assessment-questions/${questionId}`, { method: 'DELETE' });
+        loadAssessmentQuestions(gateKey, gatePosition);
+      } catch (err) {
+        alert(err.message);
       }
     }
 

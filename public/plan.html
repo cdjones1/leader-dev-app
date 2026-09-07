@@ -92,6 +92,18 @@
       border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
     }
     #message { color: var(--text-muted); margin-top: 16px; }
+
+    .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .question-badge { display: inline-block; background: var(--accent); color: white; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 6px 14px; border-radius: 6px; }
+    .question-pageref { color: var(--text-muted); font-size: 14px; }
+    .question-text { font-size: 16px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
+    .answer-box { background: #f4f2ee; padding: 14px 16px; border-radius: 10px; margin-top: 8px; white-space: pre-wrap; }
+    .model-answer-box { background: #eefaf1; border: 1px solid #bfe8cc; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .model-answer-label { color: #1a7a3a; display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+    .model-answer-check { width: 16px; height: 16px; border-radius: 50%; background: #1a7a3a; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+    .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+    .not-yours { color: #9a5b00; }
   </style>
 </head>
 <body>
@@ -132,6 +144,7 @@
 
   <script>
     const token = localStorage.getItem('token');
+    let lastQuestionData = null;
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/index.html';
 
@@ -164,7 +177,7 @@
         },
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (!res.ok) { const err = new Error(data.error || 'Request failed'); err.missing = data.missing; throw err; }
       return data;
     }
 
@@ -322,7 +335,92 @@
       `;
     }
 
-    function assessmentBoxHtml(assessment, isDeveloperHere) {
+    function assessmentQuestionBlock(q, canAnswer, hasSubmittedTest) {
+      const pageRefHtml = q.pageReference ? `<span class="question-pageref">${q.pageReference}</span>` : '';
+      const contentHtml = q.content ? `<div class="question-text">${q.content}</div>` : '';
+      const header = `<div class="question-header"><span class="question-badge">${q.text}</span>${pageRefHtml}</div>`;
+
+      if (q.questionType === 'MULTIPLE_CHOICE') {
+        if (!hasSubmittedTest) {
+          if (!canAnswer) {
+            const optsHtml = (q.choiceOptions || []).map((o) => `<div style="padding:4px 0;">${o.text}</div>`).join('');
+            return `<div style="margin-bottom:16px;">${header}${contentHtml}<div>${optsHtml}</div><p class="not-yours">Waiting on the developee to answer this.</p></div>`;
+          }
+          // Just the input - no submit button here, it's part of the whole test.
+          const optsHtml = (q.choiceOptions || []).map((o) => `
+            <label class="task-item"><input type="radio" name="aq-mc-${q.id}" value="${o.id}">${o.text}</label>
+          `).join('');
+          return `<div style="margin-bottom:16px;">${header}${contentHtml}<div>${optsHtml}</div></div>`;
+        }
+        // Submitted. Correctness only shows once the whole attempt is graded.
+        if (q.isCorrect === undefined) {
+          const pickedText = (q.choiceOptions || []).find((o) => o.id === q.selectedOptionId);
+          return `
+            <div style="margin-bottom:16px;">
+              ${header}
+              ${contentHtml}
+              <div class="label">Your Answer</div>
+              <div class="answer-box">${pickedText ? pickedText.text : '(submitted)'}</div>
+              <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Submitted - awaiting grading.</p>
+            </div>
+          `;
+        }
+        const resultHtml = (q.choiceOptions || []).map((o) => {
+          const isMine = o.id === q.selectedOptionId;
+          const style = o.isCorrect ? 'color:#1a7a3a; font-weight:600;' : (isMine ? 'color:#9b1c1c;' : 'color:var(--text-muted);');
+          return `<div style="padding:4px 0; ${style}">${isMine ? '&rarr; ' : '&nbsp;&nbsp;&nbsp;'}${o.text}${o.isCorrect ? ' (correct)' : ''}</div>`;
+        }).join('');
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <div>${resultHtml}</div>
+            <p style="margin-top:8px; font-weight:600; color:${q.isCorrect ? '#1a7a3a' : '#9b1c1c'};">${q.isCorrect ? 'Correct!' : 'Incorrect.'}</p>
+          </div>
+        `;
+      }
+
+      // SHORT_ANSWER
+      if (!hasSubmittedTest) {
+        if (!canAnswer) {
+          return `<div style="margin-bottom:16px;">${header}${contentHtml}<p class="not-yours">Waiting on the developee to answer this.</p></div>`;
+        }
+        // Just the input - no submit button here, it's part of the whole test.
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <textarea id="aq-answer-${q.id}" rows="3" placeholder="Your answer..."></textarea>
+          </div>
+        `;
+      }
+      // Submitted. The model answer only shows up here at all if the
+      // backend decided this viewer is allowed to see it (developer
+      // or admin) - the developee never gets it back, by design.
+      if (q.correctAnswer === undefined) {
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <div class="label">Your Answer</div>
+            <div class="answer-box">${q.submittedAnswer}</div>
+            <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Submitted - your developer will grade this.</p>
+          </div>
+        `;
+      }
+      return `
+        <div style="margin-bottom:16px;">
+          ${header}
+          ${contentHtml}
+          <div class="label">Your Answer</div>
+          <div class="answer-box">${q.submittedAnswer}</div>
+          <div class="label model-answer-label"><span class="model-answer-check">&#10003;</span>Model Answer</div>
+          <div class="answer-box model-answer-box">${q.correctAnswer}</div>
+        </div>
+      `;
+    }
+
+    function assessmentBoxHtml(assessment, isDeveloperHere, isDevelopeeHere, questionData) {
       if (!assessment) return '';
       const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
       const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
@@ -364,22 +462,41 @@
         `;
       }
 
-      if (!isDeveloperHere && !isAdmin) {
-        return `
-          <div class="assessment-box" id="assessmentSection">
-            <h3>${label}</h3>
-            <p>Status: <strong>Waiting on your developer to grade this</strong></p>
-          </div>
-        `;
-      }
-
       const attemptLabel = assessment.attemptCount < 3
         ? `Attempt ${assessment.attemptCount + 1} of 3`
         : `Extra Attempt ${assessment.attemptCount + 1} (admin-granted)`;
 
+      // The questions (if this assessment has any) come first - the
+      // developee answers ALL of them, then submits the whole test
+      // together in one action. If there are no questions at all (an
+      // older plan, or a path with none authored), this section is
+      // simply empty and grading works exactly as it always has.
+      const questions = questionData ? questionData.questions : [];
+      const hasSubmittedTest = questions.some((q) => q.submittedAnswer !== undefined || q.selectedOptionId !== undefined);
+      const canAnswer = isDevelopeeHere || isAdmin;
+      const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
+
+      const submitTestButtonHtml = (questions.length > 0 && !hasSubmittedTest && canAnswer)
+        ? `<button style="margin-top:8px;" onclick="submitAssessmentTest('${assessment.id}')">Submit Test</button>
+           <div id="testMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>`
+        : '';
+
+      if (!isDeveloperHere && !isAdmin) {
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            ${questionsHtml}
+            ${submitTestButtonHtml}
+            ${questions.length > 0 || hasSubmittedTest ? '' : '<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>'}
+          </div>
+        `;
+      }
+
       return `
         <div class="assessment-box" id="assessmentSection">
           <h3>${label} - ${attemptLabel}</h3>
+          ${questionsHtml}
+          ${submitTestButtonHtml}
           <label>Score (1-10)</label>
           <input type="number" id="score" min="1" max="10" value="5">
           <label>Comments</label>
@@ -390,6 +507,7 @@
             <option value="FAIL">Fail</option>
           </select>
           <button id="submitGradeBtn" style="margin-top:16px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
+          <div id="gradeMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
         </div>
       `;
     }
@@ -443,7 +561,16 @@
         ).join('');
 
         const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
-        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere);
+        let questionData = null;
+        if (activeAssessment && ['PENDING', 'IN_PROGRESS'].includes(activeAssessment.status)) {
+          try {
+            questionData = await apiCall('/assessments/' + activeAssessment.id + '/questions');
+          } catch (e) {
+            questionData = null; // fail open - grading still works even if this fetch fails
+          }
+        }
+        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere, isDevelopeeHere, questionData);
+        lastQuestionData = questionData;
       } catch (err) {
         document.getElementById('message').textContent = err.message;
       }
@@ -476,8 +603,43 @@
       }
     }
 
+    async function submitAssessmentTest(assessmentId) {
+      const questionData = lastQuestionData;
+      if (!questionData) return;
+
+      const responses = questionData.questions.map((q) => {
+        if (q.questionType === 'MULTIPLE_CHOICE') {
+          const selected = document.querySelector(`input[name="aq-mc-${q.id}"]:checked`);
+          return { questionId: q.id, optionId: selected ? selected.value : null };
+        }
+        const el = document.getElementById('aq-answer-' + q.id);
+        return { questionId: q.id, answer: el ? el.value : '' };
+      });
+
+      const missingDiv = document.getElementById('testMissingList');
+      if (missingDiv) missingDiv.innerHTML = '';
+
+      if (!confirm('This locks in every answer permanently for this attempt. Continue?')) return;
+
+      try {
+        await apiCall('/assessments/' + assessmentId + '/submit-test', {
+          method: 'POST',
+          body: JSON.stringify({ responses }),
+        });
+        loadPlan();
+      } catch (err) {
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
     async function gradeAssessment(assessmentId) {
       const submitBtn = document.getElementById('submitGradeBtn');
+      const missingDiv = document.getElementById('gradeMissingList');
+      if (missingDiv) missingDiv.innerHTML = '';
       if (submitBtn) {
         if (submitBtn.disabled) return; // already submitting - ignore a second click entirely
         submitBtn.disabled = true;
@@ -507,7 +669,11 @@
           loadPlan();
           return;
         }
-        alert(err.message);
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed before this can be graded: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Submit Grade';

@@ -28,10 +28,45 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
   });
 
   // Completing review is what creates the actual assessment - it
-  // didn't exist until now.
+  // didn't exist until now. Its questions are copied from whichever
+  // path this plan was built from, for this specific gate - if the
+  // plan has no path (older plans) or the path has no questions
+  // authored yet, the assessment just starts with none.
   const assessment = await prisma.assessment.create({
     data: { planId: reviewStep.planId, gatePosition: reviewStep.gatePosition, status: 'PENDING' },
   });
+
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: reviewStep.planId } });
+  if (plan.pathId) {
+    const questionTemplates = await prisma.assessmentQuestionTemplate.findMany({
+      where: { pathId: plan.pathId, gatePosition: reviewStep.gatePosition },
+      orderBy: { order: 'asc' },
+    });
+    for (const qt of questionTemplates) {
+      const question = await prisma.assessmentQuestion.create({
+        data: {
+          assessmentId: assessment.id,
+          order: qt.order,
+          text: qt.text,
+          content: qt.content,
+          questionType: qt.questionType,
+          correctAnswer: qt.correctAnswer,
+          pageReference: qt.pageReference,
+        },
+      });
+      if (qt.questionType === 'MULTIPLE_CHOICE') {
+        const optionTemplates = await prisma.assessmentChoiceOptionTemplate.findMany({
+          where: { questionTemplateId: qt.id },
+          orderBy: { order: 'asc' },
+        });
+        for (const opt of optionTemplates) {
+          await prisma.assessmentChoiceOption.create({
+            data: { questionId: question.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+          });
+        }
+      }
+    }
+  }
 
   res.json({ reviewStep: updated, assessmentCreated: assessment });
 });
