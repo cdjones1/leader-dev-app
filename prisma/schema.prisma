@@ -211,6 +211,7 @@ enum TaskType {
   MULTIPLE_CHOICE
   ACTION_ITEM
   VIDEO
+  FLASHCARD
 }
 
 model ModuleTask {

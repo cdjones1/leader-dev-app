@@ -120,6 +120,7 @@
             ${t.content ? `<div class="task-meta">${t.content.slice(0, 80)}${t.content.length > 80 ? '...' : ''}</div>` : ''}
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
+            ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} flashcard(s)</div>` : ''}
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
           </div>
           <div style="display:flex; gap:6px;">
@@ -162,6 +163,7 @@
               <option value="MULTIPLE_CHOICE">Multiple Choice (auto-graded)</option>
               <option value="ACTION_ITEM">Action Item (own checkbox, optional link)</option>
               <option value="VIDEO">Video (YouTube, Vimeo, or direct file link)</option>
+              <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
             </select>
             <label>Content (description shown under the title)</label>
             <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
@@ -176,7 +178,7 @@
               <textarea id="newTaskAnswer-${section.id}" rows="2"></textarea>
             </div>
             <div id="checklistField-${section.id}" style="display:none;">
-              <label>Checklist Items</label>
+              <label id="checklistFieldLabel-${section.id}">Checklist Items</label>
               <div id="checklistItems-${section.id}"></div>
               <button type="button" style="background:#8a8378;" onclick="addChecklistRow('${section.id}')">+ Add Item</button>
             </div>
@@ -614,11 +616,12 @@
     function onTypeChange(sectionId) {
       const type = document.getElementById(`newTaskType-${sectionId}`).value;
       document.getElementById(`answerField-${sectionId}`).style.display = type === 'QUESTION' ? 'block' : 'none';
-      document.getElementById(`checklistField-${sectionId}`).style.display = type === 'CHECKLIST' ? 'block' : 'none';
+      document.getElementById(`checklistField-${sectionId}`).style.display = (type === 'CHECKLIST' || type === 'FLASHCARD') ? 'block' : 'none';
+      document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : 'Checklist Items';
       document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
       document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO') ? 'block' : 'none';
       document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : 'Link (optional)';
-      if (type === 'CHECKLIST' && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
+      if ((type === 'CHECKLIST' || type === 'FLASHCARD') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
         addChecklistRow(sectionId); addChecklistRow(sectionId);
       }
       if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${sectionId}`).children.length === 0) {
@@ -627,17 +630,19 @@
     }
 
     function addChecklistRow(sectionId, text = '', description = '', link = '') {
+      const typeSelect = document.getElementById(`newTaskType-${sectionId}`);
+      const isFlashcard = typeSelect && typeSelect.value === 'FLASHCARD';
       const container = document.getElementById(`checklistItems-${sectionId}`);
       const row = document.createElement('div');
       row.className = 'checklist-item-row';
       row.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 8px;';
       row.innerHTML = `
         <div style="display:flex; gap:6px;">
-          <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Item title">
+          <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="${isFlashcard ? 'Front (the question)' : 'Item title'}">
           <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.checklist-item-row').remove()">✕</button>
         </div>
-        <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Short description (optional)">
-        <input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">
+        <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="${isFlashcard ? 'Back (the answer)' : 'Short description (optional)'}">
+        ${isFlashcard ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
       `;
       container.appendChild(row);
     }
@@ -654,11 +659,14 @@
 
     function readChecklistRows(sectionId) {
       return [...document.getElementById(`checklistItems-${sectionId}`).children]
-        .map((row) => ({
-          text: row.querySelector('.ci-text').value.trim(),
-          description: row.querySelector('.ci-desc').value.trim(),
-          link: row.querySelector('.ci-link').value.trim(),
-        }))
+        .map((row) => {
+          const linkEl = row.querySelector('.ci-link');
+          return {
+            text: row.querySelector('.ci-text').value.trim(),
+            description: row.querySelector('.ci-desc').value.trim(),
+            link: linkEl ? linkEl.value.trim() : '',
+          };
+        })
         .filter((item) => item.text);
     }
 

@@ -19,7 +19,7 @@ function requireAdmin(req, res) {
   return true;
 }
 
-const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO'];
+const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO', 'FLASHCARD'];
 
 // Notice and Warning tasks are never shown by their title to the
 // person viewing the section - the title is purely a label for the
@@ -47,8 +47,9 @@ function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems
   if (taskType === 'VIDEO' && !link) {
     return 'A VIDEO task needs a link to the video';
   }
-  if (taskType === 'CHECKLIST' && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
-    return 'A CHECKLIST task needs at least one checklist item';
+  if ((taskType === 'CHECKLIST' || taskType === 'FLASHCARD') && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
+    const label = taskType === 'FLASHCARD' ? 'A FLASHCARD task needs at least one card' : 'A CHECKLIST task needs at least one checklist item';
+    return label;
   }
   if (taskType === 'MULTIPLE_CHOICE') {
     if (!Array.isArray(choiceOptions) || choiceOptions.length < 2) {
@@ -255,7 +256,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
     },
   });
 
-  if (taskType === 'CHECKLIST') {
+  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
         data: {
@@ -320,7 +321,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   await prisma.checklistItemTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
   await prisma.choiceOptionTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
 
-  if (taskType === 'CHECKLIST') {
+  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
         data: {

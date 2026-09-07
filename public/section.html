@@ -63,6 +63,18 @@
     .warning-box .warning-text { color: #7a1414; line-height: 1.6; white-space: pre-wrap; }
     .not-yours { color: #9a5b00; margin-top: 8px; }
 
+    .flashcard {
+      border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 12px;
+      cursor: pointer; background: var(--card);
+    }
+    .flashcard.revealed { border-color: var(--accent); border-width: 2px; }
+    .flashcard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .flashcard-badge { display: inline-block; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: #fdeaea; color: var(--accent); }
+    .flashcard.revealed .flashcard-badge { background: #fdeaea; color: var(--accent); }
+    .flashcard-hint { color: var(--text-muted); font-size: 14px; }
+    .flashcard.revealed .flashcard-hint { color: var(--accent); }
+    .flashcard-text { font-weight: 700; font-size: 17px; }
+
     .action-item {
       display: flex; gap: 14px; align-items: flex-start; background: var(--card);
       border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px;
@@ -257,6 +269,32 @@
       `;
     }
 
+    // Pure client-side flip - no backend call, no saved state. Each
+    // card just toggles its own "revealed" class and swaps its text.
+    function flashcardSetBlock(task) {
+      const cardsHtml = (task.checklistItems || []).map((item) => {
+        const front = JSON.stringify(item.text).replace(/'/g, '&apos;');
+        const back = JSON.stringify(item.description || '').replace(/'/g, '&apos;');
+        return `
+          <div class="flashcard" onclick='toggleFlashcard(this, ${front}, ${back})'>
+            <div class="flashcard-header">
+              <span class="flashcard-badge">Flashcard</span>
+              <span class="flashcard-hint">Tap to reveal</span>
+            </div>
+            <div class="flashcard-text">${item.text}</div>
+          </div>
+        `;
+      }).join('');
+      return `<div class="task-block"><h3>${task.text}</h3>${task.content ? `<div class="content-box">${task.content}</div>` : ''}${cardsHtml}</div>`;
+    }
+
+    function toggleFlashcard(el, front, back) {
+      const revealed = el.classList.toggle('revealed');
+      el.querySelector('.flashcard-badge').textContent = revealed ? 'Answer' : 'Flashcard';
+      el.querySelector('.flashcard-hint').textContent = revealed ? 'Tap to flip back' : 'Tap to reveal';
+      el.querySelector('.flashcard-text').textContent = revealed ? back : front;
+    }
+
     function checklistBlock(task, mine) {
       const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
       const itemsHtml = task.checklistItems.map((item) => `
@@ -378,6 +416,7 @@
           if (t.taskType === 'MULTIPLE_CHOICE') return multipleChoiceBlock(t, mine);
           if (t.taskType === 'ACTION_ITEM') return actionItemBlock(t);
           if (t.taskType === 'VIDEO') return videoBlock(t);
+          if (t.taskType === 'FLASHCARD') return flashcardSetBlock(t);
           return '';
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;
