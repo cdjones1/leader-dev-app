@@ -254,6 +254,41 @@ router.post('/:id/open', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
+// REOPEN a stalled (auto-locked) module - admin only. This is the
+// recovery path for the "Module Stalled" item on the admin
+// dashboard: gives it a fresh 5-day window from right now, so it
+// doesn't just get immediately re-locked on the next scheduler run.
+// --------------------------------------------------------------
+router.post('/:id/admin-reopen', requireAuth, async (req, res) => {
+  if (!req.user.isAdmin) {
+    return res.status(403).json({ error: 'Only an admin can reopen a stalled module' });
+  }
+
+  const moduleId = req.params.id;
+  const module = await prisma.module.findUnique({ where: { id: moduleId } });
+  if (!module) {
+    return res.status(404).json({ error: 'Module not found' });
+  }
+  if (module.status !== 'LOCKED') {
+    return res.status(400).json({ error: `Cannot reopen a module with status ${module.status} - only a LOCKED module can be reopened this way` });
+  }
+
+  const now = new Date();
+  const fiveDaysInMs = 5 * 24 * 60 * 60 * 1000;
+
+  const updated = await prisma.module.update({
+    where: { id: moduleId },
+    data: { status: 'OPEN', dueAt: new Date(now.getTime() + fiveDaysInMs), lockedAt: null },
+  });
+
+  await prisma.moduleEvent.create({
+    data: { moduleId, eventType: 'REOPENED', actorId: req.user.userId },
+  });
+
+  res.json(updated);
+});
+
+// --------------------------------------------------------------
 // COMPLETE a module — only allowed while it's OPEN (a locked
 // module must be reopened first, that's a different action).
 // Automatically opens the next module in sequence, if one exists.

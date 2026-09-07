@@ -80,6 +80,7 @@
         <th>Developer</th>
         <th>Developee</th>
         <th>Plan ID</th>
+        <th>Action</th>
       </tr>
     </thead>
     <tbody id="queueBody"></tbody>
@@ -155,26 +156,52 @@
 
         if (data.items.length === 0) {
           messageDiv.textContent = 'Nothing needs attention right now.';
+          messageDiv.style.display = 'block';
+          table.style.display = 'none';
+          tbody.innerHTML = '';
           return;
         }
 
         messageDiv.style.display = 'none';
         table.style.display = 'table';
+        tbody.innerHTML = ''; // clear out any rows from a previous load before adding fresh ones
 
         for (const item of data.items) {
           const row = document.createElement('tr');
           const sinceDate = new Date(item.since).toLocaleDateString();
+          const actionHtml = item.reason === 'module_stalled'
+            ? `<button onclick="reopenModule('${item.moduleId}')">Reopen</button>`
+            : '';
           row.innerHTML = `
             <td><span class="tag tag-${item.reason}">${reasonLabels[item.reason] || item.reason}</span></td>
             <td>${sinceDate}</td>
             <td>${item.developer}</td>
             <td>${item.developee}</td>
             <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${item.planId}</td>
+            <td>${actionHtml}</td>
           `;
           tbody.appendChild(row);
         }
       } catch (err) {
         messageDiv.textContent = 'Could not reach the server.';
+      }
+    }
+
+    async function reopenModule(moduleId) {
+      if (!confirm('Give this stalled module a fresh 5-day window and reopen it?')) return;
+      try {
+        const res = await fetch('/modules/' + moduleId + '/admin-reopen', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token },
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(data.error || 'Could not reopen this module.');
+          return;
+        }
+        loadDashboard();
+      } catch (err) {
+        alert('Could not reach the server.');
       }
     }
 
