@@ -6,7 +6,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock } = require('./access');
+const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock, checkIsDeveloperOnPlan } = require('./access');
 const { midpointModule, gateAfterModule } = require('./gates');
 
 const router = express.Router();
@@ -312,6 +312,21 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `Cannot complete a module with status ${module.status}` });
   }
 
+  // Every section in this module needs to actually be finished first -
+  // a section can only reach "completed" once every task inside it
+  // satisfies its own requirement, so checking sections here
+  // transitively guarantees every task is done too. This closes the
+  // gap where someone could click "Mark Complete" directly on the
+  // plan page without ever working through the sections themselves.
+  const sections = await prisma.moduleSection.findMany({ where: { moduleId } });
+  const unfinishedSections = sections.filter((s) => !s.completed);
+  if (unfinishedSections.length > 0) {
+    return res.status(400).json({
+      error: 'Not every section in this module is complete yet',
+      missing: unfinishedSections.map((s) => s.title),
+    });
+  }
+
   const now = new Date();
 
   const updated = await prisma.module.update({
@@ -383,6 +398,35 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
   }
 
   res.json({ completedModule: updated, nextModuleOpened: !!nextModule });
+});
+
+// --------------------------------------------------------------
+// MARK REVIEWED — the developer (or admin) acknowledging a
+// completed module, separate from the developee just finishing it.
+// Doesn't block or gate anything else - purely a record that the
+// developer actually looked at it.
+// --------------------------------------------------------------
+router.post('/:id/mark-reviewed', requireAuth, async (req, res) => {
+  const moduleId = req.params.id;
+
+  const module = await prisma.module.findUnique({ where: { id: moduleId } });
+  if (!module) {
+    return res.status(404).json({ error: 'Module not found' });
+  }
+  if (!(await checkIsDeveloperOnPlan(req, res, module.planId))) return;
+  if (module.status !== 'COMPLETED') {
+    return res.status(400).json({ error: `Cannot review a module with status ${module.status} - it needs to be completed first` });
+  }
+  if (module.reviewedAt) {
+    return res.status(400).json({ error: 'This module has already been marked reviewed' });
+  }
+
+  const updated = await prisma.module.update({
+    where: { id: moduleId },
+    data: { reviewedAt: new Date() },
+  });
+
+  res.json(updated);
 });
 
 // --------------------------------------------------------------

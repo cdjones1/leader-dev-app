@@ -216,6 +216,7 @@ model Module {
   dueAt         DateTime?    // set to openedAt + 5 days when opened
   completedAt   DateTime?
   lockedAt      DateTime?
+  reviewedAt    DateTime?    // set when the developer (or admin) marks this completed module as reviewed - a separate step from the developee just finishing it
   title         String?      // copied from the template when the plan was created
   description   String?      // copied from the template when the plan was created
 

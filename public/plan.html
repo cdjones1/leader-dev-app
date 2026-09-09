@@ -168,6 +168,7 @@
   <script>
     const token = localStorage.getItem('token');
     let lastQuestionData = null;
+    let isDeveloperHereGlobal = false;
     let reviewStepTasksById = {};
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/index.html';
@@ -226,6 +227,11 @@
     }
 
     function pillFor(item) {
+      if (item.type === 'module' && item.data.status === 'COMPLETED') {
+        return item.data.reviewedAt
+          ? { cls: 'pill-done', text: 'SIGNED OFF' }
+          : { cls: 'pill-progress', text: 'AWAITING REVIEW' };
+      }
       if (item.done) return { cls: 'pill-done', text: 'SIGNED OFF' };
       if (item.type === 'module') {
         if (item.data.status === 'LOCKED') return { cls: 'pill-locked', text: 'LOCKED' };
@@ -324,12 +330,20 @@
         </div>
       ` : '';
 
+      const canReview = module.status === 'COMPLETED' && !module.reviewedAt && (isDeveloperHereGlobal || user.isAdmin);
+      const reviewButtonHtml = canReview
+        ? `<button onclick="markModuleReviewed('${module.id}')">Mark Reviewed</button>`
+        : (module.status === 'COMPLETED' && module.reviewedAt
+          ? `<span style="color:#1a7a3a; font-weight:600; font-size:13px;">&#10003; Reviewed</span>`
+          : '');
+
       return `
         <div class="module-detail">
           ${module.description ? `<div class="item-desc" style="margin-bottom:8px;">${module.description}</div>` : ''}
           <div class="item-actions">
             <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
             <button ${canComplete ? '' : 'disabled'} onclick="completeModule('${module.id}')">Mark Complete</button>
+            ${reviewButtonHtml}
           </div>
           ${sectionListHtml}
         </div>
@@ -594,6 +608,7 @@
 
         const currentUserId = user.id;
         const isDeveloperHere = plan.pairing.developer.id === currentUserId;
+        isDeveloperHereGlobal = isDeveloperHere;
         const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
         document.getElementById('whoRole').textContent =
           user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
@@ -704,12 +719,25 @@
       }
     }
 
+    async function markModuleReviewed(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/mark-reviewed', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     async function completeModule(moduleId) {
       try {
         await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
         loadPlan();
       } catch (err) {
-        alert(err.message);
+        if (err.missing) {
+          alert('Not every section in this module is complete yet:\n\n' + err.missing.map((m) => '- ' + m).join('\n'));
+        } else {
+          alert(err.message);
+        }
       }
     }
 

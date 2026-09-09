@@ -675,7 +675,11 @@
         try {
           await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
         } catch (err) {
-          alert('Section completed, but the module could not be marked complete: ' + err.message);
+          if (err.missing) {
+            alert('This section is complete, but the module still has unfinished sections:\n\n' + err.missing.map((m) => '- ' + m).join('\n'));
+          } else {
+            alert('Section completed, but the module could not be marked complete: ' + err.message);
+          }
         }
         window.location.href = '/plan.html?id=' + planId;
       }
