@@ -612,7 +612,6 @@
     async function submitAnswer(taskId) {
       const answer = document.getElementById('answer-' + taskId).value;
       if (!answer.trim()) { alert('Please write an answer first.'); return; }
-      if (!confirm('This locks permanently once submitted. Continue?')) return;
       try {
         await apiCall('/modules/tasks/' + taskId + '/submit-answer', { method: 'POST', body: JSON.stringify({ answer }) });
         loadSection();
@@ -642,7 +641,6 @@
     async function submitChoice(taskId) {
       const selected = document.querySelector(`input[name="mc-${taskId}"]:checked`);
       if (!selected) { alert('Please select an answer first.'); return; }
-      if (!confirm('This locks permanently once submitted. Continue?')) return;
       try {
         await apiCall('/modules/tasks/' + taskId + '/submit-choice', { method: 'POST', body: JSON.stringify({ optionId: selected.value }) });
         loadSection();
