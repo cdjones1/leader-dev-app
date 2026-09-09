@@ -28,7 +28,7 @@ const router = express.Router();
 // only reveals once the developer finalizes the overall grade.
 // --------------------------------------------------------------
 router.get('/:id/questions', requireAuth, async (req, res) => {
-  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  let assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
@@ -36,6 +36,13 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
 
   const role = req.user.isAdmin ? 'ADMIN' : await getParticipantRole(req.user.userId, assessment.planId);
   const canSeeShortAnswerModel = role === 'ADMIN' || role === 'DEVELOPER';
+
+  // The developee viewing this (while it's actually gradeable, i.e.
+  // an attempt is really underway) is what "opens" it - modules lock
+  // from this moment until the whole test is submitted.
+  if (role === 'DEVELOPEE' && !assessment.openedAt && ['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    assessment = await prisma.assessment.update({ where: { id: assessment.id }, data: { openedAt: new Date() } });
+  }
 
   const attemptNumber = assessment.attemptCount + 1;
 
@@ -165,6 +172,12 @@ router.post('/:id/submit-test', requireAuth, async (req, res) => {
       });
     }
   }
+
+  // Submitting the whole test is what unlocks modules again - the
+  // window that started when they opened it is now closed,
+  // regardless of when the developer actually gets around to
+  // grading it.
+  await prisma.assessment.update({ where: { id: assessment.id }, data: { openedAt: null } });
 
   res.json({ submitted: questions.length });
 });

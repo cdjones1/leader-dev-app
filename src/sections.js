@@ -9,7 +9,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess } = require('./access');
+const { checkPlanAccess, checkNoActiveAssessmentLock } = require('./access');
 
 const router = express.Router();
 
@@ -48,6 +48,7 @@ router.get('/:sectionId', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Section not found' });
   }
   if (!(await checkPlanAccess(req, res, section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, section.module.planId))) return;
 
   section.tasks = section.tasks.map((t) => stripHiddenAnswers(t));
   res.json(section);
@@ -93,6 +94,7 @@ router.post('/:sectionId/complete', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Section not found' });
   }
   if (!(await checkPlanAccess(req, res, section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, section.module.planId))) return;
   // No specific-role check here - whoever's a participant can advance
   // once everything's genuinely done. Each individual task's own
   // action (submitting an answer, checking off items) already

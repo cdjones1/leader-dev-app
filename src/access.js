@@ -58,4 +58,25 @@ async function checkIsAssignedRole(req, res, planId, assignedTo) {
   return true;
 }
 
-module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole };
+// Checks that no assessment on this plan is currently "open" (the
+// developee has started this attempt but not yet submitted the
+// whole test) - modules stay locked during that window so nobody
+// can flip back to module content looking for answers. Admins are
+// NOT exempt here on purpose - the lock is about preventing
+// cheating during a live test, not about permissions.
+async function checkNoActiveAssessmentLock(req, res, planId) {
+  if (req.user.isAdmin) return true; // admin keeps the same override it has everywhere else
+
+  const openAssessment = await prisma.assessment.findFirst({
+    where: { planId, openedAt: { not: null } },
+  });
+  if (openAssessment) {
+    res.status(423).json({
+      error: `Modules are locked while the ${openAssessment.gatePosition === 'AFTER_MODULE_4' ? 'midterm' : 'final'} is in progress - submit the test to unlock them again`,
+    });
+    return false;
+  }
+  return true;
+}
+
+module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, checkNoActiveAssessmentLock };

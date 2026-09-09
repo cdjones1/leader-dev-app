@@ -6,7 +6,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsAssignedRole } = require('./access');
+const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock } = require('./access');
 const { midpointModule, gateAfterModule } = require('./gates');
 
 const router = express.Router();
@@ -48,6 +48,7 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
 
   res.json(stripHiddenAnswers(task));
 });
@@ -64,6 +65,7 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
   if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
@@ -99,6 +101,7 @@ router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, re
   }
   const planId = item.moduleTask.section.module.planId;
   if (!(await checkPlanAccess(req, res, planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, planId))) return;
   if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.assignedTo))) return;
 
   const now = new Date();
@@ -123,6 +126,7 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
   if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
@@ -163,6 +167,7 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Task not found' });
   }
   if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
   if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
   if (task.taskType !== 'ACTION_ITEM') {
     return res.status(400).json({ error: 'Only action-item tasks can be toggled directly' });
@@ -189,6 +194,7 @@ router.post('/:id/open', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Module not found' });
   }
   if (!(await checkPlanAccess(req, res, module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, module.planId))) return;
   if (module.status !== 'NOT_STARTED') {
     return res.status(400).json({ error: `Cannot open a module with status ${module.status}` });
   }
@@ -301,6 +307,7 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Module not found' });
   }
   if (!(await checkPlanAccess(req, res, module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, module.planId))) return;
   if (module.status !== 'OPEN') {
     return res.status(400).json({ error: `Cannot complete a module with status ${module.status}` });
   }
@@ -391,6 +398,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Module not found' });
   }
   if (!(await checkPlanAccess(req, res, module.planId))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, module.planId))) return;
   res.json(module);
 });
 

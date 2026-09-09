@@ -58,6 +58,7 @@
     .timeline-card .tl-dates { text-align: right; color: #1a7a3a; font-size: 13px; line-height: 1.6; }
     .timeline-card.overdue { background: #fdecec; border-color: #f7c6c6; }
     .timeline-card.overdue .tl-label, .timeline-card.overdue .tl-day, .timeline-card.overdue .tl-dates { color: #9b1c1c; }
+    .test-lock-banner { background: #fdecec; border: 1px solid #f7c6c6; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; color: #9b1c1c; font-weight: 600; }
 
     .section-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; margin: 32px 0 4px; }
     .section-title { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
@@ -158,6 +159,7 @@
 
     <div class="section-label">Your Path</div>
     <div class="section-title">All modules</div>
+    <div id="testLockBanner"></div>
     <div id="modulesList"></div>
     <div id="assessmentSection"></div>
     <div id="message"></div>
@@ -595,6 +597,15 @@
         const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
         document.getElementById('whoRole').textContent =
           user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
+
+        const openAssessment = plan.assessments.find((a) => a.openedAt);
+        const lockBanner = document.getElementById('testLockBanner');
+        if (openAssessment && !user.isAdmin) {
+          const label = openAssessment.gatePosition === 'AFTER_MODULE_4' ? 'midterm' : 'final';
+          lockBanner.innerHTML = `<div class="test-lock-banner">🔒 Modules are locked while the ${label} is in progress. Submit the test below to unlock them again.</div>`;
+        } else {
+          lockBanner.innerHTML = '';
+        }
 
         const sequence = buildSequence(plan);
         renderHero(sequence, plan, isDeveloperHere, user.isAdmin);

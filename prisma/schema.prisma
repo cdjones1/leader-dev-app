@@ -524,6 +524,7 @@ model Assessment {
   status       AssessmentStatus @default(PENDING)
   attemptCount Int              @default(0)
   createdAt    DateTime         @default(now())
+  openedAt     DateTime?        // set the moment the developee starts THIS attempt - all modules lock while this is set, to prevent looking up answers. Cleared the instant they submit the whole test (not when grading finishes) - a new attempt (after a retry) sets it again fresh.
 
   attempts     AssessmentAttempt[]
   questions    AssessmentQuestion[]
