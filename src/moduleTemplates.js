@@ -19,7 +19,7 @@ function requireAdmin(req, res) {
   return true;
 }
 
-const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO', 'FLASHCARD'];
+const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO', 'FLASHCARD', 'SECTION_QUIZ'];
 
 // Notice and Warning tasks are never shown by their title to the
 // person viewing the section - the title is purely a label for the
@@ -34,7 +34,7 @@ function resolveTaskTitle(text, taskType) {
   return null; // still missing and required
 }
 
-function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link }) {
+function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, quizQuestions }) {
   if (taskType && !VALID_TYPES.includes(taskType)) {
     return `taskType must be one of: ${VALID_TYPES.join(', ')}`;
   }
@@ -62,6 +62,25 @@ function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems
       return 'A MULTIPLE_CHOICE task can only have ONE correct option';
     }
   }
+  if (taskType === 'SECTION_QUIZ') {
+    if (!Array.isArray(quizQuestions) || quizQuestions.length === 0) {
+      return 'A SECTION_QUIZ task needs at least one question';
+    }
+    for (const q of quizQuestions) {
+      if (!q.text || !q.text.trim()) {
+        return 'Every quiz question needs its own text';
+      }
+      if (!Array.isArray(q.choiceOptions) || q.choiceOptions.length < 2) {
+        return `Quiz question "${q.text}" needs at least 2 options`;
+      }
+      if (!q.choiceOptions.some((o) => o.isCorrect)) {
+        return `Quiz question "${q.text}" needs exactly one option marked correct`;
+      }
+      if (q.choiceOptions.filter((o) => o.isCorrect).length > 1) {
+        return `Quiz question "${q.text}" can only have ONE correct option`;
+      }
+    }
+  }
   return null;
 }
 
@@ -85,6 +104,10 @@ router.get('/', requireAuth, async (req, res) => {
             include: {
               checklistItemTemplates: { orderBy: { order: 'asc' } },
               choiceOptionTemplates: { orderBy: { order: 'asc' } },
+              quizQuestionTemplates: {
+                orderBy: { order: 'asc' },
+                include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+              },
             },
           },
         },
@@ -225,12 +248,12 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, quizQuestions });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -283,6 +306,25 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
     }
   }
 
+  if (taskType === 'SECTION_QUIZ') {
+    for (let i = 0; i < quizQuestions.length; i++) {
+      const qq = quizQuestions[i];
+      const question = await prisma.sectionQuizQuestionTemplate.create({
+        data: { taskTemplateId: task.id, order: i + 1, text: qq.text, content: qq.content || '' },
+      });
+      for (let j = 0; j < qq.choiceOptions.length; j++) {
+        await prisma.sectionQuizChoiceOptionTemplate.create({
+          data: {
+            questionTemplateId: question.id,
+            order: j + 1,
+            text: qq.choiceOptions[j].text,
+            isCorrect: !!qq.choiceOptions[j].isCorrect,
+          },
+        });
+      }
+    }
+  }
+
   res.status(201).json(task);
 });
 
@@ -290,12 +332,12 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link });
+  const shapeError = validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, quizQuestions });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -320,6 +362,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
 
   await prisma.checklistItemTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
   await prisma.choiceOptionTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
+  await prisma.sectionQuizQuestionTemplate.deleteMany({ where: { taskTemplateId: updated.id } }); // cascades its own choice options
 
   if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD') {
     for (let i = 0; i < checklistItems.length; i++) {
@@ -345,6 +388,25 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
           isCorrect: !!choiceOptions[i].isCorrect,
         },
       });
+    }
+  }
+
+  if (taskType === 'SECTION_QUIZ') {
+    for (let i = 0; i < quizQuestions.length; i++) {
+      const qq = quizQuestions[i];
+      const question = await prisma.sectionQuizQuestionTemplate.create({
+        data: { taskTemplateId: updated.id, order: i + 1, text: qq.text, content: qq.content || '' },
+      });
+      for (let j = 0; j < qq.choiceOptions.length; j++) {
+        await prisma.sectionQuizChoiceOptionTemplate.create({
+          data: {
+            questionTemplateId: question.id,
+            order: j + 1,
+            text: qq.choiceOptions[j].text,
+            isCorrect: !!qq.choiceOptions[j].isCorrect,
+          },
+        });
+      }
     }
   }
 

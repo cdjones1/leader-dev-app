@@ -114,7 +114,65 @@ model ReviewStep {
   openedAt     DateTime?
   completedAt  DateTime?
 
+  tasks ReviewStepTask[]
+
   @@unique([planId, gatePosition])
+}
+
+// ------------------------------------------------------------
+// REVIEW STEP CONTENT - authored per path + gate (midterm review
+// vs final review), copied into real tasks the moment the review
+// step itself opens. Only two of the regular task types make sense
+// here: FLASHCARD (memorization, pure client-side flip, never
+// blocks anything) and ACTION_ITEM (a self-check item with its own
+// checkbox - all of them need to be checked before the review step
+// can be marked complete, same rule sections already use).
+// ------------------------------------------------------------
+model ReviewStepTaskTemplate {
+  id           String          @id @default(uuid())
+  pathId       String
+  path         DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  gatePosition GatePosition
+  order        Int
+  text         String
+  content      String          @default("")
+  taskType     String          @default("ACTION_ITEM") // "ACTION_ITEM" or "FLASHCARD"
+  link         String?         // ACTION_ITEM only - optional external link
+
+  checklistItemTemplates ReviewStepChecklistItemTemplate[]
+}
+
+model ReviewStepChecklistItemTemplate {
+  id             String                 @id @default(uuid())
+  taskTemplateId String
+  taskTemplate   ReviewStepTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  order          Int
+  text           String   // FLASHCARD: front. Unused for ACTION_ITEM.
+  description    String?  // FLASHCARD: back.
+}
+
+model ReviewStepTask {
+  id          String     @id @default(uuid())
+  reviewStepId String
+  reviewStep  ReviewStep @relation(fields: [reviewStepId], references: [id], onDelete: Cascade)
+  order       Int
+  text        String
+  content     String     @default("")
+  taskType    String     @default("ACTION_ITEM")
+  link        String?
+  completed   Boolean    @default(false) // ACTION_ITEM only
+  completedAt DateTime?
+
+  checklistItems ReviewStepChecklistItem[]
+}
+
+model ReviewStepChecklistItem {
+  id           String         @id @default(uuid())
+  reviewStepTaskId String
+  reviewStepTask ReviewStepTask @relation(fields: [reviewStepTaskId], references: [id], onDelete: Cascade)
+  order        Int
+  text         String
+  description  String?
 }
 
 // ------------------------------------------------------------
@@ -212,6 +270,7 @@ enum TaskType {
   ACTION_ITEM
   VIDEO
   FLASHCARD
+  SECTION_QUIZ
 }
 
 model ModuleTask {
@@ -232,9 +291,12 @@ model ModuleTask {
   link             String?  // ACTION_ITEM only - optional external link ("Open link")
   completed        Boolean   @default(false) // ACTION_ITEM only - checked off independently
   completedAt      DateTime?
+  quizStatus       String    @default("PENDING") // SECTION_QUIZ only - PENDING/IN_PROGRESS/LOCKED_NEEDS_MEETING/LOCKED_FINAL/PASSED
+  quizAttemptCount Int       @default(0)         // SECTION_QUIZ only
 
   checklistItems TaskChecklistItem[]
   choiceOptions  TaskChoiceOption[]
+  quizQuestions  SectionQuizQuestion[]
 }
 
 // CHECKLIST sub-items - the actual checkboxes inside a checklist task.
@@ -287,6 +349,7 @@ model DevelopmentPath {
 
   moduleTemplates ModuleTemplate[]
   assessmentQuestionTemplates AssessmentQuestionTemplate[]
+  reviewStepTaskTemplates ReviewStepTaskTemplate[]
 }
 
 model ModuleTemplate {
@@ -327,6 +390,73 @@ model ModuleTaskTemplate {
 
   checklistItemTemplates ChecklistItemTemplate[]
   choiceOptionTemplates  ChoiceOptionTemplate[]
+  quizQuestionTemplates  SectionQuizQuestionTemplate[]
+}
+
+// ------------------------------------------------------------
+// SECTION QUIZ - a graded set of multiple-choice questions at the
+// end of a section. Needs 90% correct to pass. Auto-graded (no
+// developer review needed, unlike assessment short-answer
+// questions) - the moment the whole quiz is submitted, the score
+// and pass/fail are both known immediately.
+//
+// Same 3-strike escalation as the midterm/final assessments:
+// attempt 1 fails -> retry allowed. attempt 2 fails -> locked,
+// needs a developer/developee meeting. attempt 3 fails -> locked,
+// needs admin. Scoped to a single task, not a whole plan - most
+// sections can have their own quiz.
+// ------------------------------------------------------------
+model SectionQuizQuestionTemplate {
+  id             String             @id @default(uuid())
+  taskTemplateId String
+  taskTemplate   ModuleTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
+  order          Int
+  text           String
+  content        String             @default("")
+
+  choiceOptionTemplates SectionQuizChoiceOptionTemplate[]
+}
+
+model SectionQuizChoiceOptionTemplate {
+  id                 String                      @id @default(uuid())
+  questionTemplateId String
+  questionTemplate   SectionQuizQuestionTemplate @relation(fields: [questionTemplateId], references: [id], onDelete: Cascade)
+  order              Int
+  text               String
+  isCorrect          Boolean
+}
+
+model SectionQuizQuestion {
+  id          String     @id @default(uuid())
+  moduleTaskId String
+  moduleTask  ModuleTask @relation(fields: [moduleTaskId], references: [id], onDelete: Cascade)
+  order       Int
+  text        String
+  content     String     @default("")
+
+  choiceOptions SectionQuizChoiceOption[]
+  responses     SectionQuizResponse[]
+}
+
+model SectionQuizChoiceOption {
+  id         String              @id @default(uuid())
+  questionId String
+  question   SectionQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  order      Int
+  text       String
+  isCorrect  Boolean
+}
+
+model SectionQuizResponse {
+  id               String              @id @default(uuid())
+  questionId       String
+  question         SectionQuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attemptNumber    Int
+  selectedOptionId String
+  isCorrect        Boolean
+  submittedAt      DateTime            @default(now())
+
+  @@unique([questionId, attemptNumber])
 }
 
 model ChecklistItemTemplate {

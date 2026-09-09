@@ -161,6 +161,7 @@
 
     let currentPlan = null;
     let currentSection = null;
+    let quizDataByTaskId = {};
 
     function isMyTask(task) {
       if (user.isAdmin) return true;
@@ -295,6 +296,129 @@
       el.querySelector('.flashcard-text').textContent = revealed ? back : front;
     }
 
+    function sectionQuizBlock(task, mine) {
+      const isAdmin = user.isAdmin;
+
+      if (task.quizStatus === 'PASSED') {
+        return `<div class="task-block"><h3>${task.text}</h3><p style="color:#1a7a3a; font-weight:600;">Passed! &#10003; (needed 90% or higher)</p></div>`;
+      }
+
+      if (task.quizStatus === 'LOCKED_NEEDS_MEETING') {
+        return `
+          <div class="task-block">
+            <h3>${task.text}</h3>
+            <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
+            <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
+            ${mine
+              ? `<button onclick="reopenQuizAfterMeeting('${task.id}')">I've held the meeting - Reopen for attempt 3</button>`
+              : `<p style="color:var(--text-muted);">Your developer needs to confirm the meeting happened before this can continue.</p>`}
+          </div>
+        `;
+      }
+
+      if (task.quizStatus === 'LOCKED_FINAL') {
+        return `
+          <div class="task-block">
+            <h3>${task.text}</h3>
+            <p>Status: <strong>Locked - Needs Admin</strong></p>
+            <p>All attempts have failed. This requires admin resolution.</p>
+            ${isAdmin
+              ? `<button onclick="adminReopenQuizForRetry('${task.id}')">Grant One More Attempt</button>
+                 <button style="margin-left:8px; background:#9b1c1c;" onclick="adminOverrideQuizPass('${task.id}')">Override to Pass</button>`
+              : `<p style="color:var(--text-muted);">Only an admin can resolve this.</p>`}
+          </div>
+        `;
+      }
+
+      // PENDING / IN_PROGRESS - takeable right now.
+      const quizData = quizDataByTaskId[task.id];
+      if (!quizData) {
+        return `<div class="task-block"><h3>${task.text}</h3><p style="color:var(--text-muted);">Could not load this quiz.</p></div>`;
+      }
+      if (!mine) {
+        return `<div class="task-block"><h3>${task.text}</h3><p class="not-yours">Waiting on the developee to take this quiz.</p></div>`;
+      }
+
+      const attemptLabel = quizData.quizAttemptCount < 3
+        ? `Attempt ${quizData.quizAttemptCount + 1} of 3`
+        : `Extra Attempt ${quizData.quizAttemptCount + 1} (admin-granted)`;
+
+      const questionsHtml = quizData.questions.map((q, idx) => `
+        <div style="margin-bottom:16px;">
+          <div class="question-text">${idx + 1}. ${q.text}</div>
+          ${q.content ? `<div class="content-box">${q.content}</div>` : ''}
+          <div>${q.choiceOptions.map((o) => `<label class="task-item"><input type="radio" name="sq-${task.id}-${q.id}" value="${o.id}">${o.text}</label>`).join('')}</div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="task-block">
+          <h3>${task.text} - ${attemptLabel}</h3>
+          <p style="color:var(--text-muted); font-size:14px;">Needs 90% correct to pass.</p>
+          ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+          ${questionsHtml}
+          <div class="locked-note">Locks permanently once submitted.</div>
+          <button onclick="submitSectionQuiz('${task.id}')">Submit Quiz</button>
+          <div id="quizMissing-${task.id}" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
+        </div>
+      `;
+    }
+
+    async function submitSectionQuiz(taskId) {
+      const quizData = quizDataByTaskId[taskId];
+      if (!quizData) return;
+      const responses = quizData.questions.map((q) => {
+        const selected = document.querySelector(`input[name="sq-${taskId}-${q.id}"]:checked`);
+        return { questionId: q.id, optionId: selected ? selected.value : null };
+      });
+      const missingDiv = document.getElementById('quizMissing-' + taskId);
+      if (missingDiv) missingDiv.innerHTML = '';
+      if (!confirm('This locks in every answer permanently for this attempt. Continue?')) return;
+      try {
+        const result = await apiCall('/section-quiz/tasks/' + taskId + '/submit-quiz', {
+          method: 'POST',
+          body: JSON.stringify({ responses }),
+        });
+        alert(`Score: ${result.scorePercent}% (${result.correctCount}/${result.totalQuestions} correct)\n${result.passed ? 'Passed!' : 'Not yet - needs 90% or higher.'}`);
+        loadSection();
+      } catch (err) {
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
+    async function reopenQuizAfterMeeting(taskId) {
+      try {
+        await apiCall('/section-quiz/tasks/' + taskId + '/reopen-after-meeting', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminReopenQuizForRetry(taskId) {
+      if (!confirm('This will allow one more real attempt - they will need to actually pass it. Continue?')) return;
+      try {
+        await apiCall('/section-quiz/tasks/' + taskId + '/admin-reopen-for-retry', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminOverrideQuizPass(taskId) {
+      if (!confirm('This will mark the quiz as PASSED, bypassing normal grading. Continue?')) return;
+      try {
+        await apiCall('/section-quiz/tasks/' + taskId + '/admin-override-pass', { method: 'POST' });
+        loadSection();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     function checklistBlock(task, mine) {
       const contentHtml = task.content ? `<div class="content-box">${task.content}</div>` : '';
       const itemsHtml = task.checklistItems.map((item) => `
@@ -406,6 +530,20 @@
           renderSidebar(context, section.id);
         }
 
+        // Prefetch quiz question data for any SECTION_QUIZ task that's
+        // actually in a takeable state - needed synchronously by the
+        // render step right below.
+        quizDataByTaskId = {};
+        for (const t of section.tasks) {
+          if (t.taskType === 'SECTION_QUIZ' && ['PENDING', 'IN_PROGRESS'].includes(t.quizStatus)) {
+            try {
+              quizDataByTaskId[t.id] = await apiCall('/section-quiz/tasks/' + t.id + '/quiz');
+            } catch (e) {
+              quizDataByTaskId[t.id] = null;
+            }
+          }
+        }
+
         const blocksHtml = section.tasks.map((t) => {
           const mine = isMyTask(t);
           if (t.taskType === 'READING') return readingBlock(t);
@@ -417,6 +555,7 @@
           if (t.taskType === 'ACTION_ITEM') return actionItemBlock(t);
           if (t.taskType === 'VIDEO') return videoBlock(t);
           if (t.taskType === 'FLASHCARD') return flashcardSetBlock(t);
+          if (t.taskType === 'SECTION_QUIZ') return sectionQuizBlock(t, mine);
           return '';
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;

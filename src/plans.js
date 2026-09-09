@@ -94,6 +94,10 @@ router.post('/', requireAuth, async (req, res) => {
               include: {
                 checklistItemTemplates: { orderBy: { order: 'asc' } },
                 choiceOptionTemplates: { orderBy: { order: 'asc' } },
+                quizQuestionTemplates: {
+                  orderBy: { order: 'asc' },
+                  include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+                },
               },
             },
           },
@@ -157,6 +161,17 @@ router.post('/', requireAuth, async (req, res) => {
                 isCorrect: option.isCorrect,
               },
             });
+          }
+
+          for (const qt of taskTemplate.quizQuestionTemplates) {
+            const quizQuestion = await prisma.sectionQuizQuestion.create({
+              data: { moduleTaskId: moduleTask.id, order: qt.order, text: qt.text, content: qt.content },
+            });
+            for (const opt of qt.choiceOptionTemplates) {
+              await prisma.sectionQuizChoiceOption.create({
+                data: { questionId: quizQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+              });
+            }
           }
         }
       }

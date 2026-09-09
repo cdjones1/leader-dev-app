@@ -72,6 +72,9 @@ function findIncompleteRequirements(tasks) {
     if (task.taskType === 'ACTION_ITEM' && !task.completed) {
       missing.push(`"${task.text}" is not checked off yet`);
     }
+    if (task.taskType === 'SECTION_QUIZ' && task.quizStatus !== 'PASSED') {
+      missing.push(`"${task.text}" still needs to be passed (needs 90% or higher)`);
+    }
   }
   return missing;
 }

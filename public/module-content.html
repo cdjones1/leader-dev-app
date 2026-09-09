@@ -83,6 +83,19 @@
     <div class="add-box" id="final-add-box"></div>
   </div>
 
+  <div class="module-card">
+    <h2>Midterm Review Content</h2>
+    <p style="color:var(--text-muted); font-size:13px;">Shown during the Study &amp; Review step before the midterm assessment. Flashcards are pure memorization aids (never block anything); every Action Item must be checked before review can be marked complete.</p>
+    <div id="midtermReview-list"></div>
+    <div class="add-box" id="midtermReview-add-box"></div>
+  </div>
+
+  <div class="module-card">
+    <h2>Final Review Content</h2>
+    <div id="finalReview-list"></div>
+    <div class="add-box" id="finalReview-add-box"></div>
+  </div>
+
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -121,6 +134,7 @@
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
             ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} flashcard(s)</div>` : ''}
+            ${t.taskType === 'SECTION_QUIZ' ? `<div class="task-meta">${(t.quizQuestionTemplates || []).length} question(s) - 90% to pass</div>` : ''}
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
           </div>
           <div style="display:flex; gap:6px;">
@@ -164,6 +178,7 @@
               <option value="ACTION_ITEM">Action Item (own checkbox, optional link)</option>
               <option value="VIDEO">Video (YouTube, Vimeo, or direct file link)</option>
               <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
+              <option value="SECTION_QUIZ">Section Quiz (multiple choice, 90% to pass)</option>
             </select>
             <label>Content (description shown under the title)</label>
             <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
@@ -186,6 +201,11 @@
               <label>Answer Choices (mark the correct one)</label>
               <div id="choiceOptions-${section.id}"></div>
               <button type="button" style="background:#8a8378;" onclick="addChoiceRow('${section.id}')">+ Add Option</button>
+            </div>
+            <div id="quizField-${section.id}" style="display:none;">
+              <label>Quiz Questions (90% correct needed to pass)</label>
+              <div id="quizQuestions-${section.id}"></div>
+              <button type="button" style="background:#8a8378;" onclick="addQuizQuestionBlock('${section.id}')">+ Add Question</button>
             </div>
             <button id="saveTaskBtn-${section.id}" onclick="addTask('${section.id}')">Add Task</button>
             <button id="cancelEditBtn-${section.id}" style="display:none; background:#8a8378;" onclick="cancelEditTask('${section.id}')">Cancel Edit</button>
@@ -313,6 +333,10 @@
         document.getElementById('midterm-add-box').innerHTML = '';
         document.getElementById('finalQuestions-list').innerHTML = '';
         document.getElementById('final-add-box').innerHTML = '';
+        document.getElementById('midtermReview-list').innerHTML = '';
+        document.getElementById('midtermReview-add-box').innerHTML = '';
+        document.getElementById('finalReview-list').innerHTML = '';
+        document.getElementById('finalReview-add-box').innerHTML = '';
         return;
       }
 
@@ -346,6 +370,8 @@
 
       loadAssessmentQuestions('midterm', 'AFTER_MODULE_4');
       loadAssessmentQuestions('final', 'AFTER_MODULE_8');
+      loadReviewStepTasks('midtermReview', 'AFTER_MODULE_4');
+      loadReviewStepTasks('finalReview', 'AFTER_MODULE_8');
     }
 
     // ---------- Assessment questions (midterm / final) ----------
@@ -496,6 +522,149 @@
       }
     }
 
+    // ---------- Review step tasks (midtermReview / finalReview) ----------
+
+    let reviewStepEditingId = { midtermReview: null, finalReview: null };
+
+    function reviewStepGatePosition(gateKey) {
+      return gateKey === 'midtermReview' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+    }
+
+    function reviewStepTaskRowHtml(gateKey, t) {
+      return `
+        <div class="task-row" data-id="${t.id}">
+          <div style="flex:1;">
+            <strong>${t.text}</strong>
+            <span class="task-meta"> - ${t.taskType === 'FLASHCARD' ? 'Flashcard Set' : 'Action Item'}</span>
+            ${t.content ? `<div class="task-meta">${t.content.slice(0, 100)}${t.content.length > 100 ? '...' : ''}</div>` : ''}
+            ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} card(s)</div>` : ''}
+            ${t.taskType === 'ACTION_ITEM' && t.link ? `<div class="task-meta">Link: ${t.link}</div>` : ''}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button style="background:#8a8378;" onclick='editReviewStepTask("${gateKey}", ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
+            <button onclick="removeReviewStepTask('${gateKey}', '${t.id}')">Remove</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function reviewStepTaskFormHtml(gateKey) {
+      return `
+        <div id="rstFormLabel-${gateKey}" style="color:var(--accent); font-size:12px;">New Task</div>
+        <label>Title</label>
+        <input type="text" id="rstText-${gateKey}" placeholder="e.g. Confirm you know the 5 KRAs">
+        <label>Task Type</label>
+        <select id="newTaskType-${gateKey}" onchange="onReviewStepTypeChange('${gateKey}')">
+          <option value="ACTION_ITEM">Action Item (self-check, own checkbox)</option>
+          <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
+        </select>
+        <label>Content (description shown under the title)</label>
+        <textarea id="rstContent-${gateKey}" rows="2"></textarea>
+        <div id="rstLinkField-${gateKey}">
+          <label>Link (optional)</label>
+          <input type="text" id="rstLink-${gateKey}" placeholder="https://...">
+        </div>
+        <div id="checklistField-${gateKey}" style="display:none;">
+          <label id="checklistFieldLabel-${gateKey}">Flashcards</label>
+          <div id="checklistItems-${gateKey}"></div>
+          <button type="button" style="background:#8a8378;" onclick="addChecklistRow('${gateKey}')">+ Add Card</button>
+        </div>
+        <button id="rstSaveBtn-${gateKey}" onclick="saveReviewStepTask('${gateKey}')">Add Task</button>
+        <button id="rstCancelBtn-${gateKey}" style="display:none; background:#8a8378;" onclick="cancelEditReviewStepTask('${gateKey}')">Cancel Edit</button>
+      `;
+    }
+
+    function onReviewStepTypeChange(gateKey) {
+      const type = document.getElementById(`newTaskType-${gateKey}`).value;
+      document.getElementById(`rstLinkField-${gateKey}`).style.display = type === 'ACTION_ITEM' ? 'block' : 'none';
+      document.getElementById(`checklistField-${gateKey}`).style.display = type === 'FLASHCARD' ? 'block' : 'none';
+      document.getElementById(`checklistFieldLabel-${gateKey}`).textContent = 'Flashcards';
+      if (type === 'FLASHCARD' && document.getElementById(`checklistItems-${gateKey}`).children.length === 0) {
+        addChecklistRow(gateKey); addChecklistRow(gateKey);
+      }
+    }
+
+    async function loadReviewStepTasks(gateKey, gatePosition) {
+      const listDiv = document.getElementById(`${gateKey}-list`);
+      const addBox = document.getElementById(`${gateKey}-add-box`);
+      if (!currentPathId) { listDiv.innerHTML = ''; addBox.innerHTML = ''; return; }
+
+      const tasks = await apiCall(`/review-step-tasks?pathId=${currentPathId}&gatePosition=${gatePosition}`);
+      listDiv.innerHTML = tasks.map((t) => reviewStepTaskRowHtml(gateKey, t)).join('');
+      addBox.innerHTML = reviewStepTaskFormHtml(gateKey);
+
+      makeSortable(listDiv, '.task-row', (orderedIds) => {
+        apiCall('/review-step-tasks/reorder', { method: 'PUT', body: JSON.stringify({ taskIds: orderedIds }) })
+          .catch((err) => { alert(err.message); loadReviewStepTasks(gateKey, gatePosition); });
+      });
+    }
+
+    async function saveReviewStepTask(gateKey) {
+      const gatePosition = reviewStepGatePosition(gateKey);
+      const text = document.getElementById(`rstText-${gateKey}`).value.trim();
+      const taskType = document.getElementById(`newTaskType-${gateKey}`).value;
+      const content = document.getElementById(`rstContent-${gateKey}`).value;
+      const link = document.getElementById(`rstLink-${gateKey}`).value.trim();
+      const checklistItems = readChecklistRows(gateKey);
+
+      if (!text) { alert('Give the task a title.'); return; }
+      if (taskType === 'FLASHCARD' && checklistItems.length === 0) { alert('Add at least one card.'); return; }
+
+      const editingId = reviewStepEditingId[gateKey];
+      const body = { text, taskType, content, link, checklistItems };
+
+      try {
+        if (editingId) {
+          await apiCall(`/review-step-tasks/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
+          reviewStepEditingId[gateKey] = null;
+        } else {
+          await apiCall(`/review-step-tasks/path/${currentPathId}/gate/${gatePosition}`, { method: 'POST', body: JSON.stringify(body) });
+        }
+        loadReviewStepTasks(gateKey, gatePosition);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function editReviewStepTask(gateKey, t) {
+      reviewStepEditingId[gateKey] = t.id;
+      document.getElementById(`rstText-${gateKey}`).value = t.text;
+      document.getElementById(`newTaskType-${gateKey}`).value = t.taskType;
+      document.getElementById(`rstContent-${gateKey}`).value = t.content || '';
+      document.getElementById(`rstLink-${gateKey}`).value = t.link || '';
+
+      document.getElementById(`checklistItems-${gateKey}`).innerHTML = '';
+      (t.checklistItemTemplates || []).forEach((item) => addChecklistRow(gateKey, item.text, item.description || ''));
+
+      onReviewStepTypeChange(gateKey);
+      document.getElementById(`rstFormLabel-${gateKey}`).textContent = 'Editing: ' + t.text;
+      document.getElementById(`rstSaveBtn-${gateKey}`).textContent = 'Update Task';
+      document.getElementById(`rstCancelBtn-${gateKey}`).style.display = 'inline-block';
+    }
+
+    function cancelEditReviewStepTask(gateKey) {
+      reviewStepEditingId[gateKey] = null;
+      document.getElementById(`rstText-${gateKey}`).value = '';
+      document.getElementById(`newTaskType-${gateKey}`).value = 'ACTION_ITEM';
+      document.getElementById(`rstContent-${gateKey}`).value = '';
+      document.getElementById(`rstLink-${gateKey}`).value = '';
+      document.getElementById(`checklistItems-${gateKey}`).innerHTML = '';
+      onReviewStepTypeChange(gateKey);
+      document.getElementById(`rstFormLabel-${gateKey}`).textContent = 'New Task';
+      document.getElementById(`rstSaveBtn-${gateKey}`).textContent = 'Add Task';
+      document.getElementById(`rstCancelBtn-${gateKey}`).style.display = 'none';
+    }
+
+    async function removeReviewStepTask(gateKey, taskId) {
+      const gatePosition = reviewStepGatePosition(gateKey);
+      try {
+        await apiCall(`/review-step-tasks/${taskId}`, { method: 'DELETE' });
+        loadReviewStepTasks(gateKey, gatePosition);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
     // ---------- Drag-and-drop (plain HTML5, no library) ----------
 
     function makeSortable(container, itemSelector, onReorder) {
@@ -627,6 +796,10 @@
       if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${sectionId}`).children.length === 0) {
         addChoiceRow(sectionId); addChoiceRow(sectionId);
       }
+      document.getElementById(`quizField-${sectionId}`).style.display = type === 'SECTION_QUIZ' ? 'block' : 'none';
+      if (type === 'SECTION_QUIZ' && document.getElementById(`quizQuestions-${sectionId}`).children.length === 0) {
+        addQuizQuestionBlock(sectionId);
+      }
     }
 
     function addChecklistRow(sectionId, text = '', description = '', link = '') {
@@ -655,6 +828,61 @@
         <input type="text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Option text">
         <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
       container.appendChild(row);
+    }
+
+    // ---------- Section Quiz - a list of questions, each with its own choice options ----------
+
+    let quizQuestionCounter = 0;
+
+    function addQuizQuestionBlock(sectionId, text = '', content = '', options = []) {
+      const container = document.getElementById(`quizQuestions-${sectionId}`);
+      const groupName = 'quizChoice-' + (quizQuestionCounter++);
+      const block = document.createElement('div');
+      block.className = 'quiz-question-block';
+      block.dataset.groupName = groupName;
+      block.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 10px;';
+      block.innerHTML = `
+        <div style="display:flex; gap:6px;">
+          <input type="text" class="qq-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Question text">
+          <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.quiz-question-block').remove()">✕ Remove Question</button>
+        </div>
+        <textarea class="qq-content" rows="2" style="margin-top:6px;" placeholder="Additional content (optional)">${content}</textarea>
+        <div class="qq-options" style="margin-top:8px;"></div>
+        <button type="button" style="background:#8a8378; margin-top:6px;" onclick="addQuizChoiceRow(this)">+ Add Option</button>
+      `;
+      container.appendChild(block);
+
+      const optionsToAdd = options.length > 0 ? options : [{ text: '', isCorrect: false }, { text: '', isCorrect: false }];
+      optionsToAdd.forEach((o) => addQuizChoiceRowTo(block, groupName, o.text, o.isCorrect));
+    }
+
+    function addQuizChoiceRow(btnEl) {
+      const block = btnEl.closest('.quiz-question-block');
+      addQuizChoiceRowTo(block, block.dataset.groupName, '', false);
+    }
+
+    function addQuizChoiceRowTo(block, groupName, text, isCorrect) {
+      const optionsContainer = block.querySelector('.qq-options');
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:6px; margin-top:6px; align-items:center;';
+      row.innerHTML = `<input type="radio" name="${groupName}" ${isCorrect ? 'checked' : ''} style="width:auto;">
+        <input type="text" value="${(text || '').replace(/"/g, '&quot;')}" style="flex:1;" placeholder="Option text">
+        <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.parentElement.remove()">✕</button>`;
+      optionsContainer.appendChild(row);
+    }
+
+    function readQuizQuestions(sectionId) {
+      const blocks = [...document.getElementById(`quizQuestions-${sectionId}`).children];
+      return blocks.map((block) => {
+        const text = block.querySelector('.qq-text').value.trim();
+        const content = block.querySelector('.qq-content').value;
+        const optionRows = [...block.querySelectorAll('.qq-options > div')];
+        const choiceOptions = optionRows.map((row) => ({
+          text: row.querySelectorAll('input[type="text"]')[0].value.trim(),
+          isCorrect: row.querySelector('input[type="radio"]').checked,
+        })).filter((o) => o.text);
+        return { text, content, choiceOptions };
+      }).filter((q) => q.text);
     }
 
     function readChecklistRows(sectionId) {
@@ -691,8 +919,10 @@
 
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
+      document.getElementById(`quizQuestions-${sectionId}`).innerHTML = '';
       (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || ''));
       (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(sectionId, opt.text, opt.isCorrect));
+      (task.quizQuestionTemplates || []).forEach((q) => addQuizQuestionBlock(sectionId, q.text, q.content || '', q.choiceOptionTemplates || []));
 
       onTypeChange(sectionId);
       document.getElementById(`formLabel-${sectionId}`).textContent = 'Editing: ' + task.text;
@@ -712,6 +942,7 @@
       document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
+      document.getElementById(`quizQuestions-${sectionId}`).innerHTML = '';
       onTypeChange(sectionId);
       document.getElementById(`formLabel-${sectionId}`).textContent = 'New Task';
       document.getElementById(`saveTaskBtn-${sectionId}`).textContent = 'Add Task';
@@ -728,6 +959,7 @@
       const link = document.getElementById(`newTaskLink-${sectionId}`).value.trim();
       const checklistItems = readChecklistRows(sectionId);
       const choiceOptions = readChoiceRows(sectionId);
+      const quizQuestions = readQuizQuestions(sectionId);
 
       const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING' || taskType === 'QUESTION';
       if (!text && !titleOptional) { alert('This task type needs a title.'); return; }
@@ -738,9 +970,16 @@
         if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
         if (!choiceOptions.some((o) => o.isCorrect)) { alert('Mark one option as the correct answer.'); return; }
       }
+      if (taskType === 'SECTION_QUIZ') {
+        if (quizQuestions.length === 0) { alert('Add at least one quiz question.'); return; }
+        for (const q of quizQuestions) {
+          if (q.choiceOptions.length < 2) { alert(`"${q.text}" needs at least 2 answer choices.`); return; }
+          if (!q.choiceOptions.some((o) => o.isCorrect)) { alert(`Mark one correct option for "${q.text}".`); return; }
+        }
+      }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions };
 
       try {
         if (editingId) {

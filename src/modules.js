@@ -326,6 +326,36 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     const reviewStep = await prisma.reviewStep.create({
       data: { planId: module.planId, gatePosition, status: 'OPEN', openedAt: new Date() },
     });
+
+    // Copy this path's review-step content (if any) into real tasks
+    // for this specific review step - older plans, or a path with
+    // none authored yet, just get an empty review step, same as
+    // before this feature existed.
+    if (plan.pathId) {
+      const taskTemplates = await prisma.reviewStepTaskTemplate.findMany({
+        where: { pathId: plan.pathId, gatePosition },
+        orderBy: { order: 'asc' },
+        include: { checklistItemTemplates: { orderBy: { order: 'asc' } } },
+      });
+      for (const tt of taskTemplates) {
+        const task = await prisma.reviewStepTask.create({
+          data: {
+            reviewStepId: reviewStep.id,
+            order: tt.order,
+            text: tt.text,
+            content: tt.content,
+            taskType: tt.taskType,
+            link: tt.link,
+          },
+        });
+        for (const item of tt.checklistItemTemplates) {
+          await prisma.reviewStepChecklistItem.create({
+            data: { reviewStepTaskId: task.id, order: item.order, text: item.text, description: item.description },
+          });
+        }
+      }
+    }
+
     return res.json({ completedModule: updated, reviewStepOpened: reviewStep });
   }
 
