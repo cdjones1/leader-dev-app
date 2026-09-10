@@ -31,6 +31,7 @@ function resolveTaskTitle(text, taskType) {
   if (taskType === 'NOTICE') return 'Info';
   if (taskType === 'WARNING') return 'Important';
   if (taskType === 'QUESTION') return 'Study Question';
+  if (taskType === 'MULTIPLE_CHOICE') return 'Multiple Choice';
   return null; // still missing and required
 }
 

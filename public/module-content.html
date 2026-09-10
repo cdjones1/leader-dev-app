@@ -161,7 +161,7 @@
           <div class="add-box">
             <div id="formLabel-${section.id}" style="color:var(--accent); font-size:12px;">New Task</div>
             <label>Task Title</label>
-            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning/Question)">
+            <input type="text" id="newTaskText-${section.id}" placeholder="e.g. Read Chapter 1 (optional for Notice/Warning/Question/Multiple Choice)">
             <label>Assigned To</label>
             <select id="newTaskAssignedTo-${section.id}">
               <option value="DEVELOPEE">Developee (the person being developed)</option>
@@ -961,7 +961,7 @@
       const choiceOptions = readChoiceRows(sectionId);
       const quizQuestions = readQuizQuestions(sectionId);
 
-      const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING' || taskType === 'QUESTION';
+      const titleOptional = taskType === 'NOTICE' || taskType === 'WARNING' || taskType === 'QUESTION' || taskType === 'MULTIPLE_CHOICE';
       if (!text && !titleOptional) { alert('This task type needs a title.'); return; }
       if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
       if (taskType === 'VIDEO' && !link) { alert('A video task needs a link to the video.'); return; }
