@@ -257,6 +257,7 @@ model TaskChecklistItem {
   link        String?   // optional external link ("Open link")
   completed   Boolean   @default(false)
   completedAt DateTime?
+  sourceLabel String?   // FLASHCARD only - set when auto-pulled from an earlier module's own flashcards during a review step's creation (e.g. "Module 3 — Heart of Leadership"); null for manually-authored cards
 }
 
 // MULTIPLE_CHOICE options - isCorrect must NEVER be sent to the

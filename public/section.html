@@ -75,6 +75,27 @@
     .flashcard.revealed .flashcard-hint { color: var(--accent); }
     .flashcard-text { font-weight: 700; font-size: 17px; }
 
+    .deck-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
+    .deck-topbar .deck-count { font-weight: 700; }
+    .deck-topbar .deck-stats { color: var(--text-muted); }
+    .deck-progress-track { background: #e9e5df; border-radius: 6px; height: 6px; overflow: hidden; margin-bottom: 16px; }
+    .deck-progress-fill { background: var(--accent); height: 100%; border-radius: 6px; transition: width 0.15s; }
+    .deck-card { border: 2px solid var(--accent); border-radius: 12px; padding: 24px; min-height: 220px; cursor: pointer; background: var(--card); margin-bottom: 14px; }
+    .deck-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .deck-card-badge { display: inline-block; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: #fdeaea; color: var(--accent); }
+    .deck-card-hint { color: var(--text-muted); font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+    .deck-card-text { font-weight: 700; font-size: 20px; line-height: 1.4; }
+    .deck-footer { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .deck-nav-btn { background: none; border: none; color: var(--text-muted); font-weight: 700; font-size: 14px; cursor: pointer; padding: 8px; }
+    .deck-nav-btn.active { color: var(--accent); }
+    .deck-nav-btn:disabled { color: #ccc7bf; cursor: not-allowed; }
+    .deck-mark-btn { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-weight: 700; font-size: 13px; cursor: pointer; color: var(--text); }
+    .deck-mark-btn.marked { border-color: var(--accent); color: var(--accent); background: #fff7f5; }
+    .deck-bottom-row { display: flex; gap: 10px; }
+    .deck-bottom-btn { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-weight: 700; font-size: 12px; letter-spacing: 0.02em; cursor: pointer; color: var(--text-muted); text-transform: uppercase; }
+    .deck-bottom-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .deck-empty { color: var(--text-muted); text-align: center; padding: 30px; }
+
     .action-item {
       display: flex; gap: 14px; align-items: flex-start; background: var(--card);
       border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 16px;
@@ -270,30 +291,151 @@
       `;
     }
 
-    // Pure client-side flip - no backend call, no saved state. Each
-    // card just toggles its own "revealed" class and swaps its text.
-    function flashcardSetBlock(task) {
-      const cardsHtml = (task.checklistItems || []).map((item) => {
-        const front = JSON.stringify(item.text).replace(/'/g, '&apos;');
-        const back = JSON.stringify(item.description || '').replace(/'/g, '&apos;');
-        return `
-          <div class="flashcard" onclick='toggleFlashcard(this, ${front}, ${back})'>
-            <div class="flashcard-header">
-              <span class="flashcard-badge">Flashcard</span>
-              <span class="flashcard-hint">Tap to reveal</span>
-            </div>
-            <div class="flashcard-text">${item.text}</div>
-          </div>
-        `;
-      }).join('');
-      return `<div class="task-block"><h3>${task.text}</h3>${task.content ? `<div class="content-box">${task.content}</div>` : ''}${cardsHtml}</div>`;
+    // ---------- Flashcard deck viewer ----------
+    // All state (position, viewed, marked, shuffle order, filter) is
+    // purely client-side and ephemeral - resets on reload, matching
+    // the "flashcards never save state" design used everywhere else.
+    let deckStateByTaskId = {};
+
+    function getOrInitDeckState(task) {
+      if (!deckStateByTaskId[task.id]) {
+        const cards = task.checklistItems || [];
+        deckStateByTaskId[task.id] = {
+          order: cards.map((_, i) => i),
+          position: 0,
+          viewed: new Set(cards.length > 0 ? [0] : []),
+          marked: new Set(),
+          studyMarkedOnly: false,
+          revealed: false,
+        };
+      }
+      return deckStateByTaskId[task.id];
     }
 
-    function toggleFlashcard(el, front, back) {
-      const revealed = el.classList.toggle('revealed');
-      el.querySelector('.flashcard-badge').textContent = revealed ? 'Answer' : 'Flashcard';
-      el.querySelector('.flashcard-hint').textContent = revealed ? 'Tap to flip back' : 'Tap to reveal';
-      el.querySelector('.flashcard-text').textContent = revealed ? back : front;
+    function visibleOrder(state) {
+      return state.studyMarkedOnly ? state.order.filter((i) => state.marked.has(i)) : state.order;
+    }
+
+    function flashcardSetBlock(task) {
+      const cards = task.checklistItems || [];
+      if (cards.length === 0) {
+        return `<div class="task-block"><h3>${task.text}</h3><p class="deck-empty">No flashcards yet.</p></div>`;
+      }
+
+      const state = getOrInitDeckState(task);
+      const order = visibleOrder(state);
+
+      if (order.length === 0) {
+        // Studying "marked only" but nothing is marked.
+        return `
+          <div class="task-block">
+            <h3>${task.text}</h3>
+            ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+            <p class="deck-empty">No cards marked to review yet.</p>
+            <div class="deck-bottom-row">
+              <button class="deck-bottom-btn" onclick="setDeckStudyMarkedOnly('${task.id}', false)">&#8634; Show Full Deck</button>
+            </div>
+          </div>
+        `;
+      }
+
+      const clampedPosition = Math.min(state.position, order.length - 1);
+      state.position = clampedPosition;
+      const cardIndex = order[clampedPosition];
+      const card = cards[cardIndex];
+      const isMarked = state.marked.has(cardIndex);
+      const viewedCount = state.viewed.size;
+      const progressPercent = Math.round((viewedCount / cards.length) * 100);
+
+      const badgeText = card.sourceLabel || 'Flashcard';
+      const frontText = card.text;
+      const backText = card.description || '';
+
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+
+          <div class="deck-topbar">
+            <span class="deck-count">Card ${clampedPosition + 1} of ${order.length}</span>
+            <span class="deck-stats">${viewedCount} / ${cards.length} viewed &middot; ${state.marked.size} marked to review</span>
+          </div>
+          <div class="deck-progress-track"><div class="deck-progress-fill" style="width:${progressPercent}%;"></div></div>
+
+          <div class="deck-card ${state.revealed ? 'revealed' : ''}" onclick="toggleDeckReveal('${task.id}')">
+            <div class="deck-card-header">
+              <span class="deck-card-badge">${state.revealed ? 'Answer' : badgeText}</span>
+              <span class="deck-card-hint">${state.revealed ? 'Tap to flip back' : 'Tap card to reveal'}</span>
+            </div>
+            <div class="deck-card-text">${state.revealed ? (backText || '(no answer written)') : frontText}</div>
+          </div>
+
+          <div class="deck-footer">
+            <button class="deck-nav-btn ${clampedPosition > 0 ? 'active' : ''}" ${clampedPosition === 0 ? 'disabled' : ''} onclick="deckPrevious('${task.id}')">&larr; Previous</button>
+            <button class="deck-mark-btn ${isMarked ? 'marked' : ''}" onclick="toggleDeckMark('${task.id}')">${isMarked ? '&#9733;' : '&#9734;'} Mark to Review</button>
+            <button class="deck-nav-btn active" onclick="deckNext('${task.id}')">Next &rarr;</button>
+          </div>
+
+          <div class="deck-bottom-row">
+            <button class="deck-bottom-btn" onclick="shuffleDeck('${task.id}')">&#8634; Shuffle Full Deck</button>
+            <button class="deck-bottom-btn" ${state.marked.size === 0 ? 'disabled' : ''} onclick="setDeckStudyMarkedOnly('${task.id}', ${!state.studyMarkedOnly})">&#9733; ${state.studyMarkedOnly ? 'Show Full Deck' : `Study Marked Only (${state.marked.size})`}</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleDeckReveal(taskId) {
+      const state = deckStateByTaskId[taskId];
+      state.revealed = !state.revealed;
+      loadSection();
+    }
+
+    function deckNext(taskId) {
+      const state = deckStateByTaskId[taskId];
+      const order = visibleOrder(state);
+      state.position = (state.position + 1) % order.length;
+      state.revealed = false;
+      state.viewed.add(order[state.position]);
+      loadSection();
+    }
+
+    function deckPrevious(taskId) {
+      const state = deckStateByTaskId[taskId];
+      if (state.position === 0) return;
+      state.position -= 1;
+      state.revealed = false;
+      loadSection();
+    }
+
+    function toggleDeckMark(taskId) {
+      const state = deckStateByTaskId[taskId];
+      const order = visibleOrder(state);
+      const cardIndex = order[state.position];
+      if (state.marked.has(cardIndex)) state.marked.delete(cardIndex);
+      else state.marked.add(cardIndex);
+      loadSection();
+    }
+
+    function shuffleDeck(taskId) {
+      const state = deckStateByTaskId[taskId];
+      const shuffled = [...state.order];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      state.order = shuffled;
+      state.position = 0;
+      state.revealed = false;
+      state.viewed.add(state.order[0]);
+      loadSection();
+    }
+
+    function setDeckStudyMarkedOnly(taskId, value) {
+      const state = deckStateByTaskId[taskId];
+      state.studyMarkedOnly = value;
+      state.position = 0;
+      state.revealed = false;
+      loadSection();
     }
 
     function sectionQuizBlock(task, mine) {

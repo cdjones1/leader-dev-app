@@ -385,6 +385,7 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
       });
 
       if (gate) {
+        const flashcardTaskIds = [];
         for (const sectionTemplate of gate.sectionTemplates) {
           const section = await prisma.moduleSection.create({
             data: { reviewStepId: reviewStep.id, order: sectionTemplate.order, title: sectionTemplate.title },
@@ -430,6 +431,68 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
               for (const opt of qt.choiceOptionTemplates) {
                 await prisma.sectionQuizChoiceOption.create({
                   data: { questionId: quizQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+                });
+              }
+            }
+
+            if (taskTemplate.taskType === 'FLASHCARD') {
+              flashcardTaskIds.push(moduleTask.id);
+            }
+          }
+        }
+
+        // Every Flashcard Set task in a review gate automatically pulls
+        // in all the flashcards from earlier modules - appended after
+        // whatever the admin manually authored, each one tagged with
+        // which module it actually came from. Snapshotted once, right
+        // now, so it never shifts under someone mid-review even if the
+        // source modules' content changes later.
+        if (flashcardTaskIds.length > 0) {
+          const midpoint = midpointModule(plan.moduleCount);
+          const maxSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? midpoint : plan.moduleCount;
+
+          const priorModules = await prisma.module.findMany({
+            where: { planId: plan.id, sequenceOrder: { lte: maxSequenceOrder } },
+            orderBy: { sequenceOrder: 'asc' },
+            include: {
+              sections: {
+                orderBy: { order: 'asc' },
+                include: {
+                  tasks: {
+                    where: { taskType: 'FLASHCARD' },
+                    orderBy: { order: 'asc' },
+                    include: { checklistItems: { orderBy: { order: 'asc' } } },
+                  },
+                },
+              },
+            },
+          });
+
+          const aggregatedCards = [];
+          for (const priorModule of priorModules) {
+            const sourceLabel = `Module ${priorModule.sequenceOrder}${priorModule.title ? ' — ' + priorModule.title : ''}`;
+            for (const priorSection of priorModule.sections) {
+              for (const priorTask of priorSection.tasks) {
+                for (const card of priorTask.checklistItems) {
+                  aggregatedCards.push({ text: card.text, description: card.description, sourceLabel });
+                }
+              }
+            }
+          }
+
+          if (aggregatedCards.length > 0) {
+            for (const flashcardTaskId of flashcardTaskIds) {
+              const existingCount = await prisma.taskChecklistItem.count({ where: { moduleTaskId: flashcardTaskId } });
+              for (let i = 0; i < aggregatedCards.length; i++) {
+                const card = aggregatedCards[i];
+                await prisma.taskChecklistItem.create({
+                  data: {
+                    moduleTaskId: flashcardTaskId,
+                    order: existingCount + i + 1,
+                    text: card.text,
+                    description: card.description,
+                    sourceLabel: card.sourceLabel,
+                  },
                 });
               }
             }
