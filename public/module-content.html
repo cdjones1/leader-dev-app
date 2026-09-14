@@ -365,6 +365,7 @@
     // ---------- Assessment questions (midterm / final) ----------
 
     let assessmentQuestionEditingId = { midterm: null, final: null };
+    let assessmentQuestionLastGroupTitle = { midterm: '', final: '' };
 
     function assessmentQuestionRowHtml(gateKey, q) {
       return `
@@ -392,7 +393,7 @@
         <label>Title</label>
         <input type="text" id="aqText-${gateKey}" placeholder="e.g. Fill in the blank">
         <label>Group Title (optional - e.g. "Foundation & the STM Role")</label>
-        <input type="text" id="aqGroupTitle-${gateKey}" placeholder="Groups consecutive questions together with a running point subtotal">
+        <input type="text" id="aqGroupTitle-${gateKey}" value="${(assessmentQuestionLastGroupTitle[gateKey] || '').replace(/"/g, '&quot;')}" placeholder="Groups consecutive questions together with a running point subtotal">
         <label>Points</label>
         <input type="number" id="aqPoints-${gateKey}" value="1" min="0.5" step="0.5">
         <label>Question Type</label>
@@ -471,6 +472,7 @@
         } else {
           await apiCall(`/assessment-questions/path/${currentPathId}/gate/${gatePosition}`, { method: 'POST', body: JSON.stringify(body) });
         }
+        assessmentQuestionLastGroupTitle[gateKey] = groupTitle; // sticks for the next question, until changed
         loadAssessmentQuestions(gateKey, gatePosition);
       } catch (err) {
         alert(err.message);
@@ -499,7 +501,7 @@
     function cancelEditAssessmentQuestion(gateKey) {
       assessmentQuestionEditingId[gateKey] = null;
       document.getElementById(`aqText-${gateKey}`).value = '';
-      document.getElementById(`aqGroupTitle-${gateKey}`).value = '';
+      document.getElementById(`aqGroupTitle-${gateKey}`).value = assessmentQuestionLastGroupTitle[gateKey] || '';
       document.getElementById(`aqPoints-${gateKey}`).value = '1';
       document.getElementById(`aqType-${gateKey}`).value = 'SHORT_ANSWER';
       document.getElementById(`aqContent-${gateKey}`).value = '';
