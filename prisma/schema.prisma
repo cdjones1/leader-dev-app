@@ -607,8 +607,8 @@ model AssessmentAttempt {
   assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   attemptNumber Int        // 1, 2, or 3
   overallResult String     // "PASS" or "FAIL" - now auto-computed from totalPointsEarned/totalPointsPossible, not manually chosen
-  totalPointsEarned   Float
-  totalPointsPossible Float
+  totalPointsEarned   Float @default(0) // existing pre-redesign attempts backfill to 0 - they predate per-question grading entirely
+  totalPointsPossible Float @default(0)
   gradedBy      String     // the developer's user id who graded it
   gradedAt      DateTime   @default(now())
 
