@@ -35,7 +35,6 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
   if (!(await checkPlanAccess(req, res, assessment.planId))) return;
 
   const role = req.user.isAdmin ? 'ADMIN' : await getParticipantRole(req.user.userId, assessment.planId);
-  const canSeeShortAnswerModel = role === 'ADMIN' || role === 'DEVELOPER';
 
   // The developee viewing this (while it's actually gradeable, i.e.
   // an attempt is really underway) is what "opens" it - modules lock
@@ -53,6 +52,13 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
     where: { assessmentId: assessment.id, attemptNumber },
   });
   const isGraded = !!gradedAttempt;
+
+  // The developer/admin can always see the model answer while
+  // grading. The developee can too, but ONLY once this attempt has
+  // actually been graded - so they can review what they missed
+  // afterward, without it ever being visible during or before the
+  // test itself.
+  const canSeeShortAnswerModel = role === 'ADMIN' || role === 'DEVELOPER' || isGraded;
 
   const questions = await prisma.assessmentQuestion.findMany({
     where: { assessmentId: assessment.id },
@@ -72,6 +78,8 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
       content: q.content,
       pageReference: q.pageReference,
       questionType: q.questionType,
+      points: q.points,
+      groupTitle: q.groupTitle,
     };
 
     if (q.questionType === 'MULTIPLE_CHOICE') {
@@ -183,18 +191,22 @@ router.post('/:id/submit-test', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
-// GRADE an assessment attempt.
-// Body: { overallResult: "PASS" or "FAIL", itemScores: [{ moduleId, score, comments }, ...] }
+// GRADE an assessment attempt - per-question point entry. The
+// developer enters points earned for EACH question (0 up to that
+// question's own point value) plus optional per-question notes.
+// The total, percentage, and pass/fail are all calculated from
+// these - never entered directly - using the same 90% threshold
+// Section Quizzes use.
+// Body: { questionGrades: [{ questionId, pointsEarned, comments }, ...] }
 // --------------------------------------------------------------
+const ASSESSMENT_PASS_THRESHOLD = 0.8; // 80%
+
 router.post('/:id/grade', requireAuth, async (req, res) => {
   const assessmentId = req.params.id;
-  const { overallResult, itemScores } = req.body;
+  const { questionGrades } = req.body;
 
-  if (!['PASS', 'FAIL'].includes(overallResult)) {
-    return res.status(400).json({ error: 'overallResult must be PASS or FAIL' });
-  }
-  if (!Array.isArray(itemScores) || itemScores.length === 0) {
-    return res.status(400).json({ error: 'itemScores must be a non-empty array' });
+  if (!Array.isArray(questionGrades) || questionGrades.length === 0) {
+    return res.status(400).json({ error: 'questionGrades must be a non-empty array' });
   }
 
   const assessment = await prisma.assessment.findUnique({ where: { id: assessmentId } });
@@ -225,21 +237,59 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
     });
   }
 
+  const gradeByQuestionId = {};
+  for (const g of questionGrades) gradeByQuestionId[g.questionId] = g;
+
+  // MULTIPLE_CHOICE grades itself - it's objectively checkable, and
+  // the response already recorded isCorrect at submission time. Only
+  // SHORT_ANSWER genuinely needs the developer's manual entry.
+  const shortAnswerQuestions = questions.filter((q) => q.questionType === 'SHORT_ANSWER');
+  const ungraded = shortAnswerQuestions.filter((q) => !gradeByQuestionId[q.id]);
+  if (ungraded.length > 0) {
+    return res.status(400).json({
+      error: 'Not every short-answer question has a grade entered yet',
+      missing: ungraded.map((q) => q.text),
+    });
+  }
+
+  for (const q of shortAnswerQuestions) {
+    const g = gradeByQuestionId[q.id];
+    const points = Number(g.pointsEarned);
+    if (Number.isNaN(points) || points < 0 || points > q.points) {
+      return res.status(400).json({ error: `Points earned for "${q.text}" must be between 0 and ${q.points}` });
+    }
+  }
+
+  // Build the actual per-question grade entries: manual for
+  // SHORT_ANSWER, auto-computed for MULTIPLE_CHOICE.
+  const finalGrades = questions.map((q) => {
+    if (q.questionType === 'MULTIPLE_CHOICE') {
+      const response = q.responses[0];
+      return { questionId: q.id, pointsEarned: response.isCorrect ? q.points : 0, comments: null };
+    }
+    const g = gradeByQuestionId[q.id];
+    return { questionId: q.id, pointsEarned: Number(g.pointsEarned), comments: g.comments || null };
+  });
+
+  const totalPointsPossible = questions.reduce((sum, q) => sum + q.points, 0);
+  const totalPointsEarned = finalGrades.reduce((sum, g) => sum + g.pointsEarned, 0);
+  const percentage = totalPointsPossible > 0 ? totalPointsEarned / totalPointsPossible : 0;
+  const passed = percentage >= ASSESSMENT_PASS_THRESHOLD;
+  const overallResult = passed ? 'PASS' : 'FAIL';
+
   const attempt = await prisma.assessmentAttempt.create({
     data: {
       assessmentId,
       attemptNumber,
       overallResult,
+      totalPointsEarned,
+      totalPointsPossible,
       gradedBy: req.user.userId,
-      itemScores: {
-        create: itemScores.map((s) => ({
-          moduleId: s.moduleId,
-          score: s.score,
-          comments: s.comments || null,
-        })),
+      questionGrades: {
+        create: finalGrades,
       },
     },
-    include: { itemScores: true },
+    include: { questionGrades: true },
   });
 
   // --------------------------------------------------------------
@@ -388,17 +438,45 @@ router.post('/:id/admin-override-pass', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
-// VIEW an assessment's full history
+// VIEW an assessment's full history, including a rich breakdown of
+// each graded attempt - question text, group, points, the
+// developee's answer for that attempt, and the developer's
+// per-question grade/comments. This is what powers the graded
+// review page.
 // --------------------------------------------------------------
 router.get('/:id', requireAuth, async (req, res) => {
   const assessment = await prisma.assessment.findUnique({
     where: { id: req.params.id },
-    include: { attempts: { include: { itemScores: true }, orderBy: { attemptNumber: 'asc' } } },
+    include: {
+      attempts: {
+        orderBy: { attemptNumber: 'asc' },
+        include: {
+          questionGrades: {
+            include: {
+              question: { include: { choiceOptions: { orderBy: { order: 'asc' } } } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!assessment) {
     return res.status(404).json({ error: 'Assessment not found' });
   }
   if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+
+  // Attach each graded question's own response for that SAME attempt
+  // number, so the review page can show "your answer" without a
+  // second round trip.
+  for (const attempt of assessment.attempts) {
+    for (const grade of attempt.questionGrades) {
+      const response = await prisma.assessmentQuestionResponse.findUnique({
+        where: { questionId_attemptNumber: { questionId: grade.questionId, attemptNumber: attempt.attemptNumber } },
+      }).catch(() => null);
+      grade.response = response;
+    }
+  }
+
   res.json(assessment);
 });
 

@@ -60,6 +60,37 @@
     .timeline-card.overdue .tl-label, .timeline-card.overdue .tl-day, .timeline-card.overdue .tl-dates { color: #9b1c1c; }
     .test-lock-banner { background: #fdecec; border: 1px solid #f7c6c6; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; color: #9b1c1c; font-weight: 600; }
 
+    .grade-banner { border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid; }
+    .grade-banner.passed { background: #eefaf1; border-color: #bfe8cc; }
+    .grade-banner.failed { background: #fdecec; border-color: #f7c6c6; }
+    .grade-banner-status { font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 6px; }
+    .grade-banner.passed .grade-banner-status { color: #1a7a3a; }
+    .grade-banner.failed .grade-banner-status { color: #9b1c1c; }
+    .grade-banner-percent { font-size: 40px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+    .grade-banner-meta { color: var(--text-muted); font-size: 14px; margin-bottom: 10px; }
+    .grade-banner-note { color: var(--text-muted); font-size: 13px; }
+
+    .grade-group-header { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 10px; }
+    .grade-group-title { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; }
+    .grade-group-meta { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+    .grade-question-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+    .grade-q-badges { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .grade-q-num { background: #2b2925; color: white; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+    .grade-q-pts { background: #f0ede7; color: var(--text-muted); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+    .grade-q-credit { font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid; }
+    .grade-q-credit.full { background: #eefaf1; border-color: #bfe8cc; color: #1a7a3a; }
+    .grade-q-credit.partial { background: #fef6e6; border-color: #f0dba3; color: #9a6a00; }
+    .grade-q-credit.none { background: #fdecec; border-color: #f7c6c6; color: #9b1c1c; }
+    .grade-q-text { font-weight: 700; font-size: 16px; margin-bottom: 14px; }
+    .grade-option-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px; }
+    .grade-option-row.correct { background: #eefaf1; border-color: #1a7a3a; border-width: 2px; }
+    .grade-option-row.wrong-pick { background: #fdecec; border-color: #9b1c1c; border-width: 2px; }
+    .grade-option-tags { display: flex; gap: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .grade-option-tags .yours { color: var(--text-muted); }
+    .grade-option-tags .correct-tag { color: #1a7a3a; }
+    .grade-points-input { width: 90px; display: inline-block; margin: 0 8px; }
+
     .section-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; margin: 32px 0 4px; }
     .section-title { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
 
@@ -478,16 +509,193 @@
       `;
     }
 
-    function assessmentBoxHtml(assessment, isDeveloperHere, isDevelopeeHere, questionData) {
+    // Groups consecutive questions sharing the same groupTitle - an
+    // ungrouped question (no groupTitle) becomes its own group with
+    // no header, matching how it's optional at authoring time.
+    function groupQuestions(questions) {
+      const groups = [];
+      let current = null;
+      for (const q of questions) {
+        if (q.groupTitle) {
+          if (!current || current.title !== q.groupTitle) {
+            current = { title: q.groupTitle, questions: [] };
+            groups.push(current);
+          }
+          current.questions.push(q);
+        } else {
+          groups.push({ title: null, questions: [q] });
+          current = null;
+        }
+      }
+      return groups;
+    }
+
+    function creditClass(pointsEarned, pointsPossible) {
+      if (pointsEarned >= pointsPossible) return 'full';
+      if (pointsEarned <= 0) return 'none';
+      return 'partial';
+    }
+
+    function creditLabel(pointsEarned, pointsPossible) {
+      const cls = creditClass(pointsEarned, pointsPossible);
+      const label = cls === 'full' ? 'Full Credit' : cls === 'none' ? 'No Credit' : 'Partial Credit';
+      return `<span class="grade-q-credit ${cls}">&#10003; ${label} &middot; ${pointsEarned}/${pointsPossible}</span>`;
+    }
+
+    // The graded review - matches the reference design: a pass/fail
+    // banner with the score, then every question grouped exactly as
+    // authored, each showing what was submitted, what was correct,
+    // and any notes the developer left.
+    function gradedReviewHtml(assessment, attemptData) {
+      const attempts = attemptData ? attemptData.attempts : [];
+      const attempt = attempts[attempts.length - 1];
+      if (!attempt) return '';
+
+      const percent = attempt.totalPointsPossible > 0
+        ? Math.round((attempt.totalPointsEarned / attempt.totalPointsPossible) * 100)
+        : 0;
+      const passed = attempt.overallResult === 'PASS';
+      const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm' : 'Final';
+
+      const gradesByQuestionId = {};
+      for (const g of attempt.questionGrades) gradesByQuestionId[g.questionId] = g;
+      const questions = attempt.questionGrades.map((g) => g.question);
+      // Preserve authored order, not grade-creation order.
+      questions.sort((a, b) => a.order - b.order);
+
+      const groups = groupQuestions(questions);
+      let qNumber = 0;
+      const groupsHtml = groups.map((g) => {
+        const groupHeaderHtml = g.title ? `
+          <div class="grade-group-header">
+            <div class="grade-group-title">${g.title}</div>
+            <div class="grade-group-meta">${g.questions.reduce((s, q) => s + q.points, 0)} points &middot; ${g.questions.length} question(s)</div>
+          </div>
+        ` : '';
+        const questionsHtml = g.questions.map((q) => {
+          qNumber++;
+          const grade = gradesByQuestionId[q.id];
+          const response = grade.response;
+          let bodyHtml;
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            bodyHtml = q.choiceOptions.map((o) => {
+              const isYours = response && response.selectedOptionId === o.id;
+              const rowClass = o.isCorrect ? 'correct' : (isYours ? 'wrong-pick' : '');
+              const tags = [];
+              if (isYours) tags.push('<span class="yours">Your Answer</span>');
+              if (o.isCorrect) tags.push('<span class="correct-tag">Correct</span>');
+              return `
+                <div class="grade-option-row ${rowClass}">
+                  <span>${o.text}</span>
+                  ${tags.length > 0 ? `<span class="grade-option-tags">${tags.join('')}</span>` : ''}
+                </div>
+              `;
+            }).join('');
+          } else {
+            bodyHtml = `
+              <div class="label">Submitted Answer</div>
+              <div class="answer-box">${response ? response.submittedAnswer : '(no answer)'}</div>
+              ${grade.comments ? `<div class="label" style="margin-top:12px;">Developer Notes</div><div class="answer-box">${grade.comments}</div>` : ''}
+            `;
+          }
+          return `
+            <div class="grade-question-card">
+              <div class="grade-q-badges">
+                <span class="grade-q-num">Q${qNumber}</span>
+                <span class="grade-q-pts">${q.points} PTS</span>
+                ${creditLabel(grade.pointsEarned, q.points)}
+              </div>
+              <div class="grade-q-text">${q.text}</div>
+              ${q.content ? `<div class="content-box">${q.content}</div>` : ''}
+              ${bodyHtml}
+            </div>
+          `;
+        }).join('');
+        return groupHeaderHtml + questionsHtml;
+      }).join('');
+
+      return `
+        <div class="grade-banner ${passed ? 'passed' : 'failed'}">
+          <div class="grade-banner-status">${passed ? '&#10003; Passed' : '&#10007; Not Passed'}</div>
+          <div class="grade-banner-percent">${percent}%</div>
+          <div class="grade-banner-meta">${attempt.totalPointsEarned} / ${attempt.totalPointsPossible} points &middot; graded ${new Date(attempt.gradedAt).toLocaleDateString()}</div>
+          <div class="grade-banner-note">This is your graded ${label.toLowerCase()} review. Read through each question to see what you got right, what you missed, and any notes your developer left.</div>
+        </div>
+        ${groupsHtml}
+      `;
+    }
+
+    // The developer's grading form - grouped exactly like the review
+    // above. Multiple Choice auto-grades itself (objectively
+    // checkable) and needs no input; Short Answer needs the
+    // developer's own point entry plus optional notes.
+    function gradingFormHtml(assessment, questions) {
+      const groups = groupQuestions(questions);
+      const groupsHtml = groups.map((g) => {
+        const groupHeaderHtml = g.title ? `
+          <div class="grade-group-header">
+            <div class="grade-group-title">${g.title}</div>
+            <div class="grade-group-meta">${g.questions.reduce((s, q) => s + q.points, 0)} points &middot; ${g.questions.length} question(s)</div>
+          </div>
+        ` : '';
+        const questionsHtml = g.questions.map((q, idx) => {
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            const picked = (q.choiceOptions || []).find((o) => o.id === q.selectedOptionId);
+            return `
+              <div class="grade-question-card">
+                <div class="grade-q-badges">
+                  <span class="grade-q-pts">${q.points} PTS</span>
+                  <span class="grade-q-credit full">Auto-graded</span>
+                </div>
+                <div class="grade-q-text">${q.text}</div>
+                <div class="label">Submitted Answer</div>
+                <div class="answer-box">${picked ? picked.text : '(no answer)'}</div>
+              </div>
+            `;
+          }
+          return `
+            <div class="grade-question-card">
+              <div class="grade-q-badges"><span class="grade-q-pts">${q.points} PTS</span></div>
+              <div class="grade-q-text">${q.text}</div>
+              <div class="label">Submitted Answer</div>
+              <div class="answer-box">${q.submittedAnswer || '(no answer)'}</div>
+              ${q.correctAnswer !== undefined ? `<div class="label model-answer-label" style="margin-top:10px;"><span class="model-answer-check">&#10003;</span>Model Answer</div><div class="answer-box model-answer-box">${q.correctAnswer}</div>` : ''}
+              <label style="margin-top:12px;">Points Earned (0 - ${q.points})</label>
+              <input type="number" class="grade-points-input" id="gradePoints-${q.id}" min="0" max="${q.points}" step="0.5" value="${q.points}">
+              <label>Notes (optional, shown to the developee)</label>
+              <textarea id="gradeComments-${q.id}" rows="2"></textarea>
+            </div>
+          `;
+        }).join('');
+        return groupHeaderHtml + questionsHtml;
+      }).join('');
+
+      return `
+        ${groupsHtml}
+        <button id="submitGradeBtn" style="margin-top:8px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
+        <div id="gradeMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
+      `;
+    }
+
+
+    function assessmentBoxHtml(assessment, isDeveloperHere, isDevelopeeHere, questionData, attemptData) {
       if (!assessment) return '';
       const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
       const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
       const isAdmin = user.isAdmin;
 
+      // A graded review for the most recent attempt, whenever one
+      // exists - shown regardless of current status, so both a pass
+      // AND a failed-but-graded attempt can be reviewed afterward.
+      const gradedReview = (attemptData && attemptData.attempts && attemptData.attempts.length > 0)
+        ? gradedReviewHtml(assessment, attemptData)
+        : '';
+
       if (assessment.status === 'LOCKED_NEEDS_MEETING') {
         return `
           <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
+            ${gradedReview}
             <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
             <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
             ${isDeveloperHere || isAdmin
@@ -501,6 +709,7 @@
         return `
           <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
+            ${gradedReview}
             <p>Status: <strong>Locked - Needs Admin</strong></p>
             <p>All attempts have failed. This requires admin resolution.</p>
             ${isAdmin
@@ -512,10 +721,11 @@
       }
 
       if (!gradeable) {
+        // PASSED (or any other terminal state) - just the graded review.
         return `
           <div class="assessment-box" id="assessmentSection">
             <h3>${label}</h3>
-            <p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>
+            ${gradedReview || `<p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>`}
           </div>
         `;
       }
@@ -531,44 +741,57 @@
       // simply empty and grading works exactly as it always has.
       const questions = questionData ? questionData.questions : [];
       const hasSubmittedTest = questions.some((q) => q.submittedAnswer !== undefined || q.selectedOptionId !== undefined);
+      const isGraded = questionData ? questionData.isGraded : false;
       const canAnswer = isDevelopeeHere || isAdmin;
-      const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
 
-      const submitTestButtonHtml = (questions.length > 0 && !hasSubmittedTest && canAnswer)
-        ? `<button style="margin-top:8px;" onclick="submitAssessmentTest('${assessment.id}')">Submit Test</button>
-           <div id="testMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>`
-        : '';
-
-      if (!isDeveloperHere && !isAdmin) {
+      // Already submitted AND already graded this attempt, but the
+      // assessment is still "gradeable" status-wise (this shouldn't
+      // normally linger, but fail safe) - just show the review.
+      if (hasSubmittedTest && isGraded) {
         return `
           <div class="assessment-box" id="assessmentSection">
             <h3>${label} - ${attemptLabel}</h3>
-            ${questionsHtml}
-            ${submitTestButtonHtml}
-            ${questions.length > 0 || hasSubmittedTest ? '' : '<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>'}
+            ${gradedReview}
           </div>
         `;
       }
+
+      // Submitted, not yet graded - developer/admin sees the grading
+      // form, developee sees a waiting message.
+      if (hasSubmittedTest && !isGraded) {
+        if (!isDeveloperHere && !isAdmin) {
+          return `
+            <div class="assessment-box" id="assessmentSection">
+              <h3>${label} - ${attemptLabel}</h3>
+              <p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            ${gradingFormHtml(assessment, questions)}
+          </div>
+        `;
+      }
+
+      // Not yet submitted - the interactive question-answering flow.
+      const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
+      const submitTestButtonHtml = (questions.length > 0 && canAnswer)
+        ? `<button style="margin-top:8px;" onclick="submitAssessmentTest('${assessment.id}')">Submit Test</button>
+           <div id="testMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>`
+        : '';
 
       return `
         <div class="assessment-box" id="assessmentSection">
           <h3>${label} - ${attemptLabel}</h3>
           ${questionsHtml}
           ${submitTestButtonHtml}
-          <label>Score (1-10)</label>
-          <input type="number" id="score" min="1" max="10" value="5">
-          <label>Comments</label>
-          <textarea id="comments" rows="3"></textarea>
-          <label>Overall Result</label>
-          <select id="overallResult">
-            <option value="PASS">Pass</option>
-            <option value="FAIL">Fail</option>
-          </select>
-          <button id="submitGradeBtn" style="margin-top:16px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
-          <div id="gradeMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
+          ${questions.length === 0 && !isDeveloperHere && !isAdmin ? '<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>' : ''}
         </div>
       `;
     }
+
 
     async function loadPlan() {
       try {
@@ -628,7 +851,11 @@
           itemRowHtml(item, item === currentItem)
         ).join('');
 
-        const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED');
+        // Prefer whichever assessment still needs attention; once
+        // everything's passed, fall back to showing the last one so
+        // its graded review remains visible instead of just vanishing.
+        const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED')
+          || plan.assessments[plan.assessments.length - 1];
         let questionData = null;
         if (activeAssessment && ['PENDING', 'IN_PROGRESS'].includes(activeAssessment.status)) {
           try {
@@ -637,7 +864,15 @@
             questionData = null; // fail open - grading still works even if this fetch fails
           }
         }
-        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere, isDevelopeeHere, questionData);
+        let attemptData = null;
+        if (activeAssessment && activeAssessment.attemptCount > 0) {
+          try {
+            attemptData = await apiCall('/assessments/' + activeAssessment.id);
+          } catch (e) {
+            attemptData = null; // fail open - the rest of the box still renders
+          }
+        }
+        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere, isDevelopeeHere, questionData, attemptData);
         lastQuestionData = questionData;
       } catch (err) {
         document.getElementById('message').textContent = err.message;
@@ -733,17 +968,23 @@
         submitBtn.textContent = 'Submitting...';
       }
 
-      const score = parseInt(document.getElementById('score').value, 10);
-      const comments = document.getElementById('comments').value;
-      const overallResult = document.getElementById('overallResult').value;
+      const questions = lastQuestionData ? lastQuestionData.questions : [];
+      const questionGrades = questions
+        .filter((q) => q.questionType === 'SHORT_ANSWER')
+        .map((q) => {
+          const pointsEl = document.getElementById('gradePoints-' + q.id);
+          const commentsEl = document.getElementById('gradeComments-' + q.id);
+          return {
+            questionId: q.id,
+            pointsEarned: pointsEl ? pointsEl.value : 0,
+            comments: commentsEl ? commentsEl.value : '',
+          };
+        });
 
       try {
         await apiCall('/assessments/' + assessmentId + '/grade', {
           method: 'POST',
-          body: JSON.stringify({
-            overallResult,
-            itemScores: [{ moduleId: 'combined', score, comments }],
-          }),
+          body: JSON.stringify({ questionGrades }),
         });
         loadPlan();
       } catch (err) {

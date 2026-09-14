@@ -371,6 +371,7 @@
         <div class="task-row" data-id="${q.id}">
           <div style="flex:1;">
             <strong>${q.text}</strong>
+            <span class="task-meta"> - ${q.points} pt${q.points === 1 ? '' : 's'}${q.groupTitle ? ` - Group: ${q.groupTitle}` : ''}</span>
             ${q.pageReference ? `<span class="task-meta"> - ${q.pageReference}</span>` : ''}
             ${q.content ? `<div class="task-meta">${q.content.slice(0, 100)}${q.content.length > 100 ? '...' : ''}</div>` : ''}
             ${q.questionType === 'MULTIPLE_CHOICE'
@@ -390,6 +391,10 @@
         <div id="aqFormLabel-${gateKey}" style="color:var(--accent); font-size:12px;">New Question</div>
         <label>Title</label>
         <input type="text" id="aqText-${gateKey}" placeholder="e.g. Fill in the blank">
+        <label>Group Title (optional - e.g. "Foundation & the STM Role")</label>
+        <input type="text" id="aqGroupTitle-${gateKey}" placeholder="Groups consecutive questions together with a running point subtotal">
+        <label>Points</label>
+        <input type="number" id="aqPoints-${gateKey}" value="1" min="0.5" step="0.5">
         <label>Question Type</label>
         <select id="aqType-${gateKey}" onchange="onAssessmentQuestionTypeChange('${gateKey}')">
           <option value="SHORT_ANSWER">Short Answer (developer grades it manually)</option>
@@ -440,6 +445,8 @@
     async function saveAssessmentQuestion(gateKey) {
       const gatePosition = gateKey === 'midterm' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
       const text = document.getElementById(`aqText-${gateKey}`).value.trim();
+      const groupTitle = document.getElementById(`aqGroupTitle-${gateKey}`).value.trim();
+      const points = document.getElementById(`aqPoints-${gateKey}`).value;
       const questionType = document.getElementById(`aqType-${gateKey}`).value;
       const content = document.getElementById(`aqContent-${gateKey}`).value;
       const correctAnswer = document.getElementById(`aqAnswer-${gateKey}`).value.trim();
@@ -447,6 +454,7 @@
       const choiceOptions = readChoiceRows(gateKey);
 
       if (!text) { alert('Give the question a title.'); return; }
+      if (!points || Number(points) <= 0) { alert('Points must be a positive number.'); return; }
       if (questionType === 'SHORT_ANSWER' && !correctAnswer) { alert('A model answer is required so the developer can grade this.'); return; }
       if (questionType === 'MULTIPLE_CHOICE') {
         if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
@@ -454,7 +462,7 @@
       }
 
       const editingId = assessmentQuestionEditingId[gateKey];
-      const body = { text, questionType, content, correctAnswer, choiceOptions, pageReference };
+      const body = { text, groupTitle, points, questionType, content, correctAnswer, choiceOptions, pageReference };
 
       try {
         if (editingId) {
@@ -472,6 +480,8 @@
     function editAssessmentQuestion(gateKey, q) {
       assessmentQuestionEditingId[gateKey] = q.id;
       document.getElementById(`aqText-${gateKey}`).value = q.text;
+      document.getElementById(`aqGroupTitle-${gateKey}`).value = q.groupTitle || '';
+      document.getElementById(`aqPoints-${gateKey}`).value = q.points || 1;
       document.getElementById(`aqType-${gateKey}`).value = q.questionType || 'SHORT_ANSWER';
       document.getElementById(`aqContent-${gateKey}`).value = q.content || '';
       document.getElementById(`aqAnswer-${gateKey}`).value = q.correctAnswer || '';
@@ -489,6 +499,8 @@
     function cancelEditAssessmentQuestion(gateKey) {
       assessmentQuestionEditingId[gateKey] = null;
       document.getElementById(`aqText-${gateKey}`).value = '';
+      document.getElementById(`aqGroupTitle-${gateKey}`).value = '';
+      document.getElementById(`aqPoints-${gateKey}`).value = '1';
       document.getElementById(`aqType-${gateKey}`).value = 'SHORT_ANSWER';
       document.getElementById(`aqContent-${gateKey}`).value = '';
       document.getElementById(`aqAnswer-${gateKey}`).value = '';

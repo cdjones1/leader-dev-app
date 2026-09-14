@@ -67,6 +67,8 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
           questionType: qt.questionType,
           correctAnswer: qt.correctAnswer,
           pageReference: qt.pageReference,
+          points: qt.points,
+          groupTitle: qt.groupTitle,
         },
       });
       if (qt.questionType === 'MULTIPLE_CHOICE') {

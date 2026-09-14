@@ -28,13 +28,16 @@ function requireAdmin(req, res) {
 const VALID_GATES = ['AFTER_MODULE_4', 'AFTER_MODULE_8'];
 const VALID_TYPES = ['SHORT_ANSWER', 'MULTIPLE_CHOICE'];
 
-function validateShape({ questionType, correctAnswer, choiceOptions }) {
+function validateShape({ questionType, correctAnswer, choiceOptions, points }) {
   if (questionType && !VALID_TYPES.includes(questionType)) {
     return `questionType must be one of: ${VALID_TYPES.join(', ')}`;
   }
-  if (questionType === 'SHORT_ANSWER' && (!correctAnswer || !correctAnswer.trim())) {
-    return 'A SHORT_ANSWER question needs a correctAnswer for the developer to grade against';
+  if (points !== undefined && points !== null && (Number.isNaN(Number(points)) || Number(points) <= 0)) {
+    return 'points must be a positive number';
   }
+  // SHORT_ANSWER intentionally has NO model answer - the developer
+  // grades purely on their own judgment of the raw submitted answer,
+  // with no reference "correct" text to compare it against.
   if (questionType === 'MULTIPLE_CHOICE') {
     if (!Array.isArray(choiceOptions) || choiceOptions.length < 2) {
       return 'A MULTIPLE_CHOICE question needs at least 2 options';
@@ -84,11 +87,11 @@ router.post('/path/:pathId/gate/:gatePosition', requireAuth, async (req, res) =>
     return res.status(404).json({ error: 'Path not found' });
   }
 
-  const { text, content, questionType, correctAnswer, choiceOptions, pageReference } = req.body;
+  const { text, content, questionType, correctAnswer, choiceOptions, pageReference, points, groupTitle } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateShape({ questionType, correctAnswer, choiceOptions });
+  const shapeError = validateShape({ questionType, correctAnswer, choiceOptions, points });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -103,8 +106,10 @@ router.post('/path/:pathId/gate/:gatePosition', requireAuth, async (req, res) =>
       text: text.trim(),
       content: content || '',
       questionType: questionType || 'SHORT_ANSWER',
-      correctAnswer: questionType === 'MULTIPLE_CHOICE' ? null : correctAnswer.trim(),
+      correctAnswer: questionType === 'MULTIPLE_CHOICE' ? null : (correctAnswer ? correctAnswer.trim() : null),
       pageReference: pageReference || null,
+      points: points ? Number(points) : 1,
+      groupTitle: groupTitle ? groupTitle.trim() : null,
     },
   });
 
@@ -149,11 +154,11 @@ router.put('/reorder', requireAuth, async (req, res) => {
 router.put('/:questionId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, questionType, correctAnswer, choiceOptions, pageReference } = req.body;
+  const { text, content, questionType, correctAnswer, choiceOptions, pageReference, points, groupTitle } = req.body;
   if (!text || !text.trim()) {
     return res.status(400).json({ error: 'text is required' });
   }
-  const shapeError = validateShape({ questionType, correctAnswer, choiceOptions });
+  const shapeError = validateShape({ questionType, correctAnswer, choiceOptions, points });
   if (shapeError) {
     return res.status(400).json({ error: shapeError });
   }
@@ -169,8 +174,10 @@ router.put('/:questionId', requireAuth, async (req, res) => {
       text: text.trim(),
       content: content || '',
       questionType: questionType || 'SHORT_ANSWER',
-      correctAnswer: questionType === 'MULTIPLE_CHOICE' ? null : correctAnswer.trim(),
+      correctAnswer: questionType === 'MULTIPLE_CHOICE' ? null : (correctAnswer ? correctAnswer.trim() : null),
       pageReference: pageReference || null,
+      points: points ? Number(points) : 1,
+      groupTitle: groupTitle ? groupTitle.trim() : null,
     },
   });
 

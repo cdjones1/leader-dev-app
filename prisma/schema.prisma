@@ -530,6 +530,8 @@ model AssessmentQuestionTemplate {
   questionType  String          @default("SHORT_ANSWER")
   correctAnswer String?         // SHORT_ANSWER only - the model answer the developer compares against
   pageReference String?
+  points        Float           @default(1) // how many points this question is worth
+  groupTitle    String?         // optional named group (e.g. "Foundation & the STM Role") - consecutive questions sharing the same title get grouped together with a running point/count subtotal
 
   choiceOptionTemplates AssessmentChoiceOptionTemplate[]
 }
@@ -553,9 +555,28 @@ model AssessmentQuestion {
   questionType  String     @default("SHORT_ANSWER")
   correctAnswer String?
   pageReference String?
+  points        Float      @default(1)
+  groupTitle    String?
 
   choiceOptions AssessmentChoiceOption[]
   responses     AssessmentQuestionResponse[]
+  grades        AssessmentQuestionGrade[]
+}
+
+// Per-question, per-attempt grading - the developer enters points
+// earned (0 up to the question's own point value) and optional
+// notes for each question. The attempt's total/percentage/pass-fail
+// are all calculated from these, not entered directly.
+model AssessmentQuestionGrade {
+  id            String             @id @default(uuid())
+  attemptId     String
+  attempt       AssessmentAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      AssessmentQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  pointsEarned  Float
+  comments      String?
+
+  @@unique([attemptId, questionId])
 }
 
 model AssessmentChoiceOption {
@@ -585,18 +606,12 @@ model AssessmentAttempt {
   assessmentId  String
   assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   attemptNumber Int        // 1, 2, or 3
-  overallResult String     // "PASS" or "FAIL"
+  overallResult String     // "PASS" or "FAIL" - now auto-computed from totalPointsEarned/totalPointsPossible, not manually chosen
+  totalPointsEarned   Float
+  totalPointsPossible Float
   gradedBy      String     // the developer's user id who graded it
   gradedAt      DateTime   @default(now())
 
-  itemScores    AssessmentItemScore[]
+  questionGrades AssessmentQuestionGrade[]
 }
 
-model AssessmentItemScore {
-  id        String            @id @default(uuid())
-  attemptId String
-  attempt   AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
-  moduleId  String            // which of the 4 modules in this block this score is for
-  score     Int
-  comments  String?
-}
