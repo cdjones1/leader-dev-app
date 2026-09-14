@@ -539,30 +539,42 @@
       const description = gate ? gate.description : '';
       const sections = gate ? gate.sectionTemplates : [];
       const heading = gateKey === 'midtermReview' ? 'Midterm Review Content' : 'Final Review Content';
-      const rangeLabel = gateKey === 'midtermReview'
-        ? `modules 1-${preview.maxSequenceOrder}`
-        : `all ${preview.maxSequenceOrder} modules (comprehensive)`;
+      const rangeLabel = preview.minSequenceOrder === preview.maxSequenceOrder
+        ? `module ${preview.minSequenceOrder}`
+        : `modules ${preview.minSequenceOrder}-${preview.maxSequenceOrder}`;
 
-      const previewHtml = preview.cards.length > 0 ? `
-        <div class="add-box" style="background:#eefaf1; border-color:#bfe8cc;">
-          <strong style="color:#1a7a3a;">Auto-pulled flashcards preview</strong>
-          <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">
-            Any Flashcard Set task in this review will automatically also include these ${preview.cards.length} card(s) from ${rangeLabel}, once a real plan actually reaches this review step:
-          </p>
-          <div style="max-height:200px; overflow-y:auto; margin-top:8px;">
-            ${preview.cards.map((c) => `
-              <div style="padding:6px 0; border-bottom:1px solid #d5ecdc; font-size:13px;">
-                <span style="color:#1a7a3a; font-weight:700; text-transform:uppercase; font-size:11px;">${c.sourceLabel}</span>
-                <div>${c.text}</div>
-              </div>
-            `).join('')}
+      // The preview box isn't real saved content (nothing to reorder
+      // via the API) - it's a draggable member of the SAME sortable
+      // list purely for admin convenience, positioned wherever it was
+      // last dragged to (remembered per path+gate in this browser).
+      const previewHtml = `
+        <div class="section-card" id="section-preview-flashcards-${gateKey}" data-id="preview-flashcards" style="background:#eefaf1; border:1px solid #bfe8cc;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3><span class="drag-handle">⠿</span><span style="color:#1a7a3a;">Auto-pulled flashcards preview</span></h3>
           </div>
+          ${preview.cards.length > 0 ? `
+            <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">
+              Any Flashcard Set task in this review will automatically also include these ${preview.cards.length} card(s) from ${rangeLabel}, once a real plan actually reaches this review step:
+            </p>
+            <div style="max-height:200px; overflow-y:auto; margin-top:8px;">
+              ${preview.cards.map((c) => `
+                <div style="padding:6px 0; border-bottom:1px solid #d5ecdc; font-size:13px;">
+                  <span style="color:#1a7a3a; font-weight:700; text-transform:uppercase; font-size:11px;">${c.sourceLabel}</span>
+                  <div>${c.text}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : `<p style="color:var(--text-muted); font-size:13px; margin-top:4px;">No flashcards exist yet in ${rangeLabel} to auto-pull from.</p>`}
         </div>
-      ` : `
-        <p style="color:var(--text-muted); font-size:13px;">No flashcards exist yet in ${rangeLabel} to auto-pull from.</p>
       `;
 
-      const sectionCards = sections.map((s) => sectionCardHtml(gateKey, s)).join('');
+      // Insert the preview box at whichever position it was last left
+      // at (default: top, matching where it's always shown until moved).
+      const savedPosition = parseInt(localStorage.getItem(`reviewPreviewPosition-${gateKey}`) || '0', 10);
+      const cardList = sections.map((s) => ({ id: s.id, html: sectionCardHtml(gateKey, s) }));
+      const insertAt = Math.max(0, Math.min(savedPosition, cardList.length));
+      cardList.splice(insertAt, 0, { id: 'preview-flashcards', html: previewHtml });
+      const combinedHtml = cardList.map((c) => c.html).join('');
 
       container.innerHTML = `
         <div class="module-card">
@@ -575,9 +587,7 @@
           <button onclick="saveReviewGate('${gateKey}')">Save Title/Description</button>
           <span id="reviewSaved-${gateKey}" class="saved-note" style="display:none;">Saved</span>
 
-          ${previewHtml}
-
-          <div id="sections-${gateKey}">${sectionCards}</div>
+          <div id="sections-${gateKey}">${combinedHtml}</div>
 
           <div class="add-section-box">
             <label>New Section Title</label>
@@ -587,15 +597,29 @@
         </div>
       `;
 
+      makeSortable(document.getElementById(`sections-${gateKey}`), '.section-card', (orderedIds) => {
+        reorderReviewGateItems(gateKey, orderedIds);
+      });
       if (gate) {
-        makeSortable(document.getElementById(`sections-${gateKey}`), '.section-card', (orderedIds) => {
-          reorderSections(gateKey, orderedIds);
-        });
         for (const section of sections) {
           makeSortable(document.getElementById(`tasks-${section.id}`), '.task-row', (orderedIds) => {
             reorderTasks(section.id, orderedIds);
           });
         }
+      }
+    }
+
+    // Splits the fake "preview-flashcards" entry out before reordering
+    // real sections through the API, and separately remembers where it
+    // was dragged to (purely a local display preference, per gate).
+    async function reorderReviewGateItems(gateKey, orderedIds) {
+      const previewIndex = orderedIds.indexOf('preview-flashcards');
+      if (previewIndex !== -1) {
+        localStorage.setItem(`reviewPreviewPosition-${gateKey}`, String(previewIndex));
+      }
+      const realSectionIds = orderedIds.filter((id) => id !== 'preview-flashcards');
+      if (realSectionIds.length > 0) {
+        reorderSections(gateKey, realSectionIds);
       }
     }
 

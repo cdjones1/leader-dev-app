@@ -137,10 +137,15 @@ router.get('/preview-flashcards', requireAuth, async (req, res) => {
   }
 
   const midpoint = midpointModule(path.moduleCount);
+  // Midterm pulls from modules 1 through the midpoint. Final pulls
+  // from the SECOND half only (midpoint+1 through the end) - the
+  // material not already covered by the midterm, not a comprehensive
+  // re-pull of everything. Must match modules.js's real logic exactly.
+  const minSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? 1 : midpoint + 1;
   const maxSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? midpoint : path.moduleCount;
 
   const priorModuleTemplates = await prisma.moduleTemplate.findMany({
-    where: { pathId, sequenceOrder: { lte: maxSequenceOrder } },
+    where: { pathId, sequenceOrder: { gte: minSequenceOrder, lte: maxSequenceOrder } },
     orderBy: { sequenceOrder: 'asc' },
     include: {
       sectionTemplates: {
@@ -168,7 +173,7 @@ router.get('/preview-flashcards', requireAuth, async (req, res) => {
     }
   }
 
-  res.json({ maxSequenceOrder, cards });
+  res.json({ minSequenceOrder, maxSequenceOrder, cards });
 });
 
 module.exports = router;

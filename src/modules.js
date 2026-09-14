@@ -449,10 +449,15 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
         // source modules' content changes later.
         if (flashcardTaskIds.length > 0) {
           const midpoint = midpointModule(plan.moduleCount);
+          // Midterm pulls from modules 1 through the midpoint. Final
+          // pulls from the SECOND half only (midpoint+1 through the
+          // end) - the material not already covered by the midterm,
+          // not a comprehensive re-pull of everything.
+          const minSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? 1 : midpoint + 1;
           const maxSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? midpoint : plan.moduleCount;
 
           const priorModules = await prisma.module.findMany({
-            where: { planId: plan.id, sequenceOrder: { lte: maxSequenceOrder } },
+            where: { planId: plan.id, sequenceOrder: { gte: minSequenceOrder, lte: maxSequenceOrder } },
             orderBy: { sequenceOrder: 'asc' },
             include: {
               sections: {
