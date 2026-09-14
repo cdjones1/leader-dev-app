@@ -83,18 +83,8 @@
     <div class="add-box" id="final-add-box"></div>
   </div>
 
-  <div class="module-card">
-    <h2>Midterm Review Content</h2>
-    <p style="color:var(--text-muted); font-size:13px;">Shown during the Study &amp; Review step before the midterm assessment. Flashcards are pure memorization aids (never block anything); every Action Item must be checked before review can be marked complete.</p>
-    <div id="midtermReview-list"></div>
-    <div class="add-box" id="midtermReview-add-box"></div>
-  </div>
-
-  <div class="module-card">
-    <h2>Final Review Content</h2>
-    <div id="finalReview-list"></div>
-    <div class="add-box" id="finalReview-add-box"></div>
-  </div>
+  <div id="midtermReviewContainer"></div>
+  <div id="finalReviewContainer"></div>
 
   <script>
     const token = localStorage.getItem('token');
@@ -333,10 +323,8 @@
         document.getElementById('midterm-add-box').innerHTML = '';
         document.getElementById('finalQuestions-list').innerHTML = '';
         document.getElementById('final-add-box').innerHTML = '';
-        document.getElementById('midtermReview-list').innerHTML = '';
-        document.getElementById('midtermReview-add-box').innerHTML = '';
-        document.getElementById('finalReview-list').innerHTML = '';
-        document.getElementById('finalReview-add-box').innerHTML = '';
+        document.getElementById('midtermReviewContainer').innerHTML = '';
+        document.getElementById('finalReviewContainer').innerHTML = '';
         return;
       }
 
@@ -370,8 +358,8 @@
 
       loadAssessmentQuestions('midterm', 'AFTER_MODULE_4');
       loadAssessmentQuestions('final', 'AFTER_MODULE_8');
-      loadReviewStepTasks('midtermReview', 'AFTER_MODULE_4');
-      loadReviewStepTasks('finalReview', 'AFTER_MODULE_8');
+      loadReviewGate('midtermReview');
+      loadReviewGate('finalReview');
     }
 
     // ---------- Assessment questions (midterm / final) ----------
@@ -522,144 +510,97 @@
       }
     }
 
-    // ---------- Review step tasks (midtermReview / finalReview) ----------
+    // ---------- Review gates (midterm / final review content) ----------
+    // Fully reuses sectionCardHtml/taskRowHtml/addTask/editTask/etc.
+    // unchanged - those already operate purely on section/task IDs,
+    // not on a module's sequence number, so they work identically
+    // here. Only the "create the gate" and "add its first section"
+    // actions need their own review-gate-specific URLs.
 
-    let reviewStepEditingId = { midtermReview: null, finalReview: null };
+    let reviewGatesByKey = {};
 
-    function reviewStepGatePosition(gateKey) {
+    function reviewGateKeyToPosition(gateKey) {
       return gateKey === 'midtermReview' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
     }
 
-    function reviewStepTaskRowHtml(gateKey, t) {
-      return `
-        <div class="task-row" data-id="${t.id}">
-          <div style="flex:1;">
-            <strong>${t.text}</strong>
-            <span class="task-meta"> - ${t.taskType === 'FLASHCARD' ? 'Flashcard Set' : 'Action Item'}</span>
-            ${t.content ? `<div class="task-meta">${t.content.slice(0, 100)}${t.content.length > 100 ? '...' : ''}</div>` : ''}
-            ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} card(s)</div>` : ''}
-            ${t.taskType === 'ACTION_ITEM' && t.link ? `<div class="task-meta">Link: ${t.link}</div>` : ''}
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button style="background:#8a8378;" onclick='editReviewStepTask("${gateKey}", ${JSON.stringify(t).replace(/'/g, "&apos;")})'>Edit</button>
-            <button onclick="removeReviewStepTask('${gateKey}', '${t.id}')">Remove</button>
+    async function loadReviewGate(gateKey) {
+      const gatePosition = reviewGateKeyToPosition(gateKey);
+      const containerId = gateKey === 'midtermReview' ? 'midtermReviewContainer' : 'finalReviewContainer';
+      const container = document.getElementById(containerId);
+      if (!currentPathId) { container.innerHTML = ''; return; }
+
+      const gates = await apiCall(`/review-gates?pathId=${currentPathId}`);
+      const gate = gates.find((g) => g.gatePosition === gatePosition) || null;
+      reviewGatesByKey[gateKey] = gate;
+
+      const title = gate ? gate.title : '';
+      const description = gate ? gate.description : '';
+      const sections = gate ? gate.sectionTemplates : [];
+      const heading = gateKey === 'midtermReview' ? 'Midterm Review Content' : 'Final Review Content';
+
+      const sectionCards = sections.map((s) => sectionCardHtml(gateKey, s)).join('');
+
+      container.innerHTML = `
+        <div class="module-card">
+          <h2>${heading}</h2>
+          <p style="color:var(--text-muted); font-size:13px;">Shown during the Study &amp; Review step, with the exact same section/task options as a regular module - including graded Section Quizzes and Flashcard Sets. Every task that requires an answer must be completed before review can be marked complete.</p>
+          <label>Title</label>
+          <input type="text" id="reviewTitle-${gateKey}" value="${(title || '').replace(/"/g, '&quot;')}">
+          <label>Description</label>
+          <textarea id="reviewDescription-${gateKey}" rows="2">${description || ''}</textarea>
+          <button onclick="saveReviewGate('${gateKey}')">Save Title/Description</button>
+          <span id="reviewSaved-${gateKey}" class="saved-note" style="display:none;">Saved</span>
+
+          <div id="sections-${gateKey}">${sectionCards}</div>
+
+          <div class="add-section-box">
+            <label>New Section Title</label>
+            <input type="text" id="newSectionTitle-${gateKey}" placeholder="e.g. Reading Materials">
+            <button onclick="addReviewGateSection('${gateKey}')" ${gate ? '' : 'disabled title="Save the title above first"'}>Add Section</button>
           </div>
         </div>
       `;
-    }
 
-    function reviewStepTaskFormHtml(gateKey) {
-      return `
-        <div id="rstFormLabel-${gateKey}" style="color:var(--accent); font-size:12px;">New Task</div>
-        <label>Title</label>
-        <input type="text" id="rstText-${gateKey}" placeholder="e.g. Confirm you know the 5 KRAs">
-        <label>Task Type</label>
-        <select id="newTaskType-${gateKey}" onchange="onReviewStepTypeChange('${gateKey}')">
-          <option value="ACTION_ITEM">Action Item (self-check, own checkbox)</option>
-          <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
-        </select>
-        <label>Content (description shown under the title)</label>
-        <textarea id="rstContent-${gateKey}" rows="2"></textarea>
-        <div id="rstLinkField-${gateKey}">
-          <label>Link (optional)</label>
-          <input type="text" id="rstLink-${gateKey}" placeholder="https://...">
-        </div>
-        <div id="checklistField-${gateKey}" style="display:none;">
-          <label id="checklistFieldLabel-${gateKey}">Flashcards</label>
-          <div id="checklistItems-${gateKey}"></div>
-          <button type="button" style="background:#8a8378;" onclick="addChecklistRow('${gateKey}')">+ Add Card</button>
-        </div>
-        <button id="rstSaveBtn-${gateKey}" onclick="saveReviewStepTask('${gateKey}')">Add Task</button>
-        <button id="rstCancelBtn-${gateKey}" style="display:none; background:#8a8378;" onclick="cancelEditReviewStepTask('${gateKey}')">Cancel Edit</button>
-      `;
-    }
-
-    function onReviewStepTypeChange(gateKey) {
-      const type = document.getElementById(`newTaskType-${gateKey}`).value;
-      document.getElementById(`rstLinkField-${gateKey}`).style.display = type === 'ACTION_ITEM' ? 'block' : 'none';
-      document.getElementById(`checklistField-${gateKey}`).style.display = type === 'FLASHCARD' ? 'block' : 'none';
-      document.getElementById(`checklistFieldLabel-${gateKey}`).textContent = 'Flashcards';
-      if (type === 'FLASHCARD' && document.getElementById(`checklistItems-${gateKey}`).children.length === 0) {
-        addChecklistRow(gateKey); addChecklistRow(gateKey);
+      if (gate) {
+        makeSortable(document.getElementById(`sections-${gateKey}`), '.section-card', (orderedIds) => {
+          reorderSections(gateKey, orderedIds);
+        });
+        for (const section of sections) {
+          makeSortable(document.getElementById(`tasks-${section.id}`), '.task-row', (orderedIds) => {
+            reorderTasks(section.id, orderedIds);
+          });
+        }
       }
     }
 
-    async function loadReviewStepTasks(gateKey, gatePosition) {
-      const listDiv = document.getElementById(`${gateKey}-list`);
-      const addBox = document.getElementById(`${gateKey}-add-box`);
-      if (!currentPathId) { listDiv.innerHTML = ''; addBox.innerHTML = ''; return; }
-
-      const tasks = await apiCall(`/review-step-tasks?pathId=${currentPathId}&gatePosition=${gatePosition}`);
-      listDiv.innerHTML = tasks.map((t) => reviewStepTaskRowHtml(gateKey, t)).join('');
-      addBox.innerHTML = reviewStepTaskFormHtml(gateKey);
-
-      makeSortable(listDiv, '.task-row', (orderedIds) => {
-        apiCall('/review-step-tasks/reorder', { method: 'PUT', body: JSON.stringify({ taskIds: orderedIds }) })
-          .catch((err) => { alert(err.message); loadReviewStepTasks(gateKey, gatePosition); });
-      });
-    }
-
-    async function saveReviewStepTask(gateKey) {
-      const gatePosition = reviewStepGatePosition(gateKey);
-      const text = document.getElementById(`rstText-${gateKey}`).value.trim();
-      const taskType = document.getElementById(`newTaskType-${gateKey}`).value;
-      const content = document.getElementById(`rstContent-${gateKey}`).value;
-      const link = document.getElementById(`rstLink-${gateKey}`).value.trim();
-      const checklistItems = readChecklistRows(gateKey);
-
-      if (!text) { alert('Give the task a title.'); return; }
-      if (taskType === 'FLASHCARD' && checklistItems.length === 0) { alert('Add at least one card.'); return; }
-
-      const editingId = reviewStepEditingId[gateKey];
-      const body = { text, taskType, content, link, checklistItems };
-
+    async function saveReviewGate(gateKey) {
+      const gatePosition = reviewGateKeyToPosition(gateKey);
+      const title = document.getElementById(`reviewTitle-${gateKey}`).value;
+      const description = document.getElementById(`reviewDescription-${gateKey}`).value;
       try {
-        if (editingId) {
-          await apiCall(`/review-step-tasks/${editingId}`, { method: 'PUT', body: JSON.stringify(body) });
-          reviewStepEditingId[gateKey] = null;
-        } else {
-          await apiCall(`/review-step-tasks/path/${currentPathId}/gate/${gatePosition}`, { method: 'POST', body: JSON.stringify(body) });
-        }
-        loadReviewStepTasks(gateKey, gatePosition);
+        await apiCall(`/review-gates/path/${currentPathId}/gate/${gatePosition}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, description }),
+        });
+        const savedNote = document.getElementById(`reviewSaved-${gateKey}`);
+        savedNote.style.display = 'inline';
+        setTimeout(() => { savedNote.style.display = 'none'; }, 2000);
+        loadReviewGate(gateKey);
       } catch (err) {
         alert(err.message);
       }
     }
 
-    function editReviewStepTask(gateKey, t) {
-      reviewStepEditingId[gateKey] = t.id;
-      document.getElementById(`rstText-${gateKey}`).value = t.text;
-      document.getElementById(`newTaskType-${gateKey}`).value = t.taskType;
-      document.getElementById(`rstContent-${gateKey}`).value = t.content || '';
-      document.getElementById(`rstLink-${gateKey}`).value = t.link || '';
-
-      document.getElementById(`checklistItems-${gateKey}`).innerHTML = '';
-      (t.checklistItemTemplates || []).forEach((item) => addChecklistRow(gateKey, item.text, item.description || ''));
-
-      onReviewStepTypeChange(gateKey);
-      document.getElementById(`rstFormLabel-${gateKey}`).textContent = 'Editing: ' + t.text;
-      document.getElementById(`rstSaveBtn-${gateKey}`).textContent = 'Update Task';
-      document.getElementById(`rstCancelBtn-${gateKey}`).style.display = 'inline-block';
-    }
-
-    function cancelEditReviewStepTask(gateKey) {
-      reviewStepEditingId[gateKey] = null;
-      document.getElementById(`rstText-${gateKey}`).value = '';
-      document.getElementById(`newTaskType-${gateKey}`).value = 'ACTION_ITEM';
-      document.getElementById(`rstContent-${gateKey}`).value = '';
-      document.getElementById(`rstLink-${gateKey}`).value = '';
-      document.getElementById(`checklistItems-${gateKey}`).innerHTML = '';
-      onReviewStepTypeChange(gateKey);
-      document.getElementById(`rstFormLabel-${gateKey}`).textContent = 'New Task';
-      document.getElementById(`rstSaveBtn-${gateKey}`).textContent = 'Add Task';
-      document.getElementById(`rstCancelBtn-${gateKey}`).style.display = 'none';
-    }
-
-    async function removeReviewStepTask(gateKey, taskId) {
-      const gatePosition = reviewStepGatePosition(gateKey);
+    async function addReviewGateSection(gateKey) {
+      const gatePosition = reviewGateKeyToPosition(gateKey);
+      const title = document.getElementById(`newSectionTitle-${gateKey}`).value.trim();
+      if (!title) { alert('Give the section a title first.'); return; }
       try {
-        await apiCall(`/review-step-tasks/${taskId}`, { method: 'DELETE' });
-        loadReviewStepTasks(gateKey, gatePosition);
+        await apiCall(`/review-gates/path/${currentPathId}/gate/${gatePosition}/sections`, {
+          method: 'POST',
+          body: JSON.stringify({ title }),
+        });
+        loadReviewGate(gateKey);
       } catch (err) {
         alert(err.message);
       }
@@ -719,7 +660,10 @@
         await apiCall(`/module-templates/sections/reorder`, { method: 'PUT', body: JSON.stringify({ sectionIds }) });
       } catch (err) {
         alert(err.message);
-        loadTemplates(); // snap back to the real order if the save failed
+        // snap back to the real order if the save failed - reload
+        // whichever thing actually owns this section list.
+        if (typeof seq === 'string') loadReviewGate(seq);
+        else loadTemplates();
       }
     }
 

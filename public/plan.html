@@ -169,7 +169,6 @@
     const token = localStorage.getItem('token');
     let lastQuestionData = null;
     let isDeveloperHereGlobal = false;
-    let reviewStepTasksById = {};
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/index.html';
 
@@ -350,50 +349,22 @@
       `;
     }
 
-    function toggleFlashcard(el, front, back) {
-      const revealed = el.classList.toggle('revealed');
-      el.querySelector('.flashcard-badge').textContent = revealed ? 'Answer' : 'Flashcard';
-      el.querySelector('.flashcard-hint').textContent = revealed ? 'Tap to flip back' : 'Tap to reveal';
-      el.querySelector('.flashcard-text').textContent = revealed ? back : front;
-    }
+    function reviewStepDetailHtml(reviewStep) {
+      const sections = reviewStep.sections || [];
+      const sectionListHtml = sections.length > 0 ? `
+        <div class="task-checklist">
+          ${sections.map((s) => `
+            <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}">
+              ${s.completed ? '✓' : '○'} ${s.title}
+            </a>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--text-muted); font-size:13px;">No review content authored for this path yet.</p>';
 
-    function reviewStepTaskHtml(t) {
-      if (t.taskType === 'FLASHCARD') {
-        const cardsHtml = (t.checklistItems || []).map((item) => {
-          const front = JSON.stringify(item.text).replace(/'/g, '&apos;');
-          const back = JSON.stringify(item.description || '').replace(/'/g, '&apos;');
-          return `
-            <div class="flashcard" onclick='toggleFlashcard(this, ${front}, ${back})'>
-              <div class="flashcard-header">
-                <span class="flashcard-badge">Flashcard</span>
-                <span class="flashcard-hint">Tap to reveal</span>
-              </div>
-              <div class="flashcard-text">${item.text}</div>
-            </div>
-          `;
-        }).join('');
-        return `<div style="margin-bottom:14px;">${t.content ? `<p style="color:var(--text-muted); font-size:14px;">${t.content}</p>` : ''}${cardsHtml}</div>`;
-      }
-      // ACTION_ITEM
-      return `
-        <label class="action-item ${t.completed ? 'checked' : ''}">
-          <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleReviewStepTask('${t.id}', '${t.reviewStepId}')">
-          <div>
-            <div class="ai-title">${t.text}</div>
-            ${t.content ? `<div class="ai-desc">${t.content}</div>` : ''}
-            ${t.link ? `<a class="ai-link" href="${t.link}" target="_blank" rel="noopener">Open link &#8599;</a>` : ''}
-          </div>
-        </label>
-      `;
-    }
-
-    function reviewStepDetailHtml(reviewStep, tasks) {
-      const taskList = tasks || [];
-      const tasksHtml = taskList.map((t) => reviewStepTaskHtml({ ...t, reviewStepId: reviewStep.id })).join('');
       return `
         <div class="module-detail">
-          ${tasksHtml}
-          <button onclick="completeReviewStep('${reviewStep.id}')">Mark Reviewed</button>
+          ${sectionListHtml}
+          <button style="margin-top:10px;" onclick="completeReviewStep('${reviewStep.id}')">Mark Reviewed</button>
           <div id="reviewMissingList-${reviewStep.id}" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
         </div>
       `;
@@ -405,7 +376,7 @@
       let detail = '';
       if (item.type === 'module') detail = moduleDetailHtml(item.data);
       if (item.type === 'review' && item.data && item.data.status === 'OPEN') {
-        detail = reviewStepDetailHtml(item.data, reviewStepTasksById[item.data.id]);
+        detail = reviewStepDetailHtml(item.data);
       }
 
       return `
@@ -652,19 +623,6 @@
           `;
         }
 
-        // Fetch tasks for any OPEN review step in the sequence, before
-        // rendering - itemRowHtml needs this data synchronously.
-        reviewStepTasksById = {};
-        for (const item of sequence) {
-          if (item.type === 'review' && item.data && item.data.status === 'OPEN') {
-            try {
-              reviewStepTasksById[item.data.id] = await apiCall('/review-steps/' + item.data.id + '/tasks');
-            } catch (e) {
-              reviewStepTasksById[item.data.id] = []; // fail open - the Mark Reviewed button still works
-            }
-          }
-        }
-
         const currentItem = sequence.find((item) => !item.done);
         document.getElementById('modulesList').innerHTML = sequence.map((item) =>
           itemRowHtml(item, item === currentItem)
@@ -698,15 +656,6 @@
         } else {
           alert(err.message);
         }
-      }
-    }
-
-    async function toggleReviewStepTask(taskId, reviewStepId) {
-      try {
-        await apiCall('/review-steps/tasks/' + taskId + '/toggle', { method: 'POST' });
-        loadPlan();
-      } catch (err) {
-        alert(err.message);
       }
     }
 

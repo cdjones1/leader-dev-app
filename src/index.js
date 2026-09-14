@@ -11,7 +11,7 @@ const reviewStepRoutes = require('./reviewSteps');
 const moduleTemplateRoutes = require('./moduleTemplates');
 const pathRoutes = require('./paths');
 const assessmentQuestionRoutes = require('./assessmentQuestions');
-const reviewStepTaskRoutes = require('./reviewStepTasks');
+const reviewGateRoutes = require('./reviewGates');
 const sectionQuizRoutes = require('./sectionQuiz');
 const sectionRoutes = require('./sections');
 const requireAuth = require('./requireAuth');
@@ -34,7 +34,7 @@ app.use('/review-steps', reviewStepRoutes);
 app.use('/module-templates', moduleTemplateRoutes);
 app.use('/paths', pathRoutes);
 app.use('/assessment-questions', assessmentQuestionRoutes);
-app.use('/review-step-tasks', reviewStepTaskRoutes);
+app.use('/review-gates', reviewGateRoutes);
 app.use('/section-quiz', sectionQuizRoutes);
 app.use('/sections', sectionRoutes);
 

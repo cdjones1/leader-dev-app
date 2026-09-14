@@ -114,65 +114,9 @@ model ReviewStep {
   openedAt     DateTime?
   completedAt  DateTime?
 
-  tasks ReviewStepTask[]
+  sections ModuleSection[] // real sections copied from this path's ReviewGateTemplate, same mechanism as a module's own sections
 
   @@unique([planId, gatePosition])
-}
-
-// ------------------------------------------------------------
-// REVIEW STEP CONTENT - authored per path + gate (midterm review
-// vs final review), copied into real tasks the moment the review
-// step itself opens. Only two of the regular task types make sense
-// here: FLASHCARD (memorization, pure client-side flip, never
-// blocks anything) and ACTION_ITEM (a self-check item with its own
-// checkbox - all of them need to be checked before the review step
-// can be marked complete, same rule sections already use).
-// ------------------------------------------------------------
-model ReviewStepTaskTemplate {
-  id           String          @id @default(uuid())
-  pathId       String
-  path         DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
-  gatePosition GatePosition
-  order        Int
-  text         String
-  content      String          @default("")
-  taskType     String          @default("ACTION_ITEM") // "ACTION_ITEM" or "FLASHCARD"
-  link         String?         // ACTION_ITEM only - optional external link
-
-  checklistItemTemplates ReviewStepChecklistItemTemplate[]
-}
-
-model ReviewStepChecklistItemTemplate {
-  id             String                 @id @default(uuid())
-  taskTemplateId String
-  taskTemplate   ReviewStepTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Cascade)
-  order          Int
-  text           String   // FLASHCARD: front. Unused for ACTION_ITEM.
-  description    String?  // FLASHCARD: back.
-}
-
-model ReviewStepTask {
-  id          String     @id @default(uuid())
-  reviewStepId String
-  reviewStep  ReviewStep @relation(fields: [reviewStepId], references: [id], onDelete: Cascade)
-  order       Int
-  text        String
-  content     String     @default("")
-  taskType    String     @default("ACTION_ITEM")
-  link        String?
-  completed   Boolean    @default(false) // ACTION_ITEM only
-  completedAt DateTime?
-
-  checklistItems ReviewStepChecklistItem[]
-}
-
-model ReviewStepChecklistItem {
-  id           String         @id @default(uuid())
-  reviewStepTaskId String
-  reviewStepTask ReviewStepTask @relation(fields: [reviewStepTaskId], references: [id], onDelete: Cascade)
-  order        Int
-  text         String
-  description  String?
 }
 
 // ------------------------------------------------------------
@@ -240,8 +184,10 @@ enum AssignedRole {
 
 model ModuleSection {
   id          String    @id @default(uuid())
-  moduleId    String
-  module      Module    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  moduleId    String?
+  module      Module?   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  reviewStepId String?
+  reviewStep  ReviewStep? @relation(fields: [reviewStepId], references: [id], onDelete: Cascade)
   order       Int
   title       String
   completed   Boolean   @default(false)
@@ -350,7 +296,7 @@ model DevelopmentPath {
 
   moduleTemplates ModuleTemplate[]
   assessmentQuestionTemplates AssessmentQuestionTemplate[]
-  reviewStepTaskTemplates ReviewStepTaskTemplate[]
+  reviewGateTemplates ReviewGateTemplate[]
 }
 
 model ModuleTemplate {
@@ -366,14 +312,37 @@ model ModuleTemplate {
   @@unique([pathId, sequenceOrder])
 }
 
+// A section belongs to EITHER a numbered module OR a review gate
+// (midterm/final review), never both - making this polymorphic means
+// every task type (and all its type-specific data: correct answers,
+// choice options, quiz questions, checklist items) works identically
+// for review-step content with zero new type-specific code, since
+// tasks attach to a SECTION, not directly to a module.
 model ModuleSectionTemplate {
   id               String         @id @default(uuid())
-  moduleTemplateId String
-  moduleTemplate   ModuleTemplate @relation(fields: [moduleTemplateId], references: [id], onDelete: Cascade)
+  moduleTemplateId String?
+  moduleTemplate   ModuleTemplate? @relation(fields: [moduleTemplateId], references: [id], onDelete: Cascade)
+  reviewGateTemplateId String?
+  reviewGateTemplate   ReviewGateTemplate? @relation(fields: [reviewGateTemplateId], references: [id], onDelete: Cascade)
   order            Int
   title            String
 
   taskTemplates ModuleTaskTemplate[]
+}
+
+// The admin-authored "container" for a path's midterm/final review
+// content - title/description plus whatever sections get attached.
+model ReviewGateTemplate {
+  id           String          @id @default(uuid())
+  pathId       String
+  path         DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  gatePosition GatePosition
+  title        String          @default("")
+  description  String          @default("")
+
+  sectionTemplates ModuleSectionTemplate[]
+
+  @@unique([pathId, gatePosition])
 }
 
 model ModuleTaskTemplate {

@@ -30,6 +30,12 @@ function stripHiddenAnswers(task) {
   return safeTask;
 }
 
+// A section belongs to EITHER a module OR a review step, never both -
+// this resolves whichever one it actually is to get the plan ID.
+function getSectionPlanId(section) {
+  return section.module ? section.module.planId : section.reviewStep.planId;
+}
+
 // --------------------------------------------------------------
 // A single task's own data (used inside a section's page) -
 // includes checklist items and choice options, with hidden
@@ -39,7 +45,7 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
     include: {
-      section: { include: { module: true } },
+      section: { include: { module: true, reviewStep: true } },
       checklistItems: { orderBy: { order: 'asc' } },
       choiceOptions: { orderBy: { order: 'asc' } },
     },
@@ -47,8 +53,8 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
+  if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
 
   res.json(stripHiddenAnswers(task));
 });
@@ -59,14 +65,14 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
 router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
-    include: { section: { include: { module: true } } },
+    include: { section: { include: { module: true, reviewStep: true } } },
   });
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
+  if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
   }
@@ -94,12 +100,12 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
 router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, res) => {
   const item = await prisma.taskChecklistItem.findUnique({
     where: { id: req.params.itemId },
-    include: { moduleTask: { include: { section: { include: { module: true } } } } },
+    include: { moduleTask: { include: { section: { include: { module: true, reviewStep: true } } } } },
   });
   if (!item) {
     return res.status(404).json({ error: 'Checklist item not found' });
   }
-  const planId = item.moduleTask.section.module.planId;
+  const planId = getSectionPlanId(item.moduleTask.section);
   if (!(await checkPlanAccess(req, res, planId))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, planId))) return;
   if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.assignedTo))) return;
@@ -120,14 +126,14 @@ router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, re
 router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
-    include: { section: { include: { module: true } }, choiceOptions: true },
+    include: { section: { include: { module: true, reviewStep: true } }, choiceOptions: true },
   });
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
+  if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
   }
@@ -161,14 +167,14 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
 router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
   const task = await prisma.moduleTask.findUnique({
     where: { id: req.params.taskId },
-    include: { section: { include: { module: true } } },
+    include: { section: { include: { module: true, reviewStep: true } } },
   });
   if (!task) {
     return res.status(404).json({ error: 'Task not found' });
   }
-  if (!(await checkPlanAccess(req, res, task.section.module.planId))) return;
-  if (!(await checkNoActiveAssessmentLock(req, res, task.section.module.planId))) return;
-  if (!(await checkIsAssignedRole(req, res, task.section.module.planId, task.assignedTo))) return;
+  if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'ACTION_ITEM') {
     return res.status(400).json({ error: 'Only action-item tasks can be toggled directly' });
   }
@@ -349,31 +355,85 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
       data: { planId: module.planId, gatePosition, status: 'OPEN', openedAt: new Date() },
     });
 
-    // Copy this path's review-step content (if any) into real tasks
-    // for this specific review step - older plans, or a path with
-    // none authored yet, just get an empty review step, same as
-    // before this feature existed.
+    // Copy this path's review-gate content (if any) into real
+    // sections/tasks for this specific review step - same nested
+    // copy pattern plans.js uses for a regular module's sections,
+    // just attaching via reviewStepId instead of moduleId. Older
+    // plans, or a path with nothing authored yet, just get an empty
+    // review step, same as before this feature existed.
     if (plan.pathId) {
-      const taskTemplates = await prisma.reviewStepTaskTemplate.findMany({
-        where: { pathId: plan.pathId, gatePosition },
-        orderBy: { order: 'asc' },
-        include: { checklistItemTemplates: { orderBy: { order: 'asc' } } },
-      });
-      for (const tt of taskTemplates) {
-        const task = await prisma.reviewStepTask.create({
-          data: {
-            reviewStepId: reviewStep.id,
-            order: tt.order,
-            text: tt.text,
-            content: tt.content,
-            taskType: tt.taskType,
-            link: tt.link,
+      const gate = await prisma.reviewGateTemplate.findUnique({
+        where: { pathId_gatePosition: { pathId: plan.pathId, gatePosition } },
+        include: {
+          sectionTemplates: {
+            orderBy: { order: 'asc' },
+            include: {
+              taskTemplates: {
+                orderBy: { order: 'asc' },
+                include: {
+                  checklistItemTemplates: { orderBy: { order: 'asc' } },
+                  choiceOptionTemplates: { orderBy: { order: 'asc' } },
+                  quizQuestionTemplates: {
+                    orderBy: { order: 'asc' },
+                    include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+                  },
+                },
+              },
+            },
           },
-        });
-        for (const item of tt.checklistItemTemplates) {
-          await prisma.reviewStepChecklistItem.create({
-            data: { reviewStepTaskId: task.id, order: item.order, text: item.text, description: item.description },
+        },
+      });
+
+      if (gate) {
+        for (const sectionTemplate of gate.sectionTemplates) {
+          const section = await prisma.moduleSection.create({
+            data: { reviewStepId: reviewStep.id, order: sectionTemplate.order, title: sectionTemplate.title },
           });
+
+          for (const taskTemplate of sectionTemplate.taskTemplates) {
+            const moduleTask = await prisma.moduleTask.create({
+              data: {
+                sectionId: section.id,
+                order: taskTemplate.order,
+                text: taskTemplate.text,
+                content: taskTemplate.content,
+                taskType: taskTemplate.taskType,
+                assignedTo: taskTemplate.assignedTo,
+                correctAnswer: taskTemplate.correctAnswer,
+                link: taskTemplate.link,
+                pageReference: taskTemplate.pageReference,
+              },
+            });
+
+            for (const item of taskTemplate.checklistItemTemplates) {
+              await prisma.taskChecklistItem.create({
+                data: {
+                  moduleTaskId: moduleTask.id,
+                  order: item.order,
+                  text: item.text,
+                  description: item.description,
+                  link: item.link,
+                },
+              });
+            }
+
+            for (const option of taskTemplate.choiceOptionTemplates) {
+              await prisma.taskChoiceOption.create({
+                data: { moduleTaskId: moduleTask.id, order: option.order, text: option.text, isCorrect: option.isCorrect },
+              });
+            }
+
+            for (const qt of taskTemplate.quizQuestionTemplates) {
+              const quizQuestion = await prisma.sectionQuizQuestion.create({
+                data: { moduleTaskId: moduleTask.id, order: qt.order, text: qt.text, content: qt.content },
+              });
+              for (const opt of qt.choiceOptionTemplates) {
+                await prisma.sectionQuizChoiceOption.create({
+                  data: { questionId: quizQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+                });
+              }
+            }
+          }
         }
       }
     }

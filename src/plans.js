@@ -255,7 +255,22 @@ router.get('/:id', requireAuth, async (req, res) => {
         },
       },
       assessments: true,
-      reviewSteps: true,
+      reviewSteps: {
+        include: {
+          sections: {
+            orderBy: { order: 'asc' },
+            include: {
+              tasks: {
+                orderBy: { order: 'asc' },
+                include: {
+                  checklistItems: { orderBy: { order: 'asc' } },
+                  choiceOptions: { orderBy: { order: 'asc' } },
+                },
+              },
+            },
+          },
+        },
+      },
       pairing: { include: { developer: true, developee: true } },
     },
   });
@@ -269,6 +284,11 @@ router.get('/:id', requireAuth, async (req, res) => {
   // - MULTIPLE_CHOICE: strip each option's isCorrect until selectedOptionId is set
   for (const module of plan.modules) {
     for (const section of module.sections) {
+      section.tasks = section.tasks.map((task) => stripHiddenAnswers(task));
+    }
+  }
+  for (const reviewStep of plan.reviewSteps) {
+    for (const section of reviewStep.sections) {
       section.tasks = section.tasks.map((task) => stripHiddenAnswers(task));
     }
   }

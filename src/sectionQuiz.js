@@ -23,10 +23,11 @@ const PASS_THRESHOLD = 0.9; // 90%
 async function getTaskWithPlanId(taskId) {
   const task = await prisma.moduleTask.findUnique({
     where: { id: taskId },
-    include: { section: { include: { module: true } } },
+    include: { section: { include: { module: true, reviewStep: true } } },
   });
   if (!task) return null;
-  return { task, planId: task.section.module.planId };
+  const planId = task.section.module ? task.section.module.planId : task.section.reviewStep.planId;
+  return { task, planId };
 }
 
 // View the quiz's questions, for the CURRENT attempt. Once this
