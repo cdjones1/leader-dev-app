@@ -533,10 +533,34 @@
       const gate = gates.find((g) => g.gatePosition === gatePosition) || null;
       reviewGatesByKey[gateKey] = gate;
 
+      const preview = await apiCall(`/review-gates/preview-flashcards?pathId=${currentPathId}&gatePosition=${gatePosition}`);
+
       const title = gate ? gate.title : '';
       const description = gate ? gate.description : '';
       const sections = gate ? gate.sectionTemplates : [];
       const heading = gateKey === 'midtermReview' ? 'Midterm Review Content' : 'Final Review Content';
+      const rangeLabel = gateKey === 'midtermReview'
+        ? `modules 1-${preview.maxSequenceOrder}`
+        : `all ${preview.maxSequenceOrder} modules (comprehensive)`;
+
+      const previewHtml = preview.cards.length > 0 ? `
+        <div class="add-box" style="background:#eefaf1; border-color:#bfe8cc;">
+          <strong style="color:#1a7a3a;">Auto-pulled flashcards preview</strong>
+          <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">
+            Any Flashcard Set task in this review will automatically also include these ${preview.cards.length} card(s) from ${rangeLabel}, once a real plan actually reaches this review step:
+          </p>
+          <div style="max-height:200px; overflow-y:auto; margin-top:8px;">
+            ${preview.cards.map((c) => `
+              <div style="padding:6px 0; border-bottom:1px solid #d5ecdc; font-size:13px;">
+                <span style="color:#1a7a3a; font-weight:700; text-transform:uppercase; font-size:11px;">${c.sourceLabel}</span>
+                <div>${c.text}</div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      ` : `
+        <p style="color:var(--text-muted); font-size:13px;">No flashcards exist yet in ${rangeLabel} to auto-pull from.</p>
+      `;
 
       const sectionCards = sections.map((s) => sectionCardHtml(gateKey, s)).join('');
 
@@ -550,6 +574,8 @@
           <textarea id="reviewDescription-${gateKey}" rows="2">${description || ''}</textarea>
           <button onclick="saveReviewGate('${gateKey}')">Save Title/Description</button>
           <span id="reviewSaved-${gateKey}" class="saved-note" style="display:none;">Saved</span>
+
+          ${previewHtml}
 
           <div id="sections-${gateKey}">${sectionCards}</div>
 

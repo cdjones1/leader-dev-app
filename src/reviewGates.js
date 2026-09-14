@@ -12,6 +12,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const { midpointModule } = require('./gates');
 
 const router = express.Router();
 
@@ -115,6 +116,59 @@ router.post('/path/:pathId/gate/:gatePosition/sections', requireAuth, async (req
   });
 
   res.status(201).json(section);
+});
+
+// Live preview of which flashcards would automatically get pulled in
+// from earlier modules for this path/gate, computed from the
+// TEMPLATES (since no real plan exists yet during authoring) - the
+// exact same module range logic used for real aggregation when a
+// review step actually opens (see modules.js).
+router.get('/preview-flashcards', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { pathId, gatePosition } = req.query;
+  if (!pathId || !gatePosition) {
+    return res.status(400).json({ error: 'pathId and gatePosition query parameters are both required' });
+  }
+
+  const path = await prisma.developmentPath.findUnique({ where: { id: pathId } });
+  if (!path) {
+    return res.status(404).json({ error: 'Path not found' });
+  }
+
+  const midpoint = midpointModule(path.moduleCount);
+  const maxSequenceOrder = gatePosition === 'AFTER_MODULE_4' ? midpoint : path.moduleCount;
+
+  const priorModuleTemplates = await prisma.moduleTemplate.findMany({
+    where: { pathId, sequenceOrder: { lte: maxSequenceOrder } },
+    orderBy: { sequenceOrder: 'asc' },
+    include: {
+      sectionTemplates: {
+        orderBy: { order: 'asc' },
+        include: {
+          taskTemplates: {
+            where: { taskType: 'FLASHCARD' },
+            orderBy: { order: 'asc' },
+            include: { checklistItemTemplates: { orderBy: { order: 'asc' } } },
+          },
+        },
+      },
+    },
+  });
+
+  const cards = [];
+  for (const mt of priorModuleTemplates) {
+    const sourceLabel = `Module ${mt.sequenceOrder}${mt.title ? ' — ' + mt.title : ''}`;
+    for (const st of mt.sectionTemplates) {
+      for (const tt of st.taskTemplates) {
+        for (const item of tt.checklistItemTemplates) {
+          cards.push({ text: item.text, description: item.description, sourceLabel });
+        }
+      }
+    }
+  }
+
+  res.json({ maxSequenceOrder, cards });
 });
 
 module.exports = router;
