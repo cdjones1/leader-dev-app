@@ -228,8 +228,21 @@
             <input type="text" id="newSectionTitle-${seq}" placeholder="e.g. Reading Materials">
             <button onclick="addSection(${seq})">Add Section</button>
           </div>
+
+          <div class="add-section-box" style="margin-top:16px;">
+            <label>Copy this module's content to another path</label>
+            <select id="copyTargetPath-${seq}">${pathOptionsHtml()}</select>
+            <input type="number" id="copyTargetSeq-${seq}" min="1" placeholder="Target module #" style="margin-top:6px;">
+            <button style="background:#8a8378;" onclick="copyModuleTo(${seq})" ${sections.length === 0 ? 'disabled title="This module has no content yet to copy"' : ''}>Copy Content</button>
+          </div>
         </div>
       `;
+    }
+
+    function pathOptionsHtml() {
+      return Object.values(pathsById)
+        .map((p) => `<option value="${p.id}">${p.name}</option>`)
+        .join('');
     }
 
     // ---------- Path management ----------
@@ -757,6 +770,39 @@
     }
 
     // ---------- Sections ----------
+
+    async function copyModuleTo(seq) {
+      const targetPathId = document.getElementById(`copyTargetPath-${seq}`).value;
+      const targetSeq = document.getElementById(`copyTargetSeq-${seq}`).value;
+      if (!targetPathId) { alert('Choose a target path first.'); return; }
+      if (!targetSeq || Number(targetSeq) < 1) { alert('Enter a target module number.'); return; }
+
+      await attemptCopyModule(seq, targetPathId, targetSeq, false);
+    }
+
+    async function attemptCopyModule(seq, targetPathId, targetSeq, replace) {
+      try {
+        const result = await apiCall('/module-templates/copy', {
+          method: 'POST',
+          body: JSON.stringify({
+            sourcePathId: currentPathId,
+            sourceSequenceOrder: seq,
+            targetPathId,
+            targetSequenceOrder: Number(targetSeq),
+            replace,
+          }),
+        });
+        alert(`Copied ${result.sectionsCount} section(s) successfully.`);
+      } catch (err) {
+        if (err.message && err.message.includes('already has') && !replace) {
+          if (confirm(err.message + '\n\nOverwrite it?')) {
+            await attemptCopyModule(seq, targetPathId, targetSeq, true);
+          }
+          return;
+        }
+        alert(err.message);
+      }
+    }
 
     async function addSection(seq) {
       const title = document.getElementById(`newSectionTitle-${seq}`).value.trim();

@@ -120,6 +120,131 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(templates);
 });
 
+// --------------------------------------------------------------
+// COPY a module's full content (every section, task, and all their
+// type-specific data) from one path's module slot into another
+// path's module slot. By default refuses to overwrite a target that
+// already has content - pass replace:true to explicitly allow it.
+// The target's own title/description are left untouched; only the
+// sections/tasks tree is replaced.
+// --------------------------------------------------------------
+router.post('/copy', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { sourcePathId, sourceSequenceOrder, targetPathId, targetSequenceOrder, replace } = req.body;
+  if (!sourcePathId || !sourceSequenceOrder || !targetPathId || !targetSequenceOrder) {
+    return res.status(400).json({ error: 'sourcePathId, sourceSequenceOrder, targetPathId, and targetSequenceOrder are all required' });
+  }
+  if (sourcePathId === targetPathId && Number(sourceSequenceOrder) === Number(targetSequenceOrder)) {
+    return res.status(400).json({ error: 'Source and target are the same module' });
+  }
+
+  const sourceTemplate = await prisma.moduleTemplate.findUnique({
+    where: { pathId_sequenceOrder: { pathId: sourcePathId, sequenceOrder: Number(sourceSequenceOrder) } },
+    include: {
+      sectionTemplates: {
+        orderBy: { order: 'asc' },
+        include: {
+          taskTemplates: {
+            orderBy: { order: 'asc' },
+            include: {
+              checklistItemTemplates: { orderBy: { order: 'asc' } },
+              choiceOptionTemplates: { orderBy: { order: 'asc' } },
+              quizQuestionTemplates: {
+                orderBy: { order: 'asc' },
+                include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!sourceTemplate) {
+    return res.status(404).json({ error: 'Source module not found - make sure it has been saved (given a title) first' });
+  }
+
+  const targetPath = await prisma.developmentPath.findUnique({ where: { id: targetPathId } });
+  if (!targetPath) {
+    return res.status(404).json({ error: 'Target path not found' });
+  }
+
+  let targetTemplate = await prisma.moduleTemplate.findUnique({
+    where: { pathId_sequenceOrder: { pathId: targetPathId, sequenceOrder: Number(targetSequenceOrder) } },
+  });
+
+  if (!targetTemplate) {
+    // No template saved yet for this slot - create a bare one so
+    // there's somewhere for the copied content to attach to.
+    targetTemplate = await prisma.moduleTemplate.create({
+      data: {
+        pathId: targetPathId,
+        sequenceOrder: Number(targetSequenceOrder),
+        title: sourceTemplate.title,
+        description: sourceTemplate.description,
+      },
+    });
+  } else {
+    const existingSectionCount = await prisma.moduleSectionTemplate.count({ where: { moduleTemplateId: targetTemplate.id } });
+    if (existingSectionCount > 0 && !replace) {
+      return res.status(400).json({
+        error: `Module ${targetSequenceOrder} in the target path already has ${existingSectionCount} section(s) of content - pass replace:true to overwrite it`,
+        existingSectionCount,
+      });
+    }
+    if (existingSectionCount > 0) {
+      await prisma.moduleSectionTemplate.deleteMany({ where: { moduleTemplateId: targetTemplate.id } }); // cascades every task and sub-item
+    }
+  }
+
+  for (const sectionTemplate of sourceTemplate.sectionTemplates) {
+    const newSection = await prisma.moduleSectionTemplate.create({
+      data: { moduleTemplateId: targetTemplate.id, order: sectionTemplate.order, title: sectionTemplate.title },
+    });
+
+    for (const taskTemplate of sectionTemplate.taskTemplates) {
+      const newTask = await prisma.moduleTaskTemplate.create({
+        data: {
+          sectionTemplateId: newSection.id,
+          order: taskTemplate.order,
+          text: taskTemplate.text,
+          content: taskTemplate.content,
+          taskType: taskTemplate.taskType,
+          assignedTo: taskTemplate.assignedTo,
+          correctAnswer: taskTemplate.correctAnswer,
+          link: taskTemplate.link,
+          pageReference: taskTemplate.pageReference,
+        },
+      });
+
+      for (const item of taskTemplate.checklistItemTemplates) {
+        await prisma.checklistItemTemplate.create({
+          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link },
+        });
+      }
+
+      for (const option of taskTemplate.choiceOptionTemplates) {
+        await prisma.choiceOptionTemplate.create({
+          data: { taskTemplateId: newTask.id, order: option.order, text: option.text, isCorrect: option.isCorrect },
+        });
+      }
+
+      for (const qt of taskTemplate.quizQuestionTemplates) {
+        const newQuestion = await prisma.sectionQuizQuestionTemplate.create({
+          data: { taskTemplateId: newTask.id, order: qt.order, text: qt.text, content: qt.content },
+        });
+        for (const opt of qt.choiceOptionTemplates) {
+          await prisma.sectionQuizChoiceOptionTemplate.create({
+            data: { questionTemplateId: newQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+          });
+        }
+      }
+    }
+  }
+
+  res.json({ copied: true, sectionsCount: sourceTemplate.sectionTemplates.length });
+});
+
 // Create or update the template for a given sequence position (1-8)
 // WITHIN A SPECIFIC PATH. Uses literal "path"/"module" markers in the
 // URL (not just two bare wildcard segments) so this can never collide
