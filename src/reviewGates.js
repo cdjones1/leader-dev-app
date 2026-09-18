@@ -61,6 +61,127 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(gates);
 });
 
+// --------------------------------------------------------------
+// COPY a review gate's full content (every section, task, and all
+// their type-specific data) from one path's midterm/final review
+// into another path's midterm/final review. By default refuses to
+// overwrite a target that already has content - pass replace:true
+// to explicitly allow it. The target gate's own title/description
+// are left untouched; only the sections/tasks tree is replaced.
+// --------------------------------------------------------------
+router.post('/copy', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { sourcePathId, sourceGatePosition, targetPathId, targetGatePosition, replace } = req.body;
+  if (!sourcePathId || !sourceGatePosition || !targetPathId || !targetGatePosition) {
+    return res.status(400).json({ error: 'sourcePathId, sourceGatePosition, targetPathId, and targetGatePosition are all required' });
+  }
+  if (!VALID_GATES.includes(sourceGatePosition) || !VALID_GATES.includes(targetGatePosition)) {
+    return res.status(400).json({ error: `gatePosition must be one of: ${VALID_GATES.join(', ')}` });
+  }
+  if (sourcePathId === targetPathId && sourceGatePosition === targetGatePosition) {
+    return res.status(400).json({ error: 'Source and target are the same review gate' });
+  }
+
+  const sourceGate = await prisma.reviewGateTemplate.findUnique({
+    where: { pathId_gatePosition: { pathId: sourcePathId, gatePosition: sourceGatePosition } },
+    include: {
+      sectionTemplates: {
+        orderBy: { order: 'asc' },
+        include: {
+          taskTemplates: {
+            orderBy: { order: 'asc' },
+            include: {
+              checklistItemTemplates: { orderBy: { order: 'asc' } },
+              choiceOptionTemplates: { orderBy: { order: 'asc' } },
+              quizQuestionTemplates: {
+                orderBy: { order: 'asc' },
+                include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!sourceGate) {
+    return res.status(404).json({ error: 'Source review gate not found - make sure it has been saved (given a title) first' });
+  }
+
+  const targetPath = await prisma.developmentPath.findUnique({ where: { id: targetPathId } });
+  if (!targetPath) {
+    return res.status(404).json({ error: 'Target path not found' });
+  }
+
+  let targetGate = await prisma.reviewGateTemplate.findUnique({
+    where: { pathId_gatePosition: { pathId: targetPathId, gatePosition: targetGatePosition } },
+  });
+
+  if (!targetGate) {
+    targetGate = await prisma.reviewGateTemplate.create({
+      data: { pathId: targetPathId, gatePosition: targetGatePosition, title: sourceGate.title, description: sourceGate.description },
+    });
+  } else {
+    const existingSectionCount = await prisma.moduleSectionTemplate.count({ where: { reviewGateTemplateId: targetGate.id } });
+    if (existingSectionCount > 0 && !replace) {
+      return res.status(400).json({
+        error: `The target review already has ${existingSectionCount} section(s) of content - pass replace:true to overwrite it`,
+        existingSectionCount,
+      });
+    }
+    if (existingSectionCount > 0) {
+      await prisma.moduleSectionTemplate.deleteMany({ where: { reviewGateTemplateId: targetGate.id } }); // cascades every task and sub-item
+    }
+  }
+
+  for (const sectionTemplate of sourceGate.sectionTemplates) {
+    const newSection = await prisma.moduleSectionTemplate.create({
+      data: { reviewGateTemplateId: targetGate.id, order: sectionTemplate.order, title: sectionTemplate.title },
+    });
+
+    for (const taskTemplate of sectionTemplate.taskTemplates) {
+      const newTask = await prisma.moduleTaskTemplate.create({
+        data: {
+          sectionTemplateId: newSection.id,
+          order: taskTemplate.order,
+          text: taskTemplate.text,
+          content: taskTemplate.content,
+          taskType: taskTemplate.taskType,
+          assignedTo: taskTemplate.assignedTo,
+          correctAnswer: taskTemplate.correctAnswer,
+          link: taskTemplate.link,
+          pageReference: taskTemplate.pageReference,
+        },
+      });
+
+      for (const item of taskTemplate.checklistItemTemplates) {
+        await prisma.checklistItemTemplate.create({
+          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link },
+        });
+      }
+
+      for (const option of taskTemplate.choiceOptionTemplates) {
+        await prisma.choiceOptionTemplate.create({
+          data: { taskTemplateId: newTask.id, order: option.order, text: option.text, isCorrect: option.isCorrect },
+        });
+      }
+
+      for (const qt of taskTemplate.quizQuestionTemplates) {
+        const newQuestion = await prisma.sectionQuizQuestionTemplate.create({
+          data: { taskTemplateId: newTask.id, order: qt.order, text: qt.text, content: qt.content },
+        });
+        for (const opt of qt.choiceOptionTemplates) {
+          await prisma.sectionQuizChoiceOptionTemplate.create({
+            data: { questionTemplateId: newQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+          });
+        }
+      }
+    }
+  }
+
+  res.json({ copied: true, sectionsCount: sourceGate.sectionTemplates.length });
+});
+
 // Create or update the gate itself (title/description).
 router.put('/path/:pathId/gate/:gatePosition', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;

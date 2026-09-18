@@ -75,12 +75,30 @@
     <p style="color:var(--text-muted); font-size:13px;">Answered by the developee, like Study Questions - locks and reveals the model answer once submitted. A fresh attempt (after a failed one) gets fresh answers.</p>
     <div id="midtermQuestions-list"></div>
     <div class="add-box" id="midterm-add-box"></div>
+    <div class="add-section-box" style="margin-top:16px;">
+      <label>Copy these questions to another path</label>
+      <select id="copyAqTargetPath-midterm"></select>
+      <select id="copyAqTargetGate-midterm" style="margin-top:6px;">
+        <option value="AFTER_MODULE_4">Midterm Assessment</option>
+        <option value="AFTER_MODULE_8">Final Assessment</option>
+      </select>
+      <button style="background:#8a8378; margin-top:6px;" onclick="copyAssessmentQuestionsTo('midterm')">Copy Content</button>
+    </div>
   </div>
 
   <div class="module-card">
     <h2>Final Assessment Questions</h2>
     <div id="finalQuestions-list"></div>
     <div class="add-box" id="final-add-box"></div>
+    <div class="add-section-box" style="margin-top:16px;">
+      <label>Copy these questions to another path</label>
+      <select id="copyAqTargetPath-final"></select>
+      <select id="copyAqTargetGate-final" style="margin-top:6px;">
+        <option value="AFTER_MODULE_4">Midterm Assessment</option>
+        <option value="AFTER_MODULE_8">Final Assessment</option>
+      </select>
+      <button style="background:#8a8378; margin-top:6px;" onclick="copyAssessmentQuestionsTo('final')">Copy Content</button>
+    </div>
   </div>
 
   <div id="midtermReviewContainer"></div>
@@ -446,6 +464,8 @@
       const addBox = document.getElementById(`${gateKey}-add-box`);
       if (!currentPathId) { listDiv.innerHTML = ''; addBox.innerHTML = ''; return; }
 
+      document.getElementById(`copyAqTargetPath-${gateKey}`).innerHTML = pathOptionsHtml();
+
       const questions = await apiCall(`/assessment-questions?pathId=${currentPathId}&gatePosition=${gatePosition}`);
       listDiv.innerHTML = questions.map((q) => assessmentQuestionRowHtml(gateKey, q)).join('');
       addBox.innerHTML = assessmentQuestionFormHtml(gateKey);
@@ -620,6 +640,16 @@
             <label>New Section Title</label>
             <input type="text" id="newSectionTitle-${gateKey}" placeholder="e.g. Reading Materials">
             <button onclick="addReviewGateSection('${gateKey}')" ${gate ? '' : 'disabled title="Save the title above first"'}>Add Section</button>
+          </div>
+
+          <div class="add-section-box" style="margin-top:16px;">
+            <label>Copy this review's content to another path</label>
+            <select id="copyReviewTargetPath-${gateKey}">${pathOptionsHtml()}</select>
+            <select id="copyReviewTargetGate-${gateKey}" style="margin-top:6px;">
+              <option value="AFTER_MODULE_4">Midterm Review</option>
+              <option value="AFTER_MODULE_8">Final Review</option>
+            </select>
+            <button style="background:#8a8378; margin-top:6px;" onclick="copyReviewGateTo('${gateKey}')" ${sections.length === 0 ? 'disabled title="This review has no content yet to copy"' : ''}>Copy Content</button>
           </div>
         </div>
       `;
@@ -797,6 +827,72 @@
         if (err.message && err.message.includes('already has') && !replace) {
           if (confirm(err.message + '\n\nOverwrite it?')) {
             await attemptCopyModule(seq, targetPathId, targetSeq, true);
+          }
+          return;
+        }
+        alert(err.message);
+      }
+    }
+
+    async function copyAssessmentQuestionsTo(gateKey) {
+      const sourceGatePosition = gateKey === 'midterm' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+      const targetPathId = document.getElementById(`copyAqTargetPath-${gateKey}`).value;
+      const targetGatePosition = document.getElementById(`copyAqTargetGate-${gateKey}`).value;
+      if (!targetPathId) { alert('Choose a target path first.'); return; }
+
+      await attemptCopyAssessmentQuestions(sourceGatePosition, targetPathId, targetGatePosition, false);
+    }
+
+    async function attemptCopyAssessmentQuestions(sourceGatePosition, targetPathId, targetGatePosition, replace) {
+      try {
+        const result = await apiCall('/assessment-questions/copy', {
+          method: 'POST',
+          body: JSON.stringify({
+            sourcePathId: currentPathId,
+            sourceGatePosition,
+            targetPathId,
+            targetGatePosition,
+            replace,
+          }),
+        });
+        alert(`Copied ${result.questionsCount} question(s) successfully.`);
+      } catch (err) {
+        if (err.message && err.message.includes('already has') && !replace) {
+          if (confirm(err.message + '\n\nOverwrite it?')) {
+            await attemptCopyAssessmentQuestions(sourceGatePosition, targetPathId, targetGatePosition, true);
+          }
+          return;
+        }
+        alert(err.message);
+      }
+    }
+
+    async function copyReviewGateTo(gateKey) {
+      const sourceGatePosition = reviewGateKeyToPosition(gateKey);
+      const targetPathId = document.getElementById(`copyReviewTargetPath-${gateKey}`).value;
+      const targetGatePosition = document.getElementById(`copyReviewTargetGate-${gateKey}`).value;
+      if (!targetPathId) { alert('Choose a target path first.'); return; }
+
+      await attemptCopyReviewGate(sourceGatePosition, targetPathId, targetGatePosition, false, gateKey);
+    }
+
+    async function attemptCopyReviewGate(sourceGatePosition, targetPathId, targetGatePosition, replace, gateKey) {
+      try {
+        const result = await apiCall('/review-gates/copy', {
+          method: 'POST',
+          body: JSON.stringify({
+            sourcePathId: currentPathId,
+            sourceGatePosition,
+            targetPathId,
+            targetGatePosition,
+            replace,
+          }),
+        });
+        alert(`Copied ${result.sectionsCount} section(s) successfully.`);
+      } catch (err) {
+        if (err.message && err.message.includes('already has') && !replace) {
+          if (confirm(err.message + '\n\nOverwrite it?')) {
+            await attemptCopyReviewGate(sourceGatePosition, targetPathId, targetGatePosition, true, gateKey);
           }
           return;
         }

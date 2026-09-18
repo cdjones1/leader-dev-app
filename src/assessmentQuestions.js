@@ -73,6 +73,76 @@ router.get('/', requireAuth, async (req, res) => {
   res.json(questions);
 });
 
+// --------------------------------------------------------------
+// COPY every question (with its points, group, type, and choice
+// options) from one path's midterm/final assessment into another
+// path's. By default refuses to overwrite a target that already
+// has questions - pass replace:true to explicitly allow it.
+// --------------------------------------------------------------
+router.post('/copy', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { sourcePathId, sourceGatePosition, targetPathId, targetGatePosition, replace } = req.body;
+  if (!sourcePathId || !sourceGatePosition || !targetPathId || !targetGatePosition) {
+    return res.status(400).json({ error: 'sourcePathId, sourceGatePosition, targetPathId, and targetGatePosition are all required' });
+  }
+  if (!VALID_GATES.includes(sourceGatePosition) || !VALID_GATES.includes(targetGatePosition)) {
+    return res.status(400).json({ error: `gatePosition must be one of: ${VALID_GATES.join(', ')}` });
+  }
+  if (sourcePathId === targetPathId && sourceGatePosition === targetGatePosition) {
+    return res.status(400).json({ error: 'Source and target are the same assessment' });
+  }
+
+  const targetPath = await prisma.developmentPath.findUnique({ where: { id: targetPathId } });
+  if (!targetPath) {
+    return res.status(404).json({ error: 'Target path not found' });
+  }
+
+  const sourceQuestions = await prisma.assessmentQuestionTemplate.findMany({
+    where: { pathId: sourcePathId, gatePosition: sourceGatePosition },
+    orderBy: { order: 'asc' },
+    include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+  });
+  if (sourceQuestions.length === 0) {
+    return res.status(404).json({ error: 'The source assessment has no questions to copy' });
+  }
+
+  const existingCount = await prisma.assessmentQuestionTemplate.count({ where: { pathId: targetPathId, gatePosition: targetGatePosition } });
+  if (existingCount > 0 && !replace) {
+    return res.status(400).json({
+      error: `The target assessment already has ${existingCount} question(s) - pass replace:true to overwrite it`,
+      existingCount,
+    });
+  }
+  if (existingCount > 0) {
+    await prisma.assessmentQuestionTemplate.deleteMany({ where: { pathId: targetPathId, gatePosition: targetGatePosition } }); // cascades every choice option
+  }
+
+  for (const q of sourceQuestions) {
+    const newQuestion = await prisma.assessmentQuestionTemplate.create({
+      data: {
+        pathId: targetPathId,
+        gatePosition: targetGatePosition,
+        order: q.order,
+        text: q.text,
+        content: q.content,
+        questionType: q.questionType,
+        correctAnswer: q.correctAnswer,
+        pageReference: q.pageReference,
+        points: q.points,
+        groupTitle: q.groupTitle,
+      },
+    });
+    for (const opt of q.choiceOptionTemplates) {
+      await prisma.assessmentChoiceOptionTemplate.create({
+        data: { questionTemplateId: newQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
+      });
+    }
+  }
+
+  res.json({ copied: true, questionsCount: sourceQuestions.length });
+});
+
 // Add a question to a path's midterm or final assessment.
 router.post('/path/:pathId/gate/:gatePosition', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
