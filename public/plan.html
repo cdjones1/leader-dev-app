@@ -59,6 +59,8 @@
     .timeline-card.overdue { background: #fdecec; border-color: #f7c6c6; }
     .timeline-card.overdue .tl-label, .timeline-card.overdue .tl-day, .timeline-card.overdue .tl-dates { color: #9b1c1c; }
     .test-lock-banner { background: #fdecec; border: 1px solid #f7c6c6; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; color: #9b1c1c; font-weight: 600; }
+    .copy-paste-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2b2925; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .copy-paste-toast.show { opacity: 1; }
 
     .grade-banner { border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid; }
     .grade-banner.passed { background: #eefaf1; border-color: #bfe8cc; }
@@ -191,6 +193,7 @@
     <div class="section-label">Your Path</div>
     <div class="section-title">All modules</div>
     <div id="testLockBanner"></div>
+    <div id="copyPasteToast" class="copy-paste-toast">Copy/paste is disabled on this page</div>
     <div id="modulesList"></div>
     <div id="assessmentSection"></div>
     <div id="message"></div>
@@ -200,6 +203,32 @@
     const token = localStorage.getItem('token');
     let lastQuestionData = null;
     let isDeveloperHereGlobal = false;
+    let copyPasteBlockAttached = false;
+
+    // Blocks copy, cut, paste, and the right-click context menu
+    // across the whole page - an anti-cheating measure that applies
+    // ONLY to the developee's own view of their plan (never the
+    // developer's or admin's), matching the same spirit as the
+    // module-locking-during-tests feature.
+    function applyDevelopeeCopyPasteBlock(shouldBlock) {
+      if (!shouldBlock || copyPasteBlockAttached) return;
+      copyPasteBlockAttached = true;
+
+      const toast = document.getElementById('copyPasteToast');
+      const showToast = () => {
+        if (!toast) return;
+        toast.classList.add('show');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => toast.classList.remove('show'), 1800);
+      };
+
+      ['copy', 'cut', 'paste', 'contextmenu'].forEach((eventName) => {
+        document.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          showToast();
+        });
+      });
+    }
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/index.html';
 
@@ -806,6 +835,7 @@
         const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
         document.getElementById('whoRole').textContent =
           user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
+        applyDevelopeeCopyPasteBlock(isDevelopeeHere && !user.isAdmin);
 
         const openAssessment = plan.assessments.find((a) => a.openedAt);
         const lockBanner = document.getElementById('testLockBanner');
