@@ -171,9 +171,33 @@
       listDiv.innerHTML = users.map((u) => `
         <div class="pairing-row">
           <div><strong>${u.name}</strong> (${u.email}) - ${u.role}${u.id === myId ? ' - this is you' : ''}</div>
-          ${u.id === myId ? '' : `<button class="danger" onclick="deleteUser('${u.id}')">Delete User</button>`}
+          <div style="display:flex; gap:6px;">
+            <button style="background:#8a8378;" onclick="resetUserPassword('${u.id}', ${JSON.stringify(u.name).replace(/"/g, '&quot;')})">Reset Password</button>
+            ${u.id === myId ? '' : `<button class="danger" onclick="deleteUser('${u.id}')">Delete User</button>`}
+          </div>
         </div>
       `).join('');
+    }
+
+    async function resetUserPassword(userId, userName) {
+      const newPassword = prompt(`New password for ${userName} (at least 6 characters):`);
+      if (newPassword === null) return; // cancelled
+      if (newPassword.length < 6) {
+        alert('Password must be at least 6 characters.');
+        return;
+      }
+      if (!confirm(`Set ${userName}'s password to "${newPassword}"? They'll need to use this to log in from now on.`)) {
+        return;
+      }
+      try {
+        await apiCall('/admin/users/' + userId + '/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({ newPassword }),
+        });
+        alert(`Password reset for ${userName}.`);
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
     async function deleteUser(userId) {

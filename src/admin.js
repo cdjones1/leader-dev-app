@@ -6,6 +6,7 @@
 // final resolution. Oldest problem first.
 // ============================================================
 const express = require('express');
+const bcrypt = require('bcrypt');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 
@@ -127,6 +128,29 @@ router.delete('/users/:id', requireAuth, async (req, res) => {
 
   await prisma.user.delete({ where: { id: req.params.id } });
   res.status(204).send();
+});
+
+// --------------------------------------------------------------
+// RESET a user's password - admin only. Sets it directly, no email
+// involved. Same hashing strength as registration.
+// --------------------------------------------------------------
+router.post('/users/:id/reset-password', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'newPassword is required and must be at least 6 characters' });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+
+  res.json({ reset: true });
 });
 
 router.get('/needs-attention', requireAuth, async (req, res) => {
