@@ -359,12 +359,12 @@
     function comparisonTableBlock(task) {
       const rows = task.checklistItems || [];
       const headerColor = task.tableHeaderColor || '#d6222a';
-      const rowColorA = task.tableRowColorA || '#f7f5f2';
-      const rowColorB = task.tableRowColorB || '#ffffff';
-      const rowsHtml = rows.map((r, i) => `
-        <tr style="background:${i % 2 === 0 ? rowColorA : rowColorB};">
-          <td>${r.text}</td>
-          <td>${r.description || ''}</td>
+      const leftColColor = task.tableRowColorA || '#f7f5f2';
+      const rightColColor = task.tableRowColorB || '#ffffff';
+      const rowsHtml = rows.map((r) => `
+        <tr>
+          <td style="background:${leftColColor};">${r.text}</td>
+          <td style="background:${rightColColor};">${r.description || ''}</td>
         </tr>
       `).join('');
       return `
