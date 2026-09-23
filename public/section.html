@@ -77,6 +77,14 @@
     .flashcard.revealed .flashcard-hint { color: var(--accent); }
     .flashcard-text { font-weight: 700; font-size: 17px; }
 
+    .comparison-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin-top: 4px; }
+    .comparison-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .comparison-table th { text-align: left; padding: 14px 18px; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.02em; text-transform: uppercase; }
+    .comparison-table td { padding: 14px 18px; border-top: 1px solid var(--border); vertical-align: top; }
+    .comparison-table tbody tr:nth-child(odd) { background: var(--bg); }
+    .comparison-table tbody tr:nth-child(even) { background: var(--card); }
+    .comparison-table td:first-child { border-right: 1px solid var(--border); }
+
     .deck-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
     .deck-topbar .deck-count { font-weight: 700; }
     .deck-topbar .deck-stats { color: var(--text-muted); }
@@ -343,6 +351,39 @@
 
     function visibleOrder(state) {
       return state.studyMarkedOnly ? state.order.filter((i) => state.marked.has(i)) : state.order;
+    }
+
+    // Purely a display table - no interaction, never blocks section
+    // completion, same spirit as Reading/Notice. Header color defaults
+    // to the site's own accent red unless the admin set a custom one.
+    function comparisonTableBlock(task) {
+      const rows = task.checklistItems || [];
+      const headerColor = task.tableHeaderColor || '#d6222a';
+      const rowColorA = task.tableRowColorA || '#f7f5f2';
+      const rowColorB = task.tableRowColorB || '#ffffff';
+      const rowsHtml = rows.map((r, i) => `
+        <tr style="background:${i % 2 === 0 ? rowColorA : rowColorB};">
+          <td>${r.text}</td>
+          <td>${r.description || ''}</td>
+        </tr>
+      `).join('');
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+          <div class="comparison-table-wrap">
+            <table class="comparison-table">
+              <thead>
+                <tr style="background:${headerColor};">
+                  <th>${task.tableLeftHeader || ''}</th>
+                  <th>${task.tableRightHeader || ''}</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
     }
 
     function flashcardSetBlock(task) {
@@ -731,6 +772,7 @@
           if (t.taskType === 'VIDEO') return videoBlock(t);
           if (t.taskType === 'FLASHCARD') return flashcardSetBlock(t);
           if (t.taskType === 'SECTION_QUIZ') return sectionQuizBlock(t, mine);
+          if (t.taskType === 'COMPARISON_TABLE') return comparisonTableBlock(t);
           return '';
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;

@@ -218,6 +218,7 @@ enum TaskType {
   VIDEO
   FLASHCARD
   SECTION_QUIZ
+  COMPARISON_TABLE
 }
 
 model ModuleTask {
@@ -240,6 +241,11 @@ model ModuleTask {
   completedAt      DateTime?
   quizStatus       String    @default("PENDING") // SECTION_QUIZ only - PENDING/IN_PROGRESS/LOCKED_NEEDS_MEETING/LOCKED_FINAL/PASSED
   quizAttemptCount Int       @default(0)         // SECTION_QUIZ only
+  tableLeftHeader  String?   // COMPARISON_TABLE only
+  tableRightHeader String?   // COMPARISON_TABLE only
+  tableHeaderColor String?   // COMPARISON_TABLE only - hex color, defaults to the site accent red if unset
+  tableRowColorA   String?   // COMPARISON_TABLE only - odd row background, defaults to the site's --bg shade if unset
+  tableRowColorB   String?   // COMPARISON_TABLE only - even row background, defaults to the site's --card (white) shade if unset
 
   checklistItems TaskChecklistItem[]
   choiceOptions  TaskChoiceOption[]
@@ -358,6 +364,11 @@ model ModuleTaskTemplate {
   correctAnswer    String?
   link             String?
   pageReference    String?
+  tableLeftHeader  String?  // COMPARISON_TABLE only - e.g. "Instead of..."
+  tableRightHeader String?  // COMPARISON_TABLE only - e.g. "Try..."
+  tableHeaderColor String?  // COMPARISON_TABLE only - hex color for the header row background; defaults to the site's accent red if unset
+  tableRowColorA   String?  // COMPARISON_TABLE only - odd row background
+  tableRowColorB   String?  // COMPARISON_TABLE only - even row background
 
   checklistItemTemplates ChecklistItemTemplate[]
   choiceOptionTemplates  ChoiceOptionTemplate[]

@@ -151,6 +151,11 @@ router.post('/copy', requireAuth, async (req, res) => {
           correctAnswer: taskTemplate.correctAnswer,
           link: taskTemplate.link,
           pageReference: taskTemplate.pageReference,
+          tableLeftHeader: taskTemplate.tableLeftHeader,
+          tableRightHeader: taskTemplate.tableRightHeader,
+          tableHeaderColor: taskTemplate.tableHeaderColor,
+          tableRowColorA: taskTemplate.tableRowColorA,
+          tableRowColorB: taskTemplate.tableRowColorB,
         },
       });
 

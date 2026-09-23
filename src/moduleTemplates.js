@@ -19,7 +19,7 @@ function requireAdmin(req, res) {
   return true;
 }
 
-const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO', 'FLASHCARD', 'SECTION_QUIZ'];
+const VALID_TYPES = ['READING', 'NOTICE', 'WARNING', 'QUESTION', 'CHECKLIST', 'MULTIPLE_CHOICE', 'ACTION_ITEM', 'VIDEO', 'FLASHCARD', 'SECTION_QUIZ', 'COMPARISON_TABLE'];
 
 // Notice and Warning tasks are never shown by their title to the
 // person viewing the section - the title is purely a label for the
@@ -48,8 +48,10 @@ function validateTaskShape({ taskType, assignedTo, correctAnswer, checklistItems
   if (taskType === 'VIDEO' && !link) {
     return 'A VIDEO task needs a link to the video';
   }
-  if ((taskType === 'CHECKLIST' || taskType === 'FLASHCARD') && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
-    const label = taskType === 'FLASHCARD' ? 'A FLASHCARD task needs at least one card' : 'A CHECKLIST task needs at least one checklist item';
+  if ((taskType === 'CHECKLIST' || taskType === 'FLASHCARD' || taskType === 'COMPARISON_TABLE') && (!Array.isArray(checklistItems) || checklistItems.length === 0)) {
+    const label = taskType === 'FLASHCARD' ? 'A FLASHCARD task needs at least one card'
+      : taskType === 'COMPARISON_TABLE' ? 'A COMPARISON_TABLE task needs at least one row'
+      : 'A CHECKLIST task needs at least one checklist item';
     return label;
   }
   if (taskType === 'MULTIPLE_CHOICE') {
@@ -214,6 +216,11 @@ router.post('/copy', requireAuth, async (req, res) => {
           correctAnswer: taskTemplate.correctAnswer,
           link: taskTemplate.link,
           pageReference: taskTemplate.pageReference,
+          tableLeftHeader: taskTemplate.tableLeftHeader,
+          tableRightHeader: taskTemplate.tableRightHeader,
+          tableHeaderColor: taskTemplate.tableHeaderColor,
+          tableRowColorA: taskTemplate.tableRowColorA,
+          tableRowColorB: taskTemplate.tableRowColorB,
         },
       });
 
@@ -374,7 +381,7 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -402,10 +409,15 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
       pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
+      tableLeftHeader: taskType === 'COMPARISON_TABLE' ? (tableLeftHeader || null) : null,
+      tableRightHeader: taskType === 'COMPARISON_TABLE' ? (tableRightHeader || null) : null,
+      tableHeaderColor: taskType === 'COMPARISON_TABLE' ? (tableHeaderColor || null) : null,
+      tableRowColorA: taskType === 'COMPARISON_TABLE' ? (tableRowColorA || null) : null,
+      tableRowColorB: taskType === 'COMPARISON_TABLE' ? (tableRowColorB || null) : null,
     },
   });
 
-  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD') {
+  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD' || taskType === 'COMPARISON_TABLE') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
         data: {
@@ -458,7 +470,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
   const resolvedText = resolveTaskTitle(text, taskType);
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -482,6 +494,11 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       assignedTo: assignedTo || 'DEVELOPEE',
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
       pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
+      tableLeftHeader: taskType === 'COMPARISON_TABLE' ? (tableLeftHeader || null) : null,
+      tableRightHeader: taskType === 'COMPARISON_TABLE' ? (tableRightHeader || null) : null,
+      tableHeaderColor: taskType === 'COMPARISON_TABLE' ? (tableHeaderColor || null) : null,
+      tableRowColorA: taskType === 'COMPARISON_TABLE' ? (tableRowColorA || null) : null,
+      tableRowColorB: taskType === 'COMPARISON_TABLE' ? (tableRowColorB || null) : null,
       link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
     },
   });
@@ -490,7 +507,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   await prisma.choiceOptionTemplate.deleteMany({ where: { taskTemplateId: updated.id } });
   await prisma.sectionQuizQuestionTemplate.deleteMany({ where: { taskTemplateId: updated.id } }); // cascades its own choice options
 
-  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD') {
+  if (taskType === 'CHECKLIST' || taskType === 'FLASHCARD' || taskType === 'COMPARISON_TABLE') {
     for (let i = 0; i < checklistItems.length; i++) {
       await prisma.checklistItemTemplate.create({
         data: {

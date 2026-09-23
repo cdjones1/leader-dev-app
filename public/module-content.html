@@ -142,6 +142,7 @@
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
             ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} flashcard(s)</div>` : ''}
+            ${t.taskType === 'COMPARISON_TABLE' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} row(s) - "${t.tableLeftHeader || ''}" / "${t.tableRightHeader || ''}"</div>` : ''}
             ${t.taskType === 'SECTION_QUIZ' ? `<div class="task-meta">${(t.quizQuestionTemplates || []).length} question(s) - 90% to pass</div>` : ''}
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
           </div>
@@ -187,6 +188,7 @@
               <option value="VIDEO">Video (YouTube, Vimeo, or direct file link)</option>
               <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
               <option value="SECTION_QUIZ">Section Quiz (multiple choice, 90% to pass)</option>
+              <option value="COMPARISON_TABLE">Comparison Table (two-column, e.g. "Instead of / Try")</option>
             </select>
             <label>Content (description shown under the title)</label>
             <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
@@ -199,6 +201,27 @@
               <input type="text" id="newTaskPageRef-${section.id}" placeholder="p. 12">
               <label>Correct Answer (revealed after they submit their own)</label>
               <textarea id="newTaskAnswer-${section.id}" rows="2"></textarea>
+            </div>
+            <div id="tableHeadersField-${section.id}" style="display:none;">
+              <label>Left Column Header (e.g. "Instead of...")</label>
+              <input type="text" id="newTaskTableLeft-${section.id}" placeholder="Instead of...">
+              <label>Right Column Header (e.g. "Try...")</label>
+              <input type="text" id="newTaskTableRight-${section.id}" placeholder="Try...">
+              <label>Header Color (optional - defaults to the site's red accent)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="newTaskTableColor-${section.id}" value="#d6222a" style="width:60px; padding:2px; height:38px;">
+                <button type="button" style="background:#8a8378; margin:0;" onclick="document.getElementById('newTaskTableColor-${section.id}').value='#d6222a'">Reset to Theme Red</button>
+              </div>
+              <label>Row Color A - odd rows (optional - defaults to the site's light shade)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="newTaskTableRowA-${section.id}" value="#f7f5f2" style="width:60px; padding:2px; height:38px;">
+                <button type="button" style="background:#8a8378; margin:0;" onclick="document.getElementById('newTaskTableRowA-${section.id}').value='#f7f5f2'">Reset to Theme</button>
+              </div>
+              <label>Row Color B - even rows (optional - defaults to white)</label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="color" id="newTaskTableRowB-${section.id}" value="#ffffff" style="width:60px; padding:2px; height:38px;">
+                <button type="button" style="background:#8a8378; margin:0;" onclick="document.getElementById('newTaskTableRowB-${section.id}').value='#ffffff'">Reset to Theme</button>
+              </div>
             </div>
             <div id="checklistField-${section.id}" style="display:none;">
               <label id="checklistFieldLabel-${section.id}">Checklist Items</label>
@@ -935,12 +958,13 @@
     function onTypeChange(sectionId) {
       const type = document.getElementById(`newTaskType-${sectionId}`).value;
       document.getElementById(`answerField-${sectionId}`).style.display = type === 'QUESTION' ? 'block' : 'none';
-      document.getElementById(`checklistField-${sectionId}`).style.display = (type === 'CHECKLIST' || type === 'FLASHCARD') ? 'block' : 'none';
-      document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : 'Checklist Items';
+      document.getElementById(`checklistField-${sectionId}`).style.display = (type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE') ? 'block' : 'none';
+      document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : type === 'COMPARISON_TABLE' ? 'Table Rows' : 'Checklist Items';
+      document.getElementById(`tableHeadersField-${sectionId}`).style.display = type === 'COMPARISON_TABLE' ? 'block' : 'none';
       document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
       document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO') ? 'block' : 'none';
       document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : 'Link (optional)';
-      if ((type === 'CHECKLIST' || type === 'FLASHCARD') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
+      if ((type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
         addChecklistRow(sectionId); addChecklistRow(sectionId);
       }
       if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${sectionId}`).children.length === 0) {
@@ -955,17 +979,20 @@
     function addChecklistRow(sectionId, text = '', description = '', link = '') {
       const typeSelect = document.getElementById(`newTaskType-${sectionId}`);
       const isFlashcard = typeSelect && typeSelect.value === 'FLASHCARD';
+      const isTable = typeSelect && typeSelect.value === 'COMPARISON_TABLE';
       const container = document.getElementById(`checklistItems-${sectionId}`);
       const row = document.createElement('div');
       row.className = 'checklist-item-row';
       row.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 8px;';
+      const textPlaceholder = isFlashcard ? 'Front (the question)' : isTable ? 'Left column text' : 'Item title';
+      const descPlaceholder = isFlashcard ? 'Back (the answer)' : isTable ? 'Right column text' : 'Short description (optional)';
       row.innerHTML = `
         <div style="display:flex; gap:6px;">
-          <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="${isFlashcard ? 'Front (the question)' : 'Item title'}">
+          <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="${textPlaceholder}">
           <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.checklist-item-row').remove()">✕</button>
         </div>
-        <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="${isFlashcard ? 'Back (the answer)' : 'Short description (optional)'}">
-        ${isFlashcard ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
+        <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="${descPlaceholder}">
+        ${(isFlashcard || isTable) ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
       `;
       container.appendChild(row);
     }
@@ -1066,7 +1093,11 @@
       document.getElementById(`newTaskAnswer-${sectionId}`).value = task.correctAnswer || '';
       document.getElementById(`newTaskPageRef-${sectionId}`).value = task.pageReference || '';
       document.getElementById(`newTaskLink-${sectionId}`).value = task.link || '';
-
+      document.getElementById(`newTaskTableLeft-${sectionId}`).value = task.tableLeftHeader || '';
+      document.getElementById(`newTaskTableRight-${sectionId}`).value = task.tableRightHeader || '';
+      document.getElementById(`newTaskTableColor-${sectionId}`).value = task.tableHeaderColor || '#d6222a';
+      document.getElementById(`newTaskTableRowA-${sectionId}`).value = task.tableRowColorA || '#f7f5f2';
+      document.getElementById(`newTaskTableRowB-${sectionId}`).value = task.tableRowColorB || '#ffffff';
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
       document.getElementById(`quizQuestions-${sectionId}`).innerHTML = '';
@@ -1089,6 +1120,11 @@
       document.getElementById(`newTaskAnswer-${sectionId}`).value = '';
       document.getElementById(`newTaskPageRef-${sectionId}`).value = '';
       document.getElementById(`newTaskLink-${sectionId}`).value = '';
+      document.getElementById(`newTaskTableLeft-${sectionId}`).value = '';
+      document.getElementById(`newTaskTableRight-${sectionId}`).value = '';
+      document.getElementById(`newTaskTableColor-${sectionId}`).value = '#d6222a';
+      document.getElementById(`newTaskTableRowA-${sectionId}`).value = '#f7f5f2';
+      document.getElementById(`newTaskTableRowB-${sectionId}`).value = '#ffffff';
       document.getElementById(`newTaskType-${sectionId}`).value = 'READING';
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
@@ -1107,6 +1143,11 @@
       const correctAnswer = document.getElementById(`newTaskAnswer-${sectionId}`).value;
       const pageReference = document.getElementById(`newTaskPageRef-${sectionId}`).value.trim();
       const link = document.getElementById(`newTaskLink-${sectionId}`).value.trim();
+      const tableLeftHeader = document.getElementById(`newTaskTableLeft-${sectionId}`).value.trim();
+      const tableRightHeader = document.getElementById(`newTaskTableRight-${sectionId}`).value.trim();
+      const tableHeaderColor = document.getElementById(`newTaskTableColor-${sectionId}`).value;
+      const tableRowColorA = document.getElementById(`newTaskTableRowA-${sectionId}`).value;
+      const tableRowColorB = document.getElementById(`newTaskTableRowB-${sectionId}`).value;
       const checklistItems = readChecklistRows(sectionId);
       const choiceOptions = readChoiceRows(sectionId);
       const quizQuestions = readQuizQuestions(sectionId);
@@ -1116,6 +1157,10 @@
       if (taskType === 'QUESTION' && !correctAnswer.trim()) { alert('A question task needs a correct answer.'); return; }
       if (taskType === 'VIDEO' && !link) { alert('A video task needs a link to the video.'); return; }
       if (taskType === 'CHECKLIST' && checklistItems.length === 0) { alert('Add at least one checklist item.'); return; }
+      if (taskType === 'COMPARISON_TABLE') {
+        if (checklistItems.length === 0) { alert('Add at least one row.'); return; }
+        if (!tableLeftHeader || !tableRightHeader) { alert('Both column headers are required.'); return; }
+      }
       if (taskType === 'MULTIPLE_CHOICE') {
         if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
         if (!choiceOptions.some((o) => o.isCorrect)) { alert('Mark one option as the correct answer.'); return; }
@@ -1129,7 +1174,7 @@
       }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB };
 
       try {
         if (editingId) {
