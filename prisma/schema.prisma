@@ -219,6 +219,7 @@ enum TaskType {
   FLASHCARD
   SECTION_QUIZ
   COMPARISON_TABLE
+  NUMBERED_STEPS
 }
 
 model ModuleTask {
@@ -264,6 +265,7 @@ model TaskChecklistItem {
   completed   Boolean   @default(false)
   completedAt DateTime?
   sourceLabel String?   // FLASHCARD only - set when auto-pulled from an earlier module's own flashcards during a review step's creation (e.g. "Module 3 — Heart of Leadership"); null for manually-authored cards
+  quoteText   String?   // NUMBERED_STEPS only - the italicized example line under the step's title
 }
 
 // MULTIPLE_CHOICE options - isCorrect must NEVER be sent to the
@@ -449,6 +451,7 @@ model ChecklistItemTemplate {
   text             String
   description      String?
   link             String?
+  quoteText        String?  // NUMBERED_STEPS only
 }
 
 model ChoiceOptionTemplate {

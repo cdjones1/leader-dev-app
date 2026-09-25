@@ -85,6 +85,15 @@
     .comparison-table tbody tr:nth-child(even) { background: var(--card); }
     .comparison-table td:first-child { border-right: 1px solid var(--border); }
 
+    .step-row { display: flex; gap: 16px; }
+    .step-rail { display: flex; flex-direction: column; align-items: center; width: 36px; flex-shrink: 0; }
+    .step-circle { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-line { width: 2px; flex: 1; background: var(--border); margin-top: 4px; min-height: 24px; }
+    .step-content { padding-bottom: 22px; flex: 1; padding-top: 4px; }
+    .step-title { font-weight: 700; font-size: 16px; }
+    .step-quote { font-style: italic; margin-top: 6px; color: var(--text); }
+    .step-desc { color: var(--text-muted); margin-top: 6px; font-size: 14px; }
+
     .deck-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
     .deck-topbar .deck-count { font-weight: 700; }
     .deck-topbar .deck-stats { color: var(--text-muted); }
@@ -382,6 +391,33 @@
               <tbody>${rowsHtml}</tbody>
             </table>
           </div>
+        </div>
+      `;
+    }
+
+    // A numbered vertical timeline - title, an italicized example
+    // quote, and a description per step. Purely a display list, no
+    // interaction, never blocks section completion.
+    function numberedStepsBlock(task) {
+      const steps = task.checklistItems || [];
+      const stepsHtml = steps.map((s, i) => `
+        <div class="step-row">
+          <div class="step-rail">
+            <div class="step-circle">${i + 1}</div>
+            ${i < steps.length - 1 ? '<div class="step-line"></div>' : ''}
+          </div>
+          <div class="step-content">
+            <div class="step-title">${s.text}</div>
+            ${s.quoteText ? `<div class="step-quote">"${s.quoteText}"</div>` : ''}
+            ${s.description ? `<div class="step-desc">${s.description}</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+      return `
+        <div class="task-block">
+          <h3>${task.text}</h3>
+          ${task.content ? `<div class="content-box">${task.content}</div>` : ''}
+          <div style="margin-top:8px;">${stepsHtml}</div>
         </div>
       `;
     }
@@ -773,6 +809,7 @@
           if (t.taskType === 'FLASHCARD') return flashcardSetBlock(t);
           if (t.taskType === 'SECTION_QUIZ') return sectionQuizBlock(t, mine);
           if (t.taskType === 'COMPARISON_TABLE') return comparisonTableBlock(t);
+          if (t.taskType === 'NUMBERED_STEPS') return numberedStepsBlock(t);
           return '';
         }).join('');
         document.getElementById('tasksContainer').innerHTML = blocksHtml;

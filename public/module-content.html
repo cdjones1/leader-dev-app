@@ -143,6 +143,7 @@
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
             ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} flashcard(s)</div>` : ''}
             ${t.taskType === 'COMPARISON_TABLE' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} row(s) - "${t.tableLeftHeader || ''}" / "${t.tableRightHeader || ''}"</div>` : ''}
+            ${t.taskType === 'NUMBERED_STEPS' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} step(s)</div>` : ''}
             ${t.taskType === 'SECTION_QUIZ' ? `<div class="task-meta">${(t.quizQuestionTemplates || []).length} question(s) - 90% to pass</div>` : ''}
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
           </div>
@@ -189,6 +190,7 @@
               <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
               <option value="SECTION_QUIZ">Section Quiz (multiple choice, 90% to pass)</option>
               <option value="COMPARISON_TABLE">Comparison Table (two-column, e.g. "Instead of / Try")</option>
+              <option value="NUMBERED_STEPS">Numbered Steps (title + example quote + description)</option>
             </select>
             <label>Content (description shown under the title)</label>
             <textarea id="newTaskContent-${section.id}" rows="3" placeholder="The reading material or the question itself..."></textarea>
@@ -997,13 +999,13 @@
     function onTypeChange(sectionId) {
       const type = document.getElementById(`newTaskType-${sectionId}`).value;
       document.getElementById(`answerField-${sectionId}`).style.display = type === 'QUESTION' ? 'block' : 'none';
-      document.getElementById(`checklistField-${sectionId}`).style.display = (type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE') ? 'block' : 'none';
-      document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : type === 'COMPARISON_TABLE' ? 'Table Rows' : 'Checklist Items';
+      document.getElementById(`checklistField-${sectionId}`).style.display = (type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE' || type === 'NUMBERED_STEPS') ? 'block' : 'none';
+      document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : type === 'COMPARISON_TABLE' ? 'Table Rows' : type === 'NUMBERED_STEPS' ? 'Steps' : 'Checklist Items';
       document.getElementById(`tableHeadersField-${sectionId}`).style.display = type === 'COMPARISON_TABLE' ? 'block' : 'none';
       document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
       document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO') ? 'block' : 'none';
       document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : 'Link (optional)';
-      if ((type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
+      if ((type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE' || type === 'NUMBERED_STEPS') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
         addChecklistRow(sectionId); addChecklistRow(sectionId);
       }
       if (type === 'MULTIPLE_CHOICE' && document.getElementById(`choiceOptions-${sectionId}`).children.length === 0) {
@@ -1015,23 +1017,25 @@
       }
     }
 
-    function addChecklistRow(sectionId, text = '', description = '', link = '') {
+    function addChecklistRow(sectionId, text = '', description = '', link = '', quoteText = '') {
       const typeSelect = document.getElementById(`newTaskType-${sectionId}`);
       const isFlashcard = typeSelect && typeSelect.value === 'FLASHCARD';
       const isTable = typeSelect && typeSelect.value === 'COMPARISON_TABLE';
+      const isSteps = typeSelect && typeSelect.value === 'NUMBERED_STEPS';
       const container = document.getElementById(`checklistItems-${sectionId}`);
       const row = document.createElement('div');
       row.className = 'checklist-item-row';
       row.style.cssText = 'border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 8px;';
-      const textPlaceholder = isFlashcard ? 'Front (the question)' : isTable ? 'Left column text' : 'Item title';
-      const descPlaceholder = isFlashcard ? 'Back (the answer)' : isTable ? 'Right column text' : 'Short description (optional)';
+      const textPlaceholder = isFlashcard ? 'Front (the question)' : isTable ? 'Left column text' : isSteps ? 'Step title (e.g. "Invite")' : 'Item title';
+      const descPlaceholder = isFlashcard ? 'Back (the answer)' : isTable ? 'Right column text' : isSteps ? 'Description (e.g. "Normal teamwork; encourage shared ownership.")' : 'Short description (optional)';
       row.innerHTML = `
         <div style="display:flex; gap:6px;">
           <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="${textPlaceholder}">
           <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.checklist-item-row').remove()">✕</button>
         </div>
+        ${isSteps ? `<input type="text" class="ci-quote" value="${quoteText.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder='Example quote (e.g. "Let\\'s get ahead on sauces.")'>` : ''}
         <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="${descPlaceholder}">
-        ${(isFlashcard || isTable) ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
+        ${(isFlashcard || isTable || isSteps) ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
       `;
       container.appendChild(row);
     }
@@ -1105,10 +1109,12 @@
       return [...document.getElementById(`checklistItems-${sectionId}`).children]
         .map((row) => {
           const linkEl = row.querySelector('.ci-link');
+          const quoteEl = row.querySelector('.ci-quote');
           return {
             text: row.querySelector('.ci-text').value.trim(),
             description: row.querySelector('.ci-desc').value.trim(),
             link: linkEl ? linkEl.value.trim() : '',
+            quoteText: quoteEl ? quoteEl.value.trim() : '',
           };
         })
         .filter((item) => item.text);
@@ -1140,7 +1146,7 @@
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
       document.getElementById(`quizQuestions-${sectionId}`).innerHTML = '';
-      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || ''));
+      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || '', item.quoteText || ''));
       (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(sectionId, opt.text, opt.isCorrect));
       (task.quizQuestionTemplates || []).forEach((q) => addQuizQuestionBlock(sectionId, q.text, q.content || '', q.choiceOptionTemplates || []));
 
@@ -1200,6 +1206,7 @@
         if (checklistItems.length === 0) { alert('Add at least one row.'); return; }
         if (!tableLeftHeader || !tableRightHeader) { alert('Both column headers are required.'); return; }
       }
+      if (taskType === 'NUMBERED_STEPS' && checklistItems.length === 0) { alert('Add at least one step.'); return; }
       if (taskType === 'MULTIPLE_CHOICE') {
         if (choiceOptions.length < 2) { alert('Add at least 2 answer choices.'); return; }
         if (!choiceOptions.some((o) => o.isCorrect)) { alert('Mark one option as the correct answer.'); return; }

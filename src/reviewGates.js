@@ -161,7 +161,7 @@ router.post('/copy', requireAuth, async (req, res) => {
 
       for (const item of taskTemplate.checklistItemTemplates) {
         await prisma.checklistItemTemplate.create({
-          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link },
+          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link, quoteText: item.quoteText },
         });
       }
 

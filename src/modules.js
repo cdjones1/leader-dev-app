@@ -419,6 +419,7 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
                   text: item.text,
                   description: item.description,
                   link: item.link,
+                  quoteText: item.quoteText,
                 },
               });
             }
