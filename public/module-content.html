@@ -251,33 +251,72 @@
       const sections = template ? template.sectionTemplates : [];
 
       const sectionCards = sections.map((s) => sectionCardHtml(seq, s)).join('');
+      const collapsed = isModuleCollapsed(seq);
 
       return `
         <div class="module-card">
-          <h2>Module ${seq}</h2>
-          <label>Title</label>
-          <input type="text" id="title-${seq}" value="${(title || '').replace(/"/g, '&quot;')}">
-          <label>Description</label>
-          <textarea id="description-${seq}" rows="2">${description || ''}</textarea>
-          <button onclick="saveTemplate(${seq})">Save Title/Description</button>
-          <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
-
-          <div id="sections-${seq}">${sectionCards}</div>
-
-          <div class="add-section-box">
-            <label>New Section Title</label>
-            <input type="text" id="newSectionTitle-${seq}" placeholder="e.g. Reading Materials">
-            <button onclick="addSection(${seq})">Add Section</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="toggleModuleCollapse(${seq})">
+            <h2 style="margin:0;">Module ${seq}${title ? ' — ' + title : ''}</h2>
+            <button type="button" id="collapseBtn-${seq}" style="background:#8a8378; margin:0;" onclick="event.stopPropagation(); toggleModuleCollapse(${seq})">${collapsed ? '▼ Expand' : '▲ Collapse'}</button>
           </div>
 
-          <div class="add-section-box" style="margin-top:16px;">
-            <label>Copy this module's content to another path</label>
-            <select id="copyTargetPath-${seq}">${pathOptionsHtml()}</select>
-            <input type="number" id="copyTargetSeq-${seq}" min="1" placeholder="Target module #" style="margin-top:6px;">
-            <button style="background:#8a8378;" onclick="copyModuleTo(${seq})" ${sections.length === 0 ? 'disabled title="This module has no content yet to copy"' : ''}>Copy Content</button>
+          <div id="moduleBody-${seq}" style="display:${collapsed ? 'none' : 'block'};">
+            <label>Title</label>
+            <input type="text" id="title-${seq}" value="${(title || '').replace(/"/g, '&quot;')}">
+            <label>Description</label>
+            <textarea id="description-${seq}" rows="2">${description || ''}</textarea>
+            <button onclick="saveTemplate(${seq})">Save Title/Description</button>
+            <span id="saved-${seq}" class="saved-note" style="display:none;">Saved</span>
+
+            <div id="sections-${seq}">${sectionCards}</div>
+
+            <div class="add-section-box">
+              <label>New Section Title</label>
+              <input type="text" id="newSectionTitle-${seq}" placeholder="e.g. Reading Materials">
+              <button onclick="addSection(${seq})">Add Section</button>
+            </div>
+
+            <div class="add-section-box" style="margin-top:16px;">
+              <label>Copy this module's content to another path</label>
+              <select id="copyTargetPath-${seq}">${pathOptionsHtml()}</select>
+              <input type="number" id="copyTargetSeq-${seq}" min="1" placeholder="Target module #" style="margin-top:6px;">
+              <button style="background:#8a8378;" onclick="copyModuleTo(${seq})" ${sections.length === 0 ? 'disabled title="This module has no content yet to copy"' : ''}>Copy Content</button>
+            </div>
           </div>
         </div>
       `;
+    }
+
+    // ---------- Module collapse (pure client-side, remembered per path) ----------
+
+    function collapsedModulesStorageKey() {
+      return `collapsedModules-${currentPathId}`;
+    }
+
+    function getCollapsedModulesSet() {
+      try {
+        return new Set(JSON.parse(localStorage.getItem(collapsedModulesStorageKey()) || '[]'));
+      } catch (e) {
+        return new Set();
+      }
+    }
+
+    function isModuleCollapsed(seq) {
+      return getCollapsedModulesSet().has(seq);
+    }
+
+    function toggleModuleCollapse(seq) {
+      const collapsedSet = getCollapsedModulesSet();
+      const nowCollapsed = !collapsedSet.has(seq);
+      if (nowCollapsed) collapsedSet.add(seq);
+      else collapsedSet.delete(seq);
+      localStorage.setItem(collapsedModulesStorageKey(), JSON.stringify([...collapsedSet]));
+
+      // Pure DOM toggle - no data reload, so nothing mid-edit elsewhere gets disturbed.
+      const body = document.getElementById(`moduleBody-${seq}`);
+      const btn = document.getElementById(`collapseBtn-${seq}`);
+      if (body) body.style.display = nowCollapsed ? 'none' : 'block';
+      if (btn) btn.textContent = nowCollapsed ? '▼ Expand' : '▲ Collapse';
     }
 
     function pathOptionsHtml() {
