@@ -33,6 +33,7 @@ model User {
   passwordHash String   // never store plain passwords — this is the encrypted version
   role         Role
   isAdmin      Boolean  @default(false)
+  canPreviewPaths Boolean @default(false) // grants read-only access to the full-path preview, independent of admin status - admin can grant/revoke this per user
   createdAt    DateTime @default(now())
 
   // A user can be a manager to other users (self-referencing relationship)

@@ -170,13 +170,26 @@
 
       listDiv.innerHTML = users.map((u) => `
         <div class="pairing-row">
-          <div><strong>${u.name}</strong> (${u.email}) - ${u.role}${u.id === myId ? ' - this is you' : ''}</div>
+          <div><strong>${u.name}</strong> (${u.email}) - ${u.role}${u.id === myId ? ' - this is you' : ''}${u.canPreviewPaths ? ' - <span style="color:#1a7a3a; font-weight:600;">Path Preview: Granted</span>' : ''}</div>
           <div style="display:flex; gap:6px;">
+            <button style="background:${u.canPreviewPaths ? '#9b1c1c' : '#1a7a3a'};" onclick="togglePreviewPermission('${u.id}', ${!u.canPreviewPaths})">${u.canPreviewPaths ? 'Revoke Preview Access' : 'Grant Preview Access'}</button>
             <button style="background:#8a8378;" onclick="resetUserPassword('${u.id}', ${JSON.stringify(u.name).replace(/"/g, '&quot;')})">Reset Password</button>
             ${u.id === myId ? '' : `<button class="danger" onclick="deleteUser('${u.id}')">Delete User</button>`}
           </div>
         </div>
       `).join('');
+    }
+
+    async function togglePreviewPermission(userId, granted) {
+      try {
+        await apiCall('/admin/users/' + userId + '/preview-permission', {
+          method: 'POST',
+          body: JSON.stringify({ granted }),
+        });
+        loadUsersCleanupList();
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
     async function resetUserPassword(userId, userName) {

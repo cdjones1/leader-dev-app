@@ -58,6 +58,7 @@
       </div>
       <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
       <button onclick="deletePath()" style="background:#9b1c1c; white-space:nowrap;">Delete Path</button>
+      <button onclick="openPathPreview()" style="background:#1a7a3a; white-space:nowrap;">Preview This Path</button>
     </div>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
@@ -374,6 +375,11 @@
       } catch (err) {
         alert(err.message);
       }
+    }
+
+    function openPathPreview() {
+      if (!currentPathId) { alert('Select a path first.'); return; }
+      window.open('/path-preview.html?pathId=' + currentPathId, '_blank');
     }
 
     async function renamePath() {

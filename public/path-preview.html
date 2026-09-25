@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Path Preview</title>
+<style>
+  :root {
+    --accent: #d6222a; --accent-dark: #b71c23;
+    --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+    --text: #1a1a1a; --text-muted: #6b6560;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0 0 60px; }
+  .header { max-width: 900px; margin: 0 auto; padding: 30px 20px 10px; }
+  .header h1 { margin: 0 0 4px; }
+  .header p { color: var(--text-muted); margin: 0; }
+  .preview-badge { display: inline-block; background: #fdeaea; color: var(--accent); font-weight: 700; font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; padding: 5px 12px; border-radius: 6px; margin-bottom: 10px; }
+  .content { max-width: 900px; margin: 0 auto; padding: 0 20px; }
+  .section-nav { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 24px; }
+  .section-nav a { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--text); text-decoration: none; }
+  .module-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .module-card h2 { margin-top: 0; }
+  .module-desc { color: var(--text-muted); margin-top: -8px; margin-bottom: 16px; }
+  .section-block { border-top: 1px solid var(--border); padding-top: 18px; margin-top: 18px; }
+  .section-block:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .section-block h3.section-title { font-size: 15px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 12px; }
+  .task-block { margin-bottom: 18px; }
+  .task-block h4 { margin: 0 0 8px; }
+  .content-box { color: var(--text-muted); line-height: 1.6; white-space: pre-wrap; margin: 8px 0; }
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 8px 0; }
+  .callout.notice { background: #eaf2fb; border: 1px solid #c6dcf5; }
+  .callout.warning { background: #fdecec; border: 1px solid #f7c6c6; }
+  .callout .callout-label { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .callout.notice .callout-label { color: #1c5ea8; }
+  .callout.warning .callout-label { color: #9b1c1c; }
+  .answer-box { background: #f4f2ee; padding: 12px 14px; border-radius: 8px; margin-top: 8px; white-space: pre-wrap; }
+  .model-answer-box { background: #eefaf1; border: 1px solid #bfe8cc; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-top: 10px; margin-bottom: 4px; }
+  .option-row { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border); margin-top: 6px; font-size: 14px; }
+  .option-row.correct { background: #eefaf1; border-color: #1a7a3a; color: #1a7a3a; font-weight: 600; }
+  .checklist-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .checklist-item:last-child { border-bottom: none; }
+  .checklist-item .ci-title { font-weight: 600; }
+  .checklist-item .ci-desc { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+  .flashcard-row { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .flashcard-row:last-child { border-bottom: none; }
+  .flashcard-row .fc-front { font-weight: 600; flex: 1; }
+  .flashcard-row .fc-back { color: var(--text-muted); flex: 1; }
+  .pts-badge { display: inline-block; background: #f0ede7; color: var(--text-muted); font-weight: 700; font-size: 11px; padding: 3px 9px; border-radius: 5px; margin-left: 8px; }
+  .quiz-question-card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 10px; }
+  .group-header { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin: 16px 0 10px; }
+  .group-title { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; }
+  .group-meta { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+  .comparison-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; margin-top: 4px; }
+  .comparison-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .comparison-table th { text-align: left; padding: 14px 18px; color: white; font-weight: 700; font-size: 13px; letter-spacing: 0.02em; text-transform: uppercase; }
+  .comparison-table td { padding: 14px 18px; border-top: 1px solid var(--border); vertical-align: top; }
+  .comparison-table td:first-child { border-right: 1px solid var(--border); }
+
+  .step-row { display: flex; gap: 16px; }
+  .step-rail { display: flex; flex-direction: column; align-items: center; width: 36px; flex-shrink: 0; }
+  .step-circle { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .step-line { width: 2px; flex: 1; background: var(--border); margin-top: 4px; min-height: 24px; }
+  .step-content { padding-bottom: 22px; flex: 1; padding-top: 4px; }
+  .step-title { font-weight: 700; font-size: 16px; }
+  .step-quote { font-style: italic; margin-top: 6px; }
+  .step-desc { color: var(--text-muted); margin-top: 6px; font-size: 14px; }
+
+  #message { max-width: 900px; margin: 40px auto; padding: 0 20px; color: var(--text-muted); }
+  #message.error { color: #9b1c1c; }
+</style>
+</head>
+<body>
+  <div class="header" id="headerArea"><p>Loading...</p></div>
+  <div class="content" id="navArea"></div>
+  <div id="message"></div>
+  <div class="content" id="mainContent"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const pathId = params.get('pathId');
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(options.headers || {}) },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function videoEmbedUrl(url) {
+      const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/);
+      if (ytMatch) return { type: 'iframe', src: `https://www.youtube.com/embed/${ytMatch[1]}` };
+      const vimeoMatch = url.match(/vimeo\.com\/(?:video\/)?(\d+)/);
+      if (vimeoMatch) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeoMatch[1]}` };
+      if (/\.(mp4|webm|ogg)(\?.*)?$/i.test(url)) return { type: 'video', src: url };
+      return { type: 'link', src: url };
+    }
+
+    function groupQuestions(questions) {
+      const groups = [];
+      let current = null;
+      for (const q of questions) {
+        if (q.groupTitle) {
+          if (!current || current.title !== q.groupTitle) {
+            current = { title: q.groupTitle, questions: [] };
+            groups.push(current);
+          }
+          current.questions.push(q);
+        } else {
+          groups.push({ title: null, questions: [q] });
+          current = null;
+        }
+      }
+      return groups;
+    }
+
+    // ---------- Per-task-type read-only rendering ----------
+
+    function taskBlock(t) {
+      const type = t.taskType;
+      const title = `<h4>${t.text}</h4>`;
+
+      if (type === 'READING') {
+        return `<div class="task-block">${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}</div>`;
+      }
+      if (type === 'NOTICE' || type === 'WARNING') {
+        const cls = type.toLowerCase();
+        return `
+          <div class="task-block">
+            <div class="callout ${cls}">
+              <div class="callout-label">${t.text}</div>
+              ${t.content ? `<div>${t.content}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }
+      if (type === 'QUESTION') {
+        return `
+          <div class="task-block">
+            ${title}${t.pageReference ? `<div style="color:var(--text-muted); font-size:13px;">${t.pageReference}</div>` : ''}
+            ${t.content ? `<div class="content-box">${t.content}</div>` : ''}
+            <div class="label">Model Answer</div>
+            <div class="answer-box model-answer-box">${t.correctAnswer || '(none set)'}</div>
+          </div>
+        `;
+      }
+      if (type === 'MULTIPLE_CHOICE') {
+        const optsHtml = (t.choiceOptionTemplates || []).map((o) => `
+          <div class="option-row ${o.isCorrect ? 'correct' : ''}">${o.text}${o.isCorrect ? ' &#10003; Correct' : ''}</div>
+        `).join('');
+        return `<div class="task-block">${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}${optsHtml}</div>`;
+      }
+      if (type === 'CHECKLIST') {
+        const itemsHtml = (t.checklistItemTemplates || []).map((i) => `
+          <div class="checklist-item">
+            <div class="ci-title">${i.text}</div>
+            ${i.description ? `<div class="ci-desc">${i.description}</div>` : ''}
+            ${i.link ? `<div class="ci-desc"><a href="${i.link}" target="_blank" rel="noopener">${i.link}</a></div>` : ''}
+          </div>
+        `).join('');
+        return `<div class="task-block">${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}${itemsHtml}</div>`;
+      }
+      if (type === 'ACTION_ITEM') {
+        return `
+          <div class="task-block">
+            ${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}
+            ${t.link ? `<a href="${t.link}" target="_blank" rel="noopener">Open link &#8599;</a>` : ''}
+          </div>
+        `;
+      }
+      if (type === 'VIDEO') {
+        const embed = t.link ? videoEmbedUrl(t.link) : null;
+        let playerHtml = '<p style="color:var(--text-muted);">(No video link set.)</p>';
+        if (embed) {
+          if (embed.type === 'iframe') {
+            playerHtml = `<div style="position:relative; padding-bottom:56.25%; height:0; border-radius:8px; overflow:hidden;"><iframe src="${embed.src}" style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;" allowfullscreen></iframe></div>`;
+          } else if (embed.type === 'video') {
+            playerHtml = `<video controls style="width:100%; border-radius:8px;"><source src="${embed.src}"></video>`;
+          } else {
+            playerHtml = `<a href="${embed.src}" target="_blank" rel="noopener">Open video &#8599;</a>`;
+          }
+        }
+        return `<div class="task-block">${title}${playerHtml}${t.content ? `<div class="content-box">${t.content}</div>` : ''}</div>`;
+      }
+      if (type === 'FLASHCARD') {
+        const cardsHtml = (t.checklistItemTemplates || []).map((c) => `
+          <div class="flashcard-row"><div class="fc-front">${c.text}</div><div class="fc-back">${c.description || ''}</div></div>
+        `).join('');
+        return `<div class="task-block">${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}${cardsHtml}</div>`;
+      }
+      if (type === 'SECTION_QUIZ') {
+        const questionsHtml = (t.quizQuestionTemplates || []).map((q, i) => {
+          const optsHtml = (q.choiceOptionTemplates || []).map((o) => `
+            <div class="option-row ${o.isCorrect ? 'correct' : ''}">${o.text}${o.isCorrect ? ' &#10003; Correct' : ''}</div>
+          `).join('');
+          return `<div class="quiz-question-card"><strong>${i + 1}. ${q.text}</strong>${q.content ? `<div class="content-box">${q.content}</div>` : ''}${optsHtml}</div>`;
+        }).join('');
+        return `<div class="task-block">${title}<p style="color:var(--text-muted); font-size:13px;">Needs 90% correct to pass.</p>${questionsHtml}</div>`;
+      }
+      if (type === 'COMPARISON_TABLE') {
+        const headerColor = t.tableHeaderColor || '#d6222a';
+        const leftColColor = t.tableRowColorA || '#f7f5f2';
+        const rightColColor = t.tableRowColorB || '#ffffff';
+        const rowsHtml = (t.checklistItemTemplates || []).map((r) => `
+          <tr><td style="background:${leftColColor};">${r.text}</td><td style="background:${rightColColor};">${r.description || ''}</td></tr>
+        `).join('');
+        return `
+          <div class="task-block">
+            ${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}
+            <div class="comparison-table-wrap">
+              <table class="comparison-table">
+                <thead><tr style="background:${headerColor};"><th>${t.tableLeftHeader || ''}</th><th>${t.tableRightHeader || ''}</th></tr></thead>
+                <tbody>${rowsHtml}</tbody>
+              </table>
+            </div>
+          </div>
+        `;
+      }
+      if (type === 'NUMBERED_STEPS') {
+        const steps = t.checklistItemTemplates || [];
+        const stepsHtml = steps.map((s, i) => `
+          <div class="step-row">
+            <div class="step-rail"><div class="step-circle">${i + 1}</div>${i < steps.length - 1 ? '<div class="step-line"></div>' : ''}</div>
+            <div class="step-content">
+              <div class="step-title">${s.text}</div>
+              ${s.quoteText ? `<div class="step-quote">"${s.quoteText}"</div>` : ''}
+              ${s.description ? `<div class="step-desc">${s.description}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+        return `<div class="task-block">${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}<div style="margin-top:8px;">${stepsHtml}</div></div>`;
+      }
+      return `<div class="task-block">${title}</div>`;
+    }
+
+    function sectionBlock(s) {
+      const tasksHtml = (s.taskTemplates || []).map((t) => taskBlock(t)).join('');
+      return `<div class="section-block"><h3 class="section-title">${s.title}</h3>${tasksHtml}</div>`;
+    }
+
+    function moduleCard(m, anchorId) {
+      const sectionsHtml = (m.sectionTemplates || []).map((s) => sectionBlock(s)).join('');
+      return `
+        <div class="module-card" id="${anchorId}">
+          <h2>Module ${m.sequenceOrder}${m.title ? ' — ' + m.title : ''}</h2>
+          ${m.description ? `<div class="module-desc">${m.description}</div>` : ''}
+          ${sectionsHtml || '<p style="color:var(--text-muted);">No content authored yet.</p>'}
+        </div>
+      `;
+    }
+
+    function reviewGateCard(gate, label, anchorId) {
+      if (!gate) {
+        return `<div class="module-card" id="${anchorId}"><h2>${label}</h2><p style="color:var(--text-muted);">No content authored yet.</p></div>`;
+      }
+      const sectionsHtml = (gate.sectionTemplates || []).map((s) => sectionBlock(s)).join('');
+      return `
+        <div class="module-card" id="${anchorId}">
+          <h2>${label}${gate.title ? ' — ' + gate.title : ''}</h2>
+          ${gate.description ? `<div class="module-desc">${gate.description}</div>` : ''}
+          ${sectionsHtml || '<p style="color:var(--text-muted);">No content authored yet.</p>'}
+        </div>
+      `;
+    }
+
+    function assessmentCard(questions, label, anchorId) {
+      if (questions.length === 0) {
+        return `<div class="module-card" id="${anchorId}"><h2>${label}</h2><p style="color:var(--text-muted);">No questions authored yet.</p></div>`;
+      }
+      const groups = groupQuestions(questions);
+      let qNum = 0;
+      const groupsHtml = groups.map((g) => {
+        const headerHtml = g.title ? `
+          <div class="group-header">
+            <div class="group-title">${g.title}</div>
+            <div class="group-meta">${g.questions.reduce((s, q) => s + q.points, 0)} points &middot; ${g.questions.length} question(s)</div>
+          </div>
+        ` : '';
+        const questionsHtml = g.questions.map((q) => {
+          qNum++;
+          let bodyHtml;
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            bodyHtml = (q.choiceOptionTemplates || []).map((o) => `
+              <div class="option-row ${o.isCorrect ? 'correct' : ''}">${o.text}${o.isCorrect ? ' &#10003; Correct' : ''}</div>
+            `).join('');
+          } else {
+            bodyHtml = `<div class="label">Model Answer</div><div class="answer-box model-answer-box">${q.correctAnswer || '(developer-graded, no model answer)'}</div>`;
+          }
+          return `
+            <div class="quiz-question-card">
+              <strong>Q${qNum}</strong> <span class="pts-badge">${q.points} PTS</span>
+              <div style="font-weight:700; margin-top:8px;">${q.text}</div>
+              ${q.content ? `<div class="content-box">${q.content}</div>` : ''}
+              ${q.pageReference ? `<div style="color:var(--text-muted); font-size:13px;">${q.pageReference}</div>` : ''}
+              ${bodyHtml}
+            </div>
+          `;
+        }).join('');
+        return headerHtml + questionsHtml;
+      }).join('');
+      return `<div class="module-card" id="${anchorId}"><h2>${label}</h2>${groupsHtml}</div>`;
+    }
+
+    async function loadPreview() {
+      if (!pathId) {
+        document.getElementById('headerArea').innerHTML = '<p>No path specified.</p>';
+        return;
+      }
+      try {
+        const data = await apiCall('/paths/' + pathId + '/preview');
+
+        document.getElementById('headerArea').innerHTML = `
+          <div class="preview-badge">Read-Only Preview</div>
+          <h1>${data.path.name}</h1>
+          ${data.path.description ? `<p>${data.path.description}</p>` : ''}
+        `;
+
+        const navLinks = data.modules.map((m) => `<a href="#module-${m.sequenceOrder}">Module ${m.sequenceOrder}</a>`).join('');
+        document.getElementById('navArea').innerHTML = `
+          <div class="section-nav">
+            ${navLinks}
+            <a href="#midterm-review">Midterm Review</a>
+            <a href="#midterm-assessment">Midterm Assessment</a>
+            <a href="#final-review">Final Review</a>
+            <a href="#final-assessment">Final Assessment</a>
+          </div>
+        `;
+
+        const midtermGate = data.reviewGates.find((g) => g.gatePosition === 'AFTER_MODULE_4');
+        const finalGate = data.reviewGates.find((g) => g.gatePosition === 'AFTER_MODULE_8');
+        const midtermQuestions = data.assessmentQuestions.filter((q) => q.gatePosition === 'AFTER_MODULE_4');
+        const finalQuestions = data.assessmentQuestions.filter((q) => q.gatePosition === 'AFTER_MODULE_8');
+
+        const modulesHtml = data.modules.map((m) => moduleCard(m, `module-${m.sequenceOrder}`)).join('');
+
+        document.getElementById('mainContent').innerHTML = `
+          ${modulesHtml}
+          ${reviewGateCard(midtermGate, 'Midterm Review', 'midterm-review')}
+          ${assessmentCard(midtermQuestions, 'Midterm Assessment', 'midterm-assessment')}
+          ${reviewGateCard(finalGate, 'Final Review', 'final-review')}
+          ${assessmentCard(finalQuestions, 'Final Assessment', 'final-assessment')}
+        `;
+      } catch (err) {
+        document.getElementById('headerArea').innerHTML = '';
+        document.getElementById('message').className = 'error';
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    loadPreview();
+  </script>
+</body>
+</html>

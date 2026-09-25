@@ -101,4 +101,73 @@ router.delete('/:id', requireAuth, async (req, res) => {
   res.status(204).send();
 });
 
+// --------------------------------------------------------------
+// FULL READ-ONLY PREVIEW of everything authored for a path - every
+// module's sections/tasks, both review gates, and both assessments'
+// questions, all in one payload. Gated by canPreviewPaths (or
+// admin) - checked fresh from the database on every request, NOT
+// from the JWT, so a revoked permission takes effect immediately
+// rather than waiting for the token to expire.
+// --------------------------------------------------------------
+router.get('/:id/preview', requireAuth, async (req, res) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  if (!user) {
+    return res.status(401).json({ error: 'User not found' });
+  }
+  if (!user.isAdmin && !user.canPreviewPaths) {
+    return res.status(403).json({ error: 'You do not have permission to preview paths - ask an admin to grant it' });
+  }
+
+  const path = await prisma.developmentPath.findUnique({ where: { id: req.params.id } });
+  if (!path) {
+    return res.status(404).json({ error: 'Path not found' });
+  }
+
+  const taskInclude = {
+    orderBy: { order: 'asc' },
+    include: {
+      checklistItemTemplates: { orderBy: { order: 'asc' } },
+      choiceOptionTemplates: { orderBy: { order: 'asc' } },
+      quizQuestionTemplates: {
+        orderBy: { order: 'asc' },
+        include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+      },
+    },
+  };
+
+  const modules = await prisma.moduleTemplate.findMany({
+    where: { pathId: path.id },
+    orderBy: { sequenceOrder: 'asc' },
+    include: {
+      sectionTemplates: {
+        orderBy: { order: 'asc' },
+        include: { taskTemplates: taskInclude },
+      },
+    },
+  });
+
+  const reviewGates = await prisma.reviewGateTemplate.findMany({
+    where: { pathId: path.id },
+    include: {
+      sectionTemplates: {
+        orderBy: { order: 'asc' },
+        include: { taskTemplates: taskInclude },
+      },
+    },
+  });
+
+  const assessmentQuestions = await prisma.assessmentQuestionTemplate.findMany({
+    where: { pathId: path.id },
+    orderBy: { order: 'asc' },
+    include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
+  });
+
+  res.json({
+    path,
+    modules,
+    reviewGates,
+    assessmentQuestions,
+  });
+});
+
 module.exports = router;

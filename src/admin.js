@@ -92,7 +92,7 @@ router.get('/users', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const users = await prisma.user.findMany({
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, canPreviewPaths: true },
     orderBy: { name: 'asc' },
   });
 
@@ -151,6 +151,33 @@ router.post('/users/:id/reset-password', requireAuth, async (req, res) => {
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
 
   res.json({ reset: true });
+});
+
+// --------------------------------------------------------------
+// GRANT or REVOKE a user's permission to view the full-path
+// preview - admin only. Checked fresh from the database on every
+// preview request, so a revocation here takes effect on the
+// person's very next request, not at their next login.
+// --------------------------------------------------------------
+router.post('/users/:id/preview-permission', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { granted } = req.body;
+  if (typeof granted !== 'boolean') {
+    return res.status(400).json({ error: 'granted must be true or false' });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { canPreviewPaths: granted },
+  });
+
+  res.json({ id: updated.id, canPreviewPaths: updated.canPreviewPaths });
 });
 
 router.get('/needs-attention', requireAuth, async (req, res) => {
