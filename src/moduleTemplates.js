@@ -274,11 +274,12 @@ router.put('/path/:pathId/module/:sequenceOrder', requireAuth, async (req, res) 
   if (!title) {
     return res.status(400).json({ error: 'title is required' });
   }
+  const upperTitle = title.toUpperCase();
 
   const template = await prisma.moduleTemplate.upsert({
     where: { pathId_sequenceOrder: { pathId, sequenceOrder } },
-    update: { title, description: description || '' },
-    create: { pathId, sequenceOrder, title, description: description || '' },
+    update: { title: upperTitle, description: description || '' },
+    create: { pathId, sequenceOrder, title: upperTitle, description: description || '' },
   });
 
   res.json(template);
@@ -312,7 +313,7 @@ router.post('/path/:pathId/module/:sequenceOrder/sections', requireAuth, async (
     data: {
       moduleTemplateId: template.id,
       order: existingCount + 1,
-      title,
+      title: title.toUpperCase(),
     },
   });
 
@@ -359,7 +360,7 @@ router.put('/sections/:sectionId', requireAuth, async (req, res) => {
 
   const updated = await prisma.moduleSectionTemplate.update({
     where: { id: req.params.sectionId },
-    data: { title },
+    data: { title: title.toUpperCase() },
   });
 
   res.json(updated);
@@ -382,7 +383,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
-  const resolvedText = resolveTaskTitle(text, taskType);
+  const resolvedText = (resolveTaskTitle(text, taskType) || '').toUpperCase() || null;
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }
@@ -472,7 +473,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
   const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
-  const resolvedText = resolveTaskTitle(text, taskType);
+  const resolvedText = (resolveTaskTitle(text, taskType) || '').toUpperCase() || null;
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
   }

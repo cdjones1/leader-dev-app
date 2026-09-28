@@ -237,7 +237,7 @@ router.post('/path/:pathId/gate/:gatePosition/sections', requireAuth, async (req
     data: {
       reviewGateTemplateId: gate.id,
       order: existingCount + 1,
-      title,
+      title: title.toUpperCase(),
     },
   });
 
