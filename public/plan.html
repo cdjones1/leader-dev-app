@@ -169,6 +169,7 @@
     </div>
     <div style="display:flex; align-items:center;">
       <a href="/myplans.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">My Plans</a>
+      <a id="reportCardLink" href="#" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Report Card</a>
       <a id="adminDashLink" href="/dashboard.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Admin Dashboard</a>
       <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
       <a class="signout" href="#" onclick="signOut()">Sign out</a>
@@ -234,6 +235,7 @@
 
     const params = new URLSearchParams(window.location.search);
     const planId = params.get('id');
+    if (planId) document.getElementById('reportCardLink').href = '/report-card.html?planId=' + planId;
 
     if (!planId) {
       document.getElementById('message').textContent = 'No plan specified. Go back to My Plans and pick a plan.';

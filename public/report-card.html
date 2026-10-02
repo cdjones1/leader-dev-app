@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report Card</title>
+<style>
+  :root {
+    --accent: #d6222a; --bg: #f7f5f2; --card: #ffffff; --border: #e7e3dd;
+    --text: #1a1a1a; --text-muted: #6b6560;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0 0 60px; }
+  .topbar { max-width: 800px; margin: 0 auto; padding: 20px 20px 0; display: flex; justify-content: space-between; align-items: center; }
+  .topbar a { color: var(--text-muted); text-decoration: none; font-size: 14px; }
+  .topbar button { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 10px 18px; font-weight: 700; cursor: pointer; }
+  .content { max-width: 800px; margin: 0 auto; padding: 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 26px; margin-bottom: 20px; }
+  .rc-header h1 { margin: 0 0 4px; }
+  .rc-header .subtitle { color: var(--text-muted); margin: 0 0 16px; }
+  .rc-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+  .rc-meta-item .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+  .rc-meta-item .value { font-size: 15px; font-weight: 600; margin-top: 2px; }
+  .status-badge { display: inline-block; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; }
+  .status-badge.on-track { background: #eefaf1; color: #1a7a3a; }
+  .status-badge.due-soon { background: #fef6e6; color: #9a6a00; }
+  .status-badge.overdue { background: #fdecec; color: #9b1c1c; }
+  .status-badge.complete { background: #eafaf0; color: #1a7a3a; }
+  .module-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+  .module-row:first-child { border-top: none; }
+  .module-row .m-title { font-weight: 600; }
+  .module-row .m-dates { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .pill { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+  .pill.not-started { background: #f0ede7; color: var(--text-muted); }
+  .pill.in-progress { background: #eaf2fb; color: #1c5ea8; }
+  .pill.locked { background: #f0ede7; color: var(--text-muted); }
+  .pill.awaiting-review { background: #fef6e6; color: #9a6a00; }
+  .pill.signed-off { background: #eefaf1; color: #1a7a3a; }
+  .assessment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .assessment-card { border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .assessment-card h3 { margin: 0 0 10px; }
+  .assessment-score { font-size: 32px; font-weight: 800; }
+  .assessment-meta { color: var(--text-muted); font-size: 13px; margin-top: 4px; }
+  #message { max-width: 800px; margin: 40px auto; padding: 0 20px; color: var(--text-muted); }
+  #message.error { color: #9b1c1c; }
+  @media print {
+    .topbar { display: none; }
+    body { background: white; }
+    .card { border: none; box-shadow: none; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a id="backLink" href="#">&larr; Back to Plan</a>
+    <button onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div id="message"></div>
+  <div class="content" id="mainContent"></div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const planId = params.get('planId');
+    document.getElementById('backLink').href = '/plan.html?id=' + planId;
+
+    async function apiCall(url) {
+      const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    function computeOverallStatus(plan) {
+      if (plan.status === 'COMPLETED') return { cls: 'complete', label: 'Complete' };
+      if (!plan.startedAt) return { cls: 'on-track', label: 'Not Yet Started' };
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+      const daysElapsed = (Date.now() - new Date(plan.startedAt).getTime()) / MS_PER_DAY;
+      if (daysElapsed >= plan.maxDays) return { cls: 'overdue', label: 'Overdue' };
+      if (daysElapsed >= plan.goalDays) return { cls: 'due-soon', label: 'Due Soon' };
+      return { cls: 'on-track', label: 'On Track' };
+    }
+
+    function moduleStatusPill(m) {
+      if (m.status === 'NOT_STARTED') return { cls: 'not-started', label: 'Not Started' };
+      if (m.status === 'OPEN') return { cls: 'in-progress', label: 'In Progress' };
+      if (m.status === 'LOCKED') return { cls: 'locked', label: 'Locked (Stalled)' };
+      if (m.status === 'COMPLETED') {
+        return m.reviewedAt ? { cls: 'signed-off', label: 'Signed Off' } : { cls: 'awaiting-review', label: 'Awaiting Review' };
+      }
+      return { cls: 'not-started', label: m.status };
+    }
+
+    function fmtDate(d) {
+      return d ? new Date(d).toLocaleDateString() : null;
+    }
+
+    function assessmentCardHtml(label, assessment, attemptData) {
+      if (!assessment) {
+        return `<div class="assessment-card"><h3>${label}</h3><p class="assessment-meta">Not yet reached.</p></div>`;
+      }
+      const attempts = attemptData && attemptData.attempts ? attemptData.attempts : [];
+      const latest = attempts[attempts.length - 1];
+      if (!latest) {
+        const statusLabel = assessment.status.replace(/_/g, ' ');
+        return `<div class="assessment-card"><h3>${label}</h3><p class="assessment-meta">Status: ${statusLabel}</p></div>`;
+      }
+      const percent = latest.totalPointsPossible > 0 ? Math.round((latest.totalPointsEarned / latest.totalPointsPossible) * 100) : 0;
+      const passed = latest.overallResult === 'PASS';
+      return `
+        <div class="assessment-card">
+          <h3>${label}</h3>
+          <div class="assessment-score" style="color:${passed ? '#1a7a3a' : '#9b1c1c'};">${percent}%</div>
+          <div class="assessment-meta">${passed ? 'Passed' : 'Not Passed'} &middot; ${latest.totalPointsEarned}/${latest.totalPointsPossible} points</div>
+          <div class="assessment-meta">${assessment.attemptCount} attempt(s) &middot; graded ${fmtDate(latest.gradedAt)}</div>
+        </div>
+      `;
+    }
+
+    async function loadReportCard() {
+      if (!planId) {
+        document.getElementById('message').className = 'error';
+        document.getElementById('message').textContent = 'No plan specified.';
+        return;
+      }
+      try {
+        const plan = await apiCall('/plans/' + planId);
+
+        const midtermAssessment = plan.assessments.find((a) => a.gatePosition === 'AFTER_MODULE_4');
+        const finalAssessment = plan.assessments.find((a) => a.gatePosition === 'AFTER_MODULE_8');
+
+        let midtermData = null;
+        let finalData = null;
+        if (midtermAssessment && midtermAssessment.attemptCount > 0) {
+          midtermData = await apiCall('/assessments/' + midtermAssessment.id).catch(() => null);
+        }
+        if (finalAssessment && finalAssessment.attemptCount > 0) {
+          finalData = await apiCall('/assessments/' + finalAssessment.id).catch(() => null);
+        }
+
+        const overallStatus = computeOverallStatus(plan);
+
+        const modulesHtml = plan.modules.map((m) => {
+          const pill = moduleStatusPill(m);
+          const dates = [];
+          if (m.openedAt) dates.push('Opened ' + fmtDate(m.openedAt));
+          if (m.completedAt) dates.push('Completed ' + fmtDate(m.completedAt));
+          if (m.reviewedAt) dates.push('Reviewed ' + fmtDate(m.reviewedAt));
+          return `
+            <div class="module-row">
+              <div>
+                <div class="m-title">Module ${m.sequenceOrder}${m.title ? ' — ' + m.title : ''}</div>
+                ${dates.length > 0 ? `<div class="m-dates">${dates.join(' &middot; ')}</div>` : ''}
+              </div>
+              <span class="pill ${pill.cls}">${pill.label}</span>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('mainContent').innerHTML = `
+          <div class="card rc-header">
+            <h1>${plan.pairing.developee.name}'s Report Card</h1>
+            <p class="subtitle">${plan.pathName || 'Development Plan'} &middot; Developed by ${plan.pairing.developer.name}</p>
+            <span class="status-badge ${overallStatus.cls}">${overallStatus.label}</span>
+            <div class="rc-meta-grid">
+              <div class="rc-meta-item"><div class="label">Started</div><div class="value">${fmtDate(plan.startedAt) || 'Not yet started'}</div></div>
+              <div class="rc-meta-item"><div class="label">Goal / Max Days</div><div class="value">${plan.goalDays} / ${plan.maxDays} days</div></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin-top:0;">Modules</h2>
+            ${modulesHtml}
+          </div>
+
+          <div class="card">
+            <h2 style="margin-top:0;">Assessments</h2>
+            <div class="assessment-grid">
+              ${assessmentCardHtml('Midterm Assessment', midtermAssessment, midtermData)}
+              ${assessmentCardHtml('Final Assessment', finalAssessment, finalData)}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('message').className = 'error';
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    loadReportCard();
+  </script>
+</body>
+</html>
