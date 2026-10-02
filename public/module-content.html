@@ -59,7 +59,9 @@
       <button onclick="renamePath()" style="background:#8a8378; white-space:nowrap;">Rename</button>
       <button onclick="deletePath()" style="background:#9b1c1c; white-space:nowrap;">Delete Path</button>
       <button onclick="openPathPreview()" style="background:#1a7a3a; white-space:nowrap;">Preview This Path</button>
+      <button id="analyzeContentBtn" onclick="analyzeContent()" style="background:#8a4fd6; white-space:nowrap;">Analyze Content</button>
     </div>
+    <div id="analyzeContentResults"></div>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
       <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
@@ -356,6 +358,7 @@
 
     function onPathSelected() {
       currentPathId = document.getElementById('pathSelect').value;
+      document.getElementById('analyzeContentResults').innerHTML = '';
       loadTemplates();
     }
 
@@ -381,6 +384,64 @@
     function openPathPreview() {
       if (!currentPathId) { alert('Select a path first.'); return; }
       window.open('/path-preview.html?pathId=' + currentPathId, '_blank');
+    }
+
+    const issueTypeLabels = { spelling: 'Spelling', grammar: 'Grammar', flow: 'Flow', accuracy: 'Accuracy' };
+    const issueTypeColors = { spelling: '#9b1c1c', grammar: '#9a6a00', flow: '#1c5ea8', accuracy: '#6a1c9b' };
+
+    async function analyzeContent() {
+      if (!currentPathId) { alert('Select a path first.'); return; }
+      const btn = document.getElementById('analyzeContentBtn');
+      const resultsDiv = document.getElementById('analyzeContentResults');
+      btn.disabled = true;
+      btn.textContent = 'Analyzing...';
+      resultsDiv.innerHTML = '<div class="module-card"><p style="color:var(--text-muted);">Reading through the whole path\'s content - this can take a little while for a large path...</p></div>';
+
+      try {
+        const result = await apiCall(`/paths/${currentPathId}/analyze-content`, { method: 'POST' });
+        renderAnalysisResults(result);
+      } catch (err) {
+        resultsDiv.innerHTML = `<div class="module-card"><p style="color:#9b1c1c;">${err.message}</p></div>`;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Analyze Content';
+      }
+    }
+
+    function renderAnalysisResults(result) {
+      const resultsDiv = document.getElementById('analyzeContentResults');
+      const issues = result.issues || [];
+
+      if (issues.length === 0) {
+        resultsDiv.innerHTML = `
+          <div class="module-card">
+            <h2>Content Analysis</h2>
+            <p style="color:#1a7a3a; font-weight:600;">&#10003; No issues found.</p>
+            ${result.summary ? `<p style="color:var(--text-muted);">${result.summary}</p>` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      const issuesHtml = issues.map((issue) => `
+        <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:10px;">
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+            <span style="background:${issueTypeColors[issue.type] || '#8a8378'}; color:white; font-weight:700; font-size:11px; text-transform:uppercase; padding:3px 9px; border-radius:5px;">${issueTypeLabels[issue.type] || issue.type}</span>
+            <span style="color:var(--text-muted); font-size:13px;">${issue.location || ''}</span>
+          </div>
+          ${issue.excerpt ? `<div style="font-style:italic; color:var(--text-muted); font-size:13px; margin-bottom:4px;">"${issue.excerpt}"</div>` : ''}
+          <div style="font-size:14px;">${issue.issue || ''}</div>
+          ${issue.suggestion ? `<div style="font-size:13px; color:#1a7a3a; margin-top:4px;"><strong>Suggestion:</strong> ${issue.suggestion}</div>` : ''}
+        </div>
+      `).join('');
+
+      resultsDiv.innerHTML = `
+        <div class="module-card">
+          <h2>Content Analysis - ${issues.length} issue(s) found</h2>
+          ${result.summary ? `<p style="color:var(--text-muted);">${result.summary}</p>` : ''}
+          ${issuesHtml}
+        </div>
+      `;
     }
 
     async function renamePath() {
