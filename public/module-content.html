@@ -127,7 +127,11 @@
       });
       if (res.status === 204) return null;
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Request failed');
+      if (!res.ok) {
+        const err = new Error(data.error || 'Request failed');
+        err.rawResponsePreview = data.rawResponsePreview;
+        throw err;
+      }
       return data;
     }
 
@@ -401,7 +405,10 @@
         const result = await apiCall(`/paths/${currentPathId}/analyze-content`, { method: 'POST' });
         renderAnalysisResults(result);
       } catch (err) {
-        resultsDiv.innerHTML = `<div class="module-card"><p style="color:#9b1c1c;">${err.message}</p></div>`;
+        const previewHtml = err.rawResponsePreview
+          ? `<div style="background:#f4f2ee; padding:10px 12px; border-radius:8px; margin-top:8px; font-family:monospace; font-size:12px; white-space:pre-wrap; color:var(--text-muted);">${err.rawResponsePreview}</div>`
+          : '';
+        resultsDiv.innerHTML = `<div class="module-card"><p style="color:#9b1c1c;">${err.message}</p>${previewHtml}</div>`;
       } finally {
         btn.disabled = false;
         btn.textContent = 'Analyze Content';

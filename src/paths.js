@@ -284,7 +284,7 @@ If there are no issues of a given type, simply don't include any of that type. I
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: systemPrompt,
         messages: [{ role: 'user', content: contentText }],
       }),
@@ -299,13 +299,29 @@ If there are no issues of a given type, simply don't include any of that type. I
     const data = await response.json();
     const rawText = data.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
 
+    if (data.stop_reason === 'max_tokens') {
+      console.error('Analysis response was truncated (hit max_tokens). Raw text so far:', rawText);
+      return res.status(502).json({ error: 'This path has too much content to analyze in one pass right now - it was cut off partway through. Try again, or split the path into smaller modules.' });
+    }
+
     let parsed;
     try {
-      const cleaned = rawText.replace(/^```json\s*|```\s*$/g, '').trim();
+      // Pull out just the { ... } span, in case Claude added any stray
+      // text around the JSON despite being told not to - more robust
+      // than only stripping markdown code fences.
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+        throw new Error('No JSON object found in the response');
+      }
+      const cleaned = rawText.slice(firstBrace, lastBrace + 1);
       parsed = JSON.parse(cleaned);
     } catch (parseErr) {
       console.error('Failed to parse analysis response:', rawText);
-      return res.status(502).json({ error: 'Could not parse the analysis response - try again' });
+      return res.status(502).json({
+        error: 'Could not parse the analysis response - try again',
+        rawResponsePreview: rawText.slice(0, 500),
+      });
     }
 
     res.json(parsed);
