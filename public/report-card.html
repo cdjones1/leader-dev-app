@@ -74,7 +74,7 @@
     }
 
     function computeOverallStatus(plan) {
-      if (plan.status === 'COMPLETED') return { cls: 'complete', label: 'Complete' };
+      if (plan.status === 'COMPLETE') return { cls: 'complete', label: 'Complete' };
       if (!plan.startedAt) return { cls: 'on-track', label: 'Not Yet Started' };
       const MS_PER_DAY = 24 * 60 * 60 * 1000;
       const daysElapsed = (Date.now() - new Date(plan.startedAt).getTime()) / MS_PER_DAY;
@@ -95,6 +95,32 @@
 
     function fmtDate(d) {
       return d ? new Date(d).toLocaleDateString() : null;
+    }
+
+    function postFinalStagesHtml(plan) {
+      if (!plan.skillDemo && !plan.onShiftRepsStage) return '';
+
+      const skillDemoHtml = plan.skillDemo ? `
+        <div class="module-row">
+          <div><div class="m-title">${plan.skillDemo.title}</div></div>
+          <span class="pill ${plan.skillDemo.status === 'COMPLETED' ? 'signed-off' : 'in-progress'}">${plan.skillDemo.status === 'COMPLETED' ? 'Complete' : 'In Progress'}</span>
+        </div>
+      ` : '';
+
+      const repsHtml = plan.onShiftRepsStage ? plan.onShiftRepsStage.categories.map((c) => `
+        <div class="module-row">
+          <div><div class="m-title">${c.name}</div></div>
+          <span class="pill ${c.passed ? 'signed-off' : 'not-started'}">${c.passed ? 'Passed' : 'Not Yet'}</span>
+        </div>
+      `).join('') : '';
+
+      return `
+        <div class="card">
+          <h2 style="margin-top:0;">Post-Final Stages</h2>
+          ${skillDemoHtml}
+          ${repsHtml}
+        </div>
+      `;
     }
 
     function assessmentCardHtml(label, assessment, attemptData) {
@@ -182,6 +208,8 @@
               ${assessmentCardHtml('Final Assessment', finalAssessment, finalData)}
             </div>
           </div>
+
+          ${postFinalStagesHtml(plan)}
         `;
       } catch (err) {
         document.getElementById('message').className = 'error';

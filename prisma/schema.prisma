@@ -93,6 +93,8 @@ model DevelopmentPlan {
   assessments Assessment[]
   participants PlanParticipant[]
   reviewSteps ReviewStep[]
+  skillDemo SkillDemo?
+  onShiftRepsStage OnShiftRepsStage?
 }
 
 // ------------------------------------------------------------
@@ -307,6 +309,66 @@ model DevelopmentPath {
   moduleTemplates ModuleTemplate[]
   assessmentQuestionTemplates AssessmentQuestionTemplate[]
   reviewGateTemplates ReviewGateTemplate[]
+  skillDemoTemplate SkillDemoTemplate?
+  onShiftRepCategoryTemplates OnShiftRepCategoryTemplate[]
+}
+
+// ------------------------------------------------------------
+// POST-FINAL STAGES - two real-world, hands-on checkpoints that
+// happen after the final assessment passes, before the plan is
+// considered complete: "Skill Demonstration Training" (a single
+// developer-checked box once the in-shift hours are done), then
+// "On-Shift Reps" (the developer scores a pass for each category).
+// Both gracefully no-op if a path never had them authored - older
+// paths (or ones that just don't use this) skip straight to plan
+// completion exactly as before this feature existed.
+// ------------------------------------------------------------
+model SkillDemoTemplate {
+  id          String          @id @default(uuid())
+  pathId      String          @unique
+  path        DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  title       String          @default("On-Shift Skill Demonstration Training")
+  description String          @default("")
+}
+
+model SkillDemo {
+  id          String          @id @default(uuid())
+  planId      String          @unique
+  plan        DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title       String
+  description String          @default("")
+  status      String          @default("OPEN") // OPEN or COMPLETED - only created once it's actually unlocked, so there's no LOCKED state to represent
+  openedAt    DateTime        @default(now())
+  completedAt DateTime?
+}
+
+model OnShiftRepCategoryTemplate {
+  id     String          @id @default(uuid())
+  pathId String
+  path   DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  order  Int
+  name   String
+}
+
+model OnShiftRepsStage {
+  id          String          @id @default(uuid())
+  planId      String          @unique
+  plan        DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  status      String          @default("OPEN") // OPEN or COMPLETED
+  openedAt    DateTime        @default(now())
+  completedAt DateTime?
+
+  categories OnShiftRepCategory[]
+}
+
+model OnShiftRepCategory {
+  id        String           @id @default(uuid())
+  stageId   String
+  stage     OnShiftRepsStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  order     Int
+  name      String
+  passed    Boolean          @default(false)
+  passedAt  DateTime?
 }
 
 model ModuleTemplate {

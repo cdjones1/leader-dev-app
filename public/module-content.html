@@ -104,6 +104,7 @@
 
   <div id="midtermReviewContainer"></div>
   <div id="finalReviewContainer"></div>
+  <div id="postFinalContainer"></div>
 
   <script>
     const token = localStorage.getItem('token');
@@ -426,6 +427,7 @@
         document.getElementById('final-add-box').innerHTML = '';
         document.getElementById('midtermReviewContainer').innerHTML = '';
         document.getElementById('finalReviewContainer').innerHTML = '';
+        document.getElementById('postFinalContainer').innerHTML = '';
         return;
       }
 
@@ -461,6 +463,7 @@
       loadAssessmentQuestions('final', 'AFTER_MODULE_8');
       loadReviewGate('midtermReview');
       loadReviewGate('finalReview');
+      loadPostFinalStages();
     }
 
     // ---------- Assessment questions (midterm / final) ----------
@@ -638,6 +641,106 @@
 
     function reviewGateKeyToPosition(gateKey) {
       return gateKey === 'midtermReview' ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+    }
+
+    // ---------- Post-final stages (Skill Demo + On-Shift Rep categories) ----------
+
+    async function loadPostFinalStages() {
+      const container = document.getElementById('postFinalContainer');
+      if (!currentPathId) { container.innerHTML = ''; return; }
+
+      const data = await apiCall(`/post-final/templates?pathId=${currentPathId}`);
+      const skillDemo = data.skillDemo;
+      const categories = data.categories;
+
+      const categoryRows = categories.map((c) => `
+        <div class="task-row" data-id="${c.id}">
+          <div style="flex:1;">
+            <input type="text" value="${c.name.replace(/"/g, '&quot;')}" onchange="renameRepCategory('${c.id}', this.value)" style="margin:0;">
+          </div>
+          <button onclick="removeRepCategory('${c.id}')">Remove</button>
+        </div>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="module-card">
+          <h2>Skill Demonstration Training</h2>
+          <p style="color:var(--text-muted); font-size:13px;">Shown after the final assessment passes. The developer checks this off with a single box once the in-shift hours/training are actually done - no separate tracking inside the app.</p>
+          <label>Title</label>
+          <input type="text" id="skillDemoTitle" value="${(skillDemo ? skillDemo.title : 'On-Shift Skill Demonstration Training').replace(/"/g, '&quot;')}">
+          <label>Description</label>
+          <textarea id="skillDemoDescription" rows="2" placeholder="e.g. Your in-shift training with your developer after you pass the final assessment. 4.5 hours (AM team).">${skillDemo ? skillDemo.description : ''}</textarea>
+          <button onclick="saveSkillDemoTemplate()">Save</button>
+          <span id="skillDemoSaved" class="saved-note" style="display:none;">Saved</span>
+        </div>
+
+        <div class="module-card">
+          <h2>On-Shift Rep Categories</h2>
+          <p style="color:var(--text-muted); font-size:13px;">Shown after Skill Demonstration Training completes (or right after the final assessment, if there's no Skill Demo authored). The developer marks each category as passed - once every category passes, the whole plan completes.</p>
+          <div id="repCategoriesList">${categoryRows}</div>
+          <div class="add-section-box">
+            <label>New Category</label>
+            <input type="text" id="newRepCategoryName" placeholder="e.g. Greeting Guests">
+            <button onclick="addRepCategory()">Add Category</button>
+          </div>
+        </div>
+      `;
+
+      makeSortable(document.getElementById('repCategoriesList'), '.task-row', (orderedIds) => {
+        apiCall('/post-final/templates/categories/reorder', { method: 'PUT', body: JSON.stringify({ categoryIds: orderedIds }) })
+          .catch((err) => { alert(err.message); loadPostFinalStages(); });
+      });
+    }
+
+    async function saveSkillDemoTemplate() {
+      const title = document.getElementById('skillDemoTitle').value.trim();
+      const description = document.getElementById('skillDemoDescription').value;
+      if (!title) { alert('Give it a title.'); return; }
+      try {
+        await apiCall(`/post-final/templates/skill-demo?pathId=${currentPathId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, description }),
+        });
+        const savedNote = document.getElementById('skillDemoSaved');
+        savedNote.style.display = 'inline';
+        setTimeout(() => { savedNote.style.display = 'none'; }, 2000);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function addRepCategory() {
+      const name = document.getElementById('newRepCategoryName').value.trim();
+      if (!name) { alert('Give the category a name.'); return; }
+      try {
+        await apiCall(`/post-final/templates/categories?pathId=${currentPathId}`, {
+          method: 'POST',
+          body: JSON.stringify({ name }),
+        });
+        loadPostFinalStages();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function renameRepCategory(id, name) {
+      if (!name.trim()) { alert('Category name cannot be blank.'); loadPostFinalStages(); return; }
+      try {
+        await apiCall(`/post-final/templates/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+      } catch (err) {
+        alert(err.message);
+        loadPostFinalStages();
+      }
+    }
+
+    async function removeRepCategory(id) {
+      if (!confirm('Remove this category?')) return;
+      try {
+        await apiCall(`/post-final/templates/categories/${id}`, { method: 'DELETE' });
+        loadPostFinalStages();
+      } catch (err) {
+        alert(err.message);
+      }
     }
 
     async function loadReviewGate(gateKey) {

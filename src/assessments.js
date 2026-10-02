@@ -10,6 +10,7 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, getParticipantRole } = require('./access');
+const { openSkillDemoOrSkip } = require('./postFinalStages');
 
 const router = express.Router();
 
@@ -344,11 +345,8 @@ async function unlockNextStep(assessment) {
       return { action: 'opened_module_5', moduleId: module5.id };
     }
   } else if (assessment.gatePosition === 'AFTER_MODULE_8') {
-    await prisma.developmentPlan.update({
-      where: { id: assessment.planId },
-      data: { status: 'COMPLETE' },
-    });
-    return { action: 'plan_marked_complete' };
+    const plan = await prisma.developmentPlan.findUnique({ where: { id: assessment.planId } });
+    return openSkillDemoOrSkip(plan);
   }
   return null;
 }

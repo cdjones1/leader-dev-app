@@ -282,6 +282,21 @@
           const assessment = plan.assessments.find((a) => a.gatePosition === gate);
           const aLabel = isMidpoint ? `Assessment Part 1 — Modules 1-${midpoint}` : `Assessment Part 2 — Modules ${midpoint + 1}-${moduleCount}`;
           seq.push({ type: 'assessment', data: assessment, label: aLabel, done: assessment ? assessment.status === 'PASSED' : false });
+
+          if (!isMidpoint) {
+            seq.push({
+              type: 'skillDemo',
+              data: plan.skillDemo,
+              label: plan.skillDemo ? plan.skillDemo.title : 'On-Shift Skill Demonstration Training',
+              done: plan.skillDemo ? plan.skillDemo.status === 'COMPLETED' : false,
+            });
+            seq.push({
+              type: 'onShiftReps',
+              data: plan.onShiftRepsStage,
+              label: 'On-Shift Reps',
+              done: plan.onShiftRepsStage ? plan.onShiftRepsStage.status === 'COMPLETED' : false,
+            });
+          }
         }
       }
       return seq;
@@ -308,6 +323,11 @@
         if (item.data.status === 'LOCKED_NEEDS_MEETING') return { cls: 'pill-locked', text: 'NEEDS MEETING' };
         if (item.data.status === 'LOCKED_FINAL') return { cls: 'pill-locked', text: 'NEEDS ADMIN' };
         if (['PENDING', 'IN_PROGRESS'].includes(item.data.status)) return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'skillDemo' || item.type === 'onShiftReps') {
+        if (!item.data) return { cls: 'pill-locked', text: 'LOCKED' };
+        if (item.data.status === 'OPEN') return { cls: 'pill-progress', text: 'IN PROGRESS' };
         return { cls: 'pill-pending', text: 'NOT STARTED' };
       }
       return { cls: 'pill-pending', text: 'NOT STARTED' };
@@ -440,6 +460,16 @@
       if (item.type === 'review' && item.data && item.data.status === 'OPEN') {
         detail = reviewStepDetailHtml(item.data);
       }
+      if (item.type === 'skillDemo' && item.data && item.data.status === 'OPEN') {
+        detail = skillDemoDetailHtml(item.data);
+      }
+      if (item.type === 'onShiftReps' && item.data && item.data.status === 'OPEN') {
+        detail = onShiftRepsDetailHtml(item.data);
+      }
+
+      const descriptionHtml = (item.type === 'skillDemo' && item.data && item.data.description)
+        ? `<div class="item-desc">${item.data.description}</div>`
+        : '';
 
       return `
         <div>
@@ -447,10 +477,33 @@
             <div class="item-icon ${icon.cls}">${icon.glyph}</div>
             <div class="item-body">
               <div class="item-title">${item.label}</div>
+              ${descriptionHtml}
             </div>
             <span class="pill ${pill.cls}">${pill.text}</span>
           </div>
           ${detail}
+        </div>
+      `;
+    }
+
+    function skillDemoDetailHtml(skillDemo) {
+      return `
+        <div class="module-detail">
+          <button onclick="completeSkillDemo('${skillDemo.id}')">Mark Complete</button>
+        </div>
+      `;
+    }
+
+    function onShiftRepsDetailHtml(stage) {
+      const rowsHtml = stage.categories.map((c) => `
+        <label class="action-item ${c.passed ? 'checked' : ''}">
+          <input type="checkbox" ${c.passed ? 'checked' : ''} onchange="toggleRepCategory('${c.id}')">
+          <div class="ai-title">${c.name}</div>
+        </label>
+      `).join('');
+      return `
+        <div class="module-detail">
+          ${rowsHtml}
         </div>
       `;
     }
@@ -908,6 +961,24 @@
         lastQuestionData = questionData;
       } catch (err) {
         document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function completeSkillDemo(skillDemoId) {
+      try {
+        await apiCall('/post-final/skill-demo/' + skillDemoId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function toggleRepCategory(categoryId) {
+      try {
+        await apiCall('/post-final/on-shift-reps/categories/' + categoryId + '/toggle', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
       }
     }
 
