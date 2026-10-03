@@ -415,9 +415,12 @@
       }
     }
 
+    let currentAnalysisIssues = [];
+
     function renderAnalysisResults(result) {
       const resultsDiv = document.getElementById('analyzeContentResults');
       const issues = result.issues || [];
+      currentAnalysisIssues = issues;
       const chunkErrors = result.chunkErrors || [];
       const chunkErrorsHtml = chunkErrors.length > 0 ? `
         <div style="background:#fef6e6; border:1px solid #f0dba3; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:13px; color:#9a6a00;">
@@ -438,8 +441,8 @@
         return;
       }
 
-      const issuesHtml = issues.map((issue) => `
-        <div style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:10px;">
+      const issuesHtml = issues.map((issue, i) => `
+        <div id="issueCard-${i}" style="border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:10px;">
           <div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
             <span style="background:${issueTypeColors[issue.type] || '#8a8378'}; color:white; font-weight:700; font-size:11px; text-transform:uppercase; padding:3px 9px; border-radius:5px;">${issueTypeLabels[issue.type] || issue.type}</span>
             <span style="color:var(--text-muted); font-size:13px;">${issue.location || ''}</span>
@@ -447,6 +450,20 @@
           ${issue.excerpt ? `<div style="font-style:italic; color:var(--text-muted); font-size:13px; margin-bottom:4px;">"${issue.excerpt}"</div>` : ''}
           <div style="font-size:14px;">${issue.issue || ''}</div>
           ${issue.suggestion ? `<div style="font-size:13px; color:#1a7a3a; margin-top:4px;"><strong>Suggestion:</strong> ${issue.suggestion}</div>` : ''}
+          ${issue.fieldId ? `
+            <div id="issueActions-${i}" style="display:flex; gap:6px; margin-top:8px;">
+              <button style="background:#1a7a3a; margin:0;" onclick="acceptIssue(${i})">Accept</button>
+              <button style="background:#8a8378; margin:0;" onclick="startEditIssue(${i})">Edit</button>
+              <button style="background:#9b1c1c; margin:0;" onclick="dismissIssue(${i})">Dismiss</button>
+            </div>
+            <div id="issueEditBox-${i}" style="display:none; margin-top:8px;">
+              <textarea id="issueEditText-${i}" rows="3" style="width:100%;"></textarea>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button style="background:#1a7a3a; margin:0;" onclick="applyEditedIssue(${i})">Apply Edited Text</button>
+                <button style="background:#8a8378; margin:0;" onclick="cancelEditIssue(${i})">Cancel</button>
+              </div>
+            </div>
+          ` : `<div style="font-size:12px; color:var(--text-muted); margin-top:8px;">(No direct fix available for this one - edit it manually.)</div>`}
         </div>
       `).join('');
 
@@ -458,6 +475,48 @@
           ${issuesHtml}
         </div>
       `;
+    }
+
+    function startEditIssue(i) {
+      document.getElementById(`issueActions-${i}`).style.display = 'none';
+      document.getElementById(`issueEditBox-${i}`).style.display = 'block';
+      document.getElementById(`issueEditText-${i}`).value = currentAnalysisIssues[i].suggestion || '';
+    }
+
+    function cancelEditIssue(i) {
+      document.getElementById(`issueActions-${i}`).style.display = 'flex';
+      document.getElementById(`issueEditBox-${i}`).style.display = 'none';
+    }
+
+    async function acceptIssue(i) {
+      const issue = currentAnalysisIssues[i];
+      await applyIssueFix(i, issue.fieldId, issue.suggestion);
+    }
+
+    async function applyEditedIssue(i) {
+      const newText = document.getElementById(`issueEditText-${i}`).value;
+      if (!newText.trim()) { alert('Replacement text cannot be blank.'); return; }
+      await applyIssueFix(i, currentAnalysisIssues[i].fieldId, newText);
+    }
+
+    async function applyIssueFix(i, fieldId, newText) {
+      try {
+        await apiCall(`/paths/${currentPathId}/apply-fix`, {
+          method: 'POST',
+          body: JSON.stringify({ fieldId, newText }),
+        });
+        const card = document.getElementById(`issueCard-${i}`);
+        card.innerHTML = '<div style="color:#1a7a3a; font-weight:600;">&#10003; Applied</div>';
+        card.style.opacity = '0.6';
+        loadTemplates(); // refresh the editor above so it reflects the change immediately
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function dismissIssue(i) {
+      const card = document.getElementById(`issueCard-${i}`);
+      if (card) card.remove();
     }
 
     async function renamePath() {

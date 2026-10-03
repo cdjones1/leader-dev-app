@@ -186,20 +186,29 @@ router.get('/:id/preview', requireAuth, async (req, res) => {
 // set as an environment variable on the server.
 // --------------------------------------------------------------
 
+// Every piece of editable text sent to Claude is tagged inline with
+// a [id:<kind>:<id>:<field>] marker. Claude is instructed to echo
+// the exact marker for whichever field an issue is in, so a fix can
+// later be applied with a precise, targeted database update instead
+// of fuzzy text matching against the original content.
+function fid(kind, id, field) {
+  return `[id:${kind}:${id}:${field}]`;
+}
+
 function describeTask(lines, t) {
-  lines.push(`    TASK (${t.taskType}): ${t.text}`);
-  if (t.content) lines.push(`      Content: ${t.content}`);
-  if (t.correctAnswer) lines.push(`      Model answer: ${t.correctAnswer}`);
+  lines.push(`    TASK (${t.taskType}) ${fid('task', t.id, 'text')}: ${t.text}`);
+  if (t.content) lines.push(`      Content ${fid('task', t.id, 'content')}: ${t.content}`);
+  if (t.correctAnswer) lines.push(`      Model answer ${fid('task', t.id, 'correctAnswer')}: ${t.correctAnswer}`);
   for (const opt of t.choiceOptionTemplates || []) {
-    lines.push(`      Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+    lines.push(`      Option${opt.isCorrect ? ' (correct)' : ''} ${fid('choiceOption', opt.id, 'text')}: ${opt.text}`);
   }
   for (const item of t.checklistItemTemplates || []) {
-    lines.push(`      Item: ${item.text}${item.description ? ' — ' + item.description : ''}`);
+    lines.push(`      Item ${fid('checklistItem', item.id, 'text')}: ${item.text}${item.description ? ` | Description ${fid('checklistItem', item.id, 'description')}: ${item.description}` : ''}`);
   }
   for (const q of t.quizQuestionTemplates || []) {
-    lines.push(`      Quiz question: ${q.text}${q.content ? ' — ' + q.content : ''}`);
+    lines.push(`      Quiz question ${fid('quizQuestion', q.id, 'text')}: ${q.text}${q.content ? ` | Content ${fid('quizQuestion', q.id, 'content')}: ${q.content}` : ''}`);
     for (const opt of q.choiceOptionTemplates || []) {
-      lines.push(`        Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+      lines.push(`        Option${opt.isCorrect ? ' (correct)' : ''} ${fid('quizChoiceOption', opt.id, 'text')}: ${opt.text}`);
     }
   }
 }
@@ -213,10 +222,10 @@ function buildAnalysisChunks(content) {
 
   for (const m of content.modules) {
     if (m.sectionTemplates.length === 0) continue;
-    const lines = [`MODULE ${m.sequenceOrder}: ${m.title}`];
-    if (m.description) lines.push(`Description: ${m.description}`);
+    const lines = [`MODULE ${m.sequenceOrder} ${fid('module', m.id, 'title')}: ${m.title}`];
+    if (m.description) lines.push(`Description ${fid('module', m.id, 'description')}: ${m.description}`);
     for (const s of m.sectionTemplates) {
-      lines.push(`SECTION: ${s.title}`);
+      lines.push(`SECTION ${fid('section', s.id, 'title')}: ${s.title}`);
       for (const t of s.taskTemplates) describeTask(lines, t);
     }
     chunks.push({ label: `Module ${m.sequenceOrder}: ${m.title}`, text: lines.join('\n') });
@@ -225,10 +234,10 @@ function buildAnalysisChunks(content) {
   for (const gate of content.reviewGates) {
     if (gate.sectionTemplates.length === 0) continue;
     const label = gate.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Review' : 'Final Review';
-    const lines = [`${label}: ${gate.title || ''}`];
-    if (gate.description) lines.push(`Description: ${gate.description}`);
+    const lines = [`${label} ${fid('reviewGate', gate.id, 'title')}: ${gate.title || ''}`];
+    if (gate.description) lines.push(`Description ${fid('reviewGate', gate.id, 'description')}: ${gate.description}`);
     for (const s of gate.sectionTemplates) {
-      lines.push(`SECTION: ${s.title}`);
+      lines.push(`SECTION ${fid('section', s.id, 'title')}: ${s.title}`);
       for (const t of s.taskTemplates) describeTask(lines, t);
     }
     chunks.push({ label, text: lines.join('\n') });
@@ -240,11 +249,11 @@ function buildAnalysisChunks(content) {
     if (questions.length === 0) continue;
     const lines = [];
     for (const q of questions) {
-      lines.push(`QUESTION (${q.questionType}, ${q.points} pts${q.groupTitle ? ', group: ' + q.groupTitle : ''}): ${q.text}`);
-      if (q.content) lines.push(`  Content: ${q.content}`);
-      if (q.correctAnswer) lines.push(`  Model answer: ${q.correctAnswer}`);
+      lines.push(`QUESTION (${q.questionType}, ${q.points} pts${q.groupTitle ? ', group: ' + q.groupTitle : ''}) ${fid('assessmentQuestion', q.id, 'text')}: ${q.text}`);
+      if (q.content) lines.push(`  Content ${fid('assessmentQuestion', q.id, 'content')}: ${q.content}`);
+      if (q.correctAnswer) lines.push(`  Model answer ${fid('assessmentQuestion', q.id, 'correctAnswer')}: ${q.correctAnswer}`);
       for (const opt of q.choiceOptionTemplates || []) {
-        lines.push(`  Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+        lines.push(`  Option${opt.isCorrect ? ' (correct)' : ''} ${fid('assessmentChoiceOption', opt.id, 'text')}: ${opt.text}`);
       }
     }
     chunks.push({ label, text: lines.join('\n') });
@@ -253,7 +262,7 @@ function buildAnalysisChunks(content) {
   return chunks;
 }
 
-const ANALYSIS_SYSTEM_PROMPT = `You are a careful editor reviewing one section of internal leadership-training curriculum content for a restaurant company. Review it for:
+const ANALYSIS_SYSTEM_PROMPT = `You are a careful editor reviewing one section of internal leadership-training curriculum content for a restaurant company. Every piece of text is tagged inline with a marker like [id:task:abc123:text] right before it. Review the content for:
 - Spelling errors
 - Grammar errors
 - Flow / clarity issues (awkward phrasing, confusing wording)
@@ -262,10 +271,10 @@ const ANALYSIS_SYSTEM_PROMPT = `You are a careful editor reviewing one section o
 Respond with ONLY valid JSON, no other text, in this exact shape:
 {
   "issues": [
-    { "location": "e.g. Section 'Reading' > Task 'Our Mission'", "type": "spelling|grammar|flow|accuracy", "excerpt": "the exact problematic text, kept short", "issue": "what's wrong", "suggestion": "a specific fix" }
+    { "fieldId": "the EXACT [id:...] marker (without brackets) for the specific field the issue is in, e.g. task:abc123:text", "location": "e.g. Section 'Reading' > Task 'Our Mission'", "type": "spelling|grammar|flow|accuracy", "excerpt": "the exact problematic text, kept short", "issue": "what's wrong", "suggestion": "the FULL corrected replacement text for that whole field - not just the fixed word/phrase, the entire field's text with the fix applied, since this may be applied directly as a replacement" }
   ]
 }
-If there are no issues, return an empty issues array.`;
+Every issue MUST include the fieldId of the marker closest to the problem - never omit it, never invent one. If there are no issues, return an empty issues array.`;
 
 // Analyzes ONE chunk of text with its own small, independent
 // request. Never throws - on any failure it returns an empty issue
@@ -354,6 +363,64 @@ router.post('/:id/analyze-content', requireAuth, async (req, res) => {
   const summary = `Analyzed ${chunks.length} section(s) of content and found ${issues.length} issue(s).`;
 
   res.json({ summary, issues, chunkErrors });
+});
+
+// Maps a fieldId's "kind" segment to the Prisma model and which
+// fields on it are allowed to be rewritten this way - a safety
+// whitelist so an unexpected fieldId can never touch an arbitrary
+// column.
+const FIELD_KIND_MAP = {
+  module: { model: 'moduleTemplate', fields: ['title', 'description'] },
+  section: { model: 'moduleSectionTemplate', fields: ['title'] },
+  task: { model: 'moduleTaskTemplate', fields: ['text', 'content', 'correctAnswer'] },
+  checklistItem: { model: 'checklistItemTemplate', fields: ['text', 'description'] },
+  choiceOption: { model: 'choiceOptionTemplate', fields: ['text'] },
+  quizQuestion: { model: 'sectionQuizQuestionTemplate', fields: ['text', 'content'] },
+  quizChoiceOption: { model: 'sectionQuizChoiceOptionTemplate', fields: ['text'] },
+  reviewGate: { model: 'reviewGateTemplate', fields: ['title', 'description'] },
+  assessmentQuestion: { model: 'assessmentQuestionTemplate', fields: ['text', 'content', 'correctAnswer'] },
+  assessmentChoiceOption: { model: 'assessmentChoiceOptionTemplate', fields: ['text'] },
+};
+
+// --------------------------------------------------------------
+// APPLY FIX - admin only. Rewrites exactly one field, identified by
+// the fieldId a content-analysis issue was tagged with, to the
+// given replacement text. Used by both "Accept" (applies the
+// suggestion verbatim) and "Edit & Apply" (applies the admin's own
+// edited version) on the content-analysis results.
+// --------------------------------------------------------------
+router.post('/:id/apply-fix', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+
+  const { fieldId, newText } = req.body;
+  if (!fieldId || typeof newText !== 'string') {
+    return res.status(400).json({ error: 'fieldId and newText are required' });
+  }
+  if (!newText.trim()) {
+    return res.status(400).json({ error: 'The replacement text cannot be blank' });
+  }
+
+  const parts = fieldId.split(':');
+  if (parts.length !== 3) {
+    return res.status(400).json({ error: `Malformed fieldId: ${fieldId}` });
+  }
+  const [kind, recordId, field] = parts;
+
+  const mapping = FIELD_KIND_MAP[kind];
+  if (!mapping || !mapping.fields.includes(field)) {
+    return res.status(400).json({ error: `Unsupported or unrecognized field: ${fieldId}` });
+  }
+
+  try {
+    await prisma[mapping.model].update({
+      where: { id: recordId },
+      data: { [field]: newText },
+    });
+    res.json({ applied: true });
+  } catch (err) {
+    console.error('Failed to apply fix:', fieldId, err);
+    res.status(404).json({ error: 'Could not find that field to update - the content may have been deleted or changed since the analysis ran' });
+  }
 });
 
 module.exports = router;
