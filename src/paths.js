@@ -283,7 +283,11 @@ async function analyzeChunk(chunk) {
       body: JSON.stringify({
         model: 'claude-sonnet-5',
         max_tokens: 8192,
-        effort: 'medium', // straightforward classification/extraction, not complex reasoning - keeps the token budget for visible output instead of the "high" default's internal reasoning
+        // effort must be nested inside output_config, not a bare
+        // top-level field - straightforward classification/extraction
+        // doesn't need the "high" default's internal reasoning, so
+        // this keeps the token budget available for visible output.
+        output_config: { effort: 'medium' },
         system: ANALYSIS_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: chunk.text }],
       }),
@@ -292,7 +296,9 @@ async function analyzeChunk(chunk) {
     if (!response.ok) {
       const errBody = await response.text();
       console.error(`Anthropic API error analyzing "${chunk.label}":`, response.status, errBody);
-      return { label: chunk.label, issues: [], error: 'The analysis service returned an error for this section' };
+      let detail = errBody;
+      try { detail = JSON.parse(errBody).error.message; } catch (e) { /* keep raw body if it's not the expected shape */ }
+      return { label: chunk.label, issues: [], error: `(${response.status}) ${detail}` };
     }
 
     const data = await response.json();
