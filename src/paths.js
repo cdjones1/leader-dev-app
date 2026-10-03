@@ -177,69 +177,144 @@ router.get('/:id/preview', requireAuth, async (req, res) => {
 });
 
 // --------------------------------------------------------------
-// ANALYZE CONTENT - admin only. Sends the whole path's authored
-// text to Claude and asks it to flag spelling, grammar, flow, and
-// factual/logical-consistency issues. Requires ANTHROPIC_API_KEY
-// to be set as an environment variable on the server.
+// ANALYZE CONTENT - admin only. Instead of sending a whole path in
+// one request (which can exceed the output budget for a large
+// path), this splits the content into small chunks - one per
+// module, one per review gate, one per assessment - and analyzes
+// each with its OWN small, reliable request, run in parallel, then
+// merges all the issues together. Requires ANTHROPIC_API_KEY to be
+// set as an environment variable on the server.
 // --------------------------------------------------------------
-function flattenContentToText(content) {
-  const lines = [];
-  lines.push(`PATH: ${content.path.name}`);
-  if (content.path.description) lines.push(`Path description: ${content.path.description}`);
 
-  const describeTask = (t) => {
-    lines.push(`    TASK (${t.taskType}): ${t.text}`);
-    if (t.content) lines.push(`      Content: ${t.content}`);
-    if (t.correctAnswer) lines.push(`      Model answer: ${t.correctAnswer}`);
-    for (const opt of t.choiceOptionTemplates || []) {
-      lines.push(`      Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+function describeTask(lines, t) {
+  lines.push(`    TASK (${t.taskType}): ${t.text}`);
+  if (t.content) lines.push(`      Content: ${t.content}`);
+  if (t.correctAnswer) lines.push(`      Model answer: ${t.correctAnswer}`);
+  for (const opt of t.choiceOptionTemplates || []) {
+    lines.push(`      Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+  }
+  for (const item of t.checklistItemTemplates || []) {
+    lines.push(`      Item: ${item.text}${item.description ? ' — ' + item.description : ''}`);
+  }
+  for (const q of t.quizQuestionTemplates || []) {
+    lines.push(`      Quiz question: ${q.text}${q.content ? ' — ' + q.content : ''}`);
+    for (const opt of q.choiceOptionTemplates || []) {
+      lines.push(`        Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
     }
-    for (const item of t.checklistItemTemplates || []) {
-      lines.push(`      Item: ${item.text}${item.description ? ' — ' + item.description : ''}`);
-    }
-    for (const q of t.quizQuestionTemplates || []) {
-      lines.push(`      Quiz question: ${q.text}${q.content ? ' — ' + q.content : ''}`);
-      for (const opt of q.choiceOptionTemplates || []) {
-        lines.push(`        Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
-      }
-    }
-  };
+  }
+}
+
+// Splits a path's content into small, independently-analyzable
+// chunks. Each chunk gets its own label (used to prefix issue
+// locations in the merged results) and only non-empty chunks are
+// included.
+function buildAnalysisChunks(content) {
+  const chunks = [];
 
   for (const m of content.modules) {
-    lines.push(`MODULE ${m.sequenceOrder}: ${m.title}`);
-    if (m.description) lines.push(`  Description: ${m.description}`);
+    if (m.sectionTemplates.length === 0) continue;
+    const lines = [`MODULE ${m.sequenceOrder}: ${m.title}`];
+    if (m.description) lines.push(`Description: ${m.description}`);
     for (const s of m.sectionTemplates) {
-      lines.push(`  SECTION: ${s.title}`);
-      for (const t of s.taskTemplates) describeTask(t);
+      lines.push(`SECTION: ${s.title}`);
+      for (const t of s.taskTemplates) describeTask(lines, t);
     }
+    chunks.push({ label: `Module ${m.sequenceOrder}: ${m.title}`, text: lines.join('\n') });
   }
 
   for (const gate of content.reviewGates) {
-    const label = gate.gatePosition === 'AFTER_MODULE_4' ? 'MIDTERM REVIEW' : 'FINAL REVIEW';
-    lines.push(`${label}: ${gate.title || ''}`);
-    if (gate.description) lines.push(`  Description: ${gate.description}`);
+    if (gate.sectionTemplates.length === 0) continue;
+    const label = gate.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Review' : 'Final Review';
+    const lines = [`${label}: ${gate.title || ''}`];
+    if (gate.description) lines.push(`Description: ${gate.description}`);
     for (const s of gate.sectionTemplates) {
-      lines.push(`  SECTION: ${s.title}`);
-      for (const t of s.taskTemplates) describeTask(t);
+      lines.push(`SECTION: ${s.title}`);
+      for (const t of s.taskTemplates) describeTask(lines, t);
     }
+    chunks.push({ label, text: lines.join('\n') });
   }
 
   const midtermQuestions = content.assessmentQuestions.filter((q) => q.gatePosition === 'AFTER_MODULE_4');
   const finalQuestions = content.assessmentQuestions.filter((q) => q.gatePosition === 'AFTER_MODULE_8');
-  for (const [label, questions] of [['MIDTERM ASSESSMENT', midtermQuestions], ['FINAL ASSESSMENT', finalQuestions]]) {
+  for (const [label, questions] of [['Midterm Assessment', midtermQuestions], ['Final Assessment', finalQuestions]]) {
     if (questions.length === 0) continue;
-    lines.push(label + ':');
+    const lines = [];
     for (const q of questions) {
-      lines.push(`  QUESTION (${q.questionType}, ${q.points} pts${q.groupTitle ? ', group: ' + q.groupTitle : ''}): ${q.text}`);
-      if (q.content) lines.push(`    Content: ${q.content}`);
-      if (q.correctAnswer) lines.push(`    Model answer: ${q.correctAnswer}`);
+      lines.push(`QUESTION (${q.questionType}, ${q.points} pts${q.groupTitle ? ', group: ' + q.groupTitle : ''}): ${q.text}`);
+      if (q.content) lines.push(`  Content: ${q.content}`);
+      if (q.correctAnswer) lines.push(`  Model answer: ${q.correctAnswer}`);
       for (const opt of q.choiceOptionTemplates || []) {
-        lines.push(`    Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
+        lines.push(`  Option${opt.isCorrect ? ' (correct)' : ''}: ${opt.text}`);
       }
     }
+    chunks.push({ label, text: lines.join('\n') });
   }
 
-  return lines.join('\n');
+  return chunks;
+}
+
+const ANALYSIS_SYSTEM_PROMPT = `You are a careful editor reviewing one section of internal leadership-training curriculum content for a restaurant company. Review it for:
+- Spelling errors
+- Grammar errors
+- Flow / clarity issues (awkward phrasing, confusing wording)
+- Factual or logical inconsistencies (e.g. a question's "correct" answer doesn't actually match its own options or content, contradictory statements, broken references)
+
+Respond with ONLY valid JSON, no other text, in this exact shape:
+{
+  "issues": [
+    { "location": "e.g. Section 'Reading' > Task 'Our Mission'", "type": "spelling|grammar|flow|accuracy", "excerpt": "the exact problematic text, kept short", "issue": "what's wrong", "suggestion": "a specific fix" }
+  ]
+}
+If there are no issues, return an empty issues array.`;
+
+// Analyzes ONE chunk of text with its own small, independent
+// request. Never throws - on any failure it returns an empty issue
+// list plus an error note, so one bad chunk doesn't take down the
+// whole analysis.
+async function analyzeChunk(chunk) {
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-5',
+        max_tokens: 8192,
+        effort: 'medium', // straightforward classification/extraction, not complex reasoning - keeps the token budget for visible output instead of the "high" default's internal reasoning
+        system: ANALYSIS_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: chunk.text }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.error(`Anthropic API error analyzing "${chunk.label}":`, response.status, errBody);
+      return { label: chunk.label, issues: [], error: 'The analysis service returned an error for this section' };
+    }
+
+    const data = await response.json();
+    const rawText = data.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
+
+    if (data.stop_reason === 'max_tokens') {
+      console.error(`Analysis of "${chunk.label}" was truncated. Raw text so far:`, rawText);
+      return { label: chunk.label, issues: [], error: 'This section was too long to analyze in one pass' };
+    }
+
+    const firstBrace = rawText.indexOf('{');
+    const lastBrace = rawText.lastIndexOf('}');
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+      console.error(`No JSON object found analyzing "${chunk.label}":`, rawText);
+      return { label: chunk.label, issues: [], error: 'Could not parse the response for this section' };
+    }
+    const parsed = JSON.parse(rawText.slice(firstBrace, lastBrace + 1));
+    return { label: chunk.label, issues: parsed.issues || [], error: null };
+  } catch (err) {
+    console.error(`Content analysis failed for "${chunk.label}":`, err);
+    return { label: chunk.label, issues: [], error: 'Could not reach the content analysis service' };
+  }
 }
 
 router.post('/:id/analyze-content', requireAuth, async (req, res) => {
@@ -254,81 +329,25 @@ router.post('/:id/analyze-content', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Path not found' });
   }
 
-  const contentText = flattenContentToText(content);
-  if (!contentText.trim() || content.modules.every((m) => m.sectionTemplates.length === 0)) {
+  const chunks = buildAnalysisChunks(content);
+  if (chunks.length === 0) {
     return res.status(400).json({ error: 'This path has no content authored yet to analyze' });
   }
 
-  const systemPrompt = `You are a careful editor reviewing internal leadership-training curriculum content for a restaurant company. You will be given the full text of one training path (modules, sections, tasks, review content, and assessment questions). Review it for:
-- Spelling errors
-- Grammar errors
-- Flow / clarity issues (awkward phrasing, confusing wording)
-- Factual or logical inconsistencies (e.g. a question's "correct" answer doesn't actually match its own options or content, contradictory statements, broken references)
+  const results = await Promise.all(chunks.map((chunk) => analyzeChunk(chunk)));
 
-Respond with ONLY valid JSON, no other text, in this exact shape:
-{
-  "summary": "one or two sentence overall assessment",
-  "issues": [
-    { "location": "e.g. Module 3 > Section 'Reading' > Task 'Our Mission'", "type": "spelling|grammar|flow|accuracy", "excerpt": "the exact problematic text, kept short", "issue": "what's wrong", "suggestion": "a specific fix" }
-  ]
-}
-If there are no issues of a given type, simply don't include any of that type. If the content is completely clean, return an empty issues array.`;
-
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-5',
-        max_tokens: 8192,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: contentText }],
-      }),
-    });
-
-    if (!response.ok) {
-      const errBody = await response.text();
-      console.error('Anthropic API error:', response.status, errBody);
-      return res.status(502).json({ error: 'The content analysis service returned an error - check server logs for details' });
+  const issues = [];
+  const chunkErrors = [];
+  for (const result of results) {
+    for (const issue of result.issues) {
+      issues.push({ ...issue, location: `${result.label} > ${issue.location || ''}` });
     }
-
-    const data = await response.json();
-    const rawText = data.content.map((block) => (block.type === 'text' ? block.text : '')).join('');
-
-    if (data.stop_reason === 'max_tokens') {
-      console.error('Analysis response was truncated (hit max_tokens). Raw text so far:', rawText);
-      return res.status(502).json({ error: 'This path has too much content to analyze in one pass right now - it was cut off partway through. Try again, or split the path into smaller modules.' });
-    }
-
-    let parsed;
-    try {
-      // Pull out just the { ... } span, in case Claude added any stray
-      // text around the JSON despite being told not to - more robust
-      // than only stripping markdown code fences.
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
-      if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
-        throw new Error('No JSON object found in the response');
-      }
-      const cleaned = rawText.slice(firstBrace, lastBrace + 1);
-      parsed = JSON.parse(cleaned);
-    } catch (parseErr) {
-      console.error('Failed to parse analysis response:', rawText);
-      return res.status(502).json({
-        error: 'Could not parse the analysis response - try again',
-        rawResponsePreview: rawText.slice(0, 500),
-      });
-    }
-
-    res.json(parsed);
-  } catch (err) {
-    console.error('Content analysis failed:', err);
-    res.status(502).json({ error: 'Could not reach the content analysis service' });
+    if (result.error) chunkErrors.push(`${result.label}: ${result.error}`);
   }
+
+  const summary = `Analyzed ${chunks.length} section(s) of content and found ${issues.length} issue(s).`;
+
+  res.json({ summary, issues, chunkErrors });
 });
 
 module.exports = router;

@@ -399,7 +399,7 @@
       const resultsDiv = document.getElementById('analyzeContentResults');
       btn.disabled = true;
       btn.textContent = 'Analyzing...';
-      resultsDiv.innerHTML = '<div class="module-card"><p style="color:var(--text-muted);">Reading through the whole path\'s content - this can take a little while for a large path...</p></div>';
+      resultsDiv.innerHTML = '<div class="module-card"><p style="color:var(--text-muted);">Analyzing each module, review, and assessment separately (in parallel) - this is usually quick, even for a large path...</p></div>';
 
       try {
         const result = await apiCall(`/paths/${currentPathId}/analyze-content`, { method: 'POST' });
@@ -418,6 +418,13 @@
     function renderAnalysisResults(result) {
       const resultsDiv = document.getElementById('analyzeContentResults');
       const issues = result.issues || [];
+      const chunkErrors = result.chunkErrors || [];
+      const chunkErrorsHtml = chunkErrors.length > 0 ? `
+        <div style="background:#fef6e6; border:1px solid #f0dba3; border-radius:8px; padding:10px 14px; margin-top:12px; font-size:13px; color:#9a6a00;">
+          <strong>${chunkErrors.length} section(s) couldn't be analyzed:</strong>
+          <ul style="margin:6px 0 0; padding-left:18px;">${chunkErrors.map((e) => `<li>${e}</li>`).join('')}</ul>
+        </div>
+      ` : '';
 
       if (issues.length === 0) {
         resultsDiv.innerHTML = `
@@ -425,6 +432,7 @@
             <h2>Content Analysis</h2>
             <p style="color:#1a7a3a; font-weight:600;">&#10003; No issues found.</p>
             ${result.summary ? `<p style="color:var(--text-muted);">${result.summary}</p>` : ''}
+            ${chunkErrorsHtml}
           </div>
         `;
         return;
@@ -446,6 +454,7 @@
         <div class="module-card">
           <h2>Content Analysis - ${issues.length} issue(s) found</h2>
           ${result.summary ? `<p style="color:var(--text-muted);">${result.summary}</p>` : ''}
+          ${chunkErrorsHtml}
           ${issuesHtml}
         </div>
       `;
