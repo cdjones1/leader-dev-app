@@ -34,6 +34,7 @@ model User {
   role         Role
   isAdmin      Boolean  @default(false)
   canPreviewPaths Boolean @default(false) // grants read-only access to the full-path preview, independent of admin status - admin can grant/revoke this per user
+  canSignOffReps Boolean @default(false) // no longer used - signing off no longer needs a permission (left in place so the database update stays clean)
   createdAt    DateTime @default(now())
 
   // A user can be a manager to other users (self-referencing relationship)
@@ -348,6 +349,7 @@ model OnShiftRepCategoryTemplate {
   path   DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
   order  Int
   name   String
+  requiredReps Int @default(1) // how many signed-off reps this item needs
 }
 
 model OnShiftRepsStage {
@@ -367,8 +369,26 @@ model OnShiftRepCategory {
   stage     OnShiftRepsStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   order     Int
   name      String
-  passed    Boolean          @default(false)
+  requiredReps Int           @default(1)
+  passed    Boolean          @default(false) // derived: true once signed-off reps >= requiredReps
   passedAt  DateTime?
+
+  reps OnShiftRep[]
+}
+
+// One logged rep: the developee records the date and what they learned,
+// then a developer or leader signs it off. Only signed-off reps count.
+model OnShiftRep {
+  id              String             @id @default(uuid())
+  categoryId      String
+  category        OnShiftRepCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  completedOn     String             // "YYYY-MM-DD", kept as plain text so the date can never shift by a day across timezones
+  learned         String
+  createdAt       DateTime           @default(now())
+  signedOffAt     DateTime?
+  signedOffById   String?            // no longer used - sign-off is now a drawn signature + printed name, no login involved (left in place so the database update stays clean)
+  signedOffByName String?            // the leader's PRINTED name, typed next to their signature
+  signatureImage  String?            // the drawn signature, as a PNG data URL
 }
 
 model ModuleTemplate {

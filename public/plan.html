@@ -159,6 +159,25 @@
     .action-item .ai-link { display: inline-block; margin-top: 6px; color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
     .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
     .not-yours { color: #9a5b00; }
+    .rep-category { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 10px; background: var(--card); }
+    .rep-category-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .rep-progress { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: #f0ede7; color: var(--text-muted); white-space: nowrap; }
+    .rep-progress.done { background: #eefaf1; color: #1a7a3a; }
+    .rep-entry { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; font-size: 14px; }
+    .rep-entry-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rep-learned { color: var(--text-muted); margin-top: 4px; white-space: pre-wrap; }
+    .rep-signed-badge { color: #1a7a3a; font-size: 12px; font-weight: 700; }
+    .rep-pending-badge { color: #9a6a00; font-size: 12px; font-weight: 700; }
+    .rep-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .rep-actions button { padding: 6px 12px; font-size: 13px; }
+    .rep-form { border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 12px; }
+    .rep-form label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+    .rep-form input[type=date], .rep-form textarea { width: 100%; margin-bottom: 8px; }
+    .rep-sign-box { background: #faf9f7; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 10px; }
+    .rep-sign-box label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px; }
+    .rep-sign-box input[type=text] { width: 100%; }
+    .rep-sign-canvas { display: block; width: 100%; height: 140px; background: #fff; border: 1px dashed #b9b2a8; border-radius: 8px; touch-action: none; cursor: crosshair; }
+    .rep-signature-img { display: block; height: 48px; max-width: 100%; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -204,6 +223,7 @@
     const token = localStorage.getItem('token');
     let lastQuestionData = null;
     let isDeveloperHereGlobal = false;
+    let isDevelopeeHereGlobal = false;
     let copyPasteBlockAttached = false;
 
     // Blocks copy, cut, paste, and the right-click context menu
@@ -494,18 +514,85 @@
       `;
     }
 
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Reps store their date as plain "YYYY-MM-DD" text - build the Date from its parts so it can't shift a day across timezones.
+    function fmtRepDate(s) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString();
+    }
+
+    function todayDateString() {
+      const t = new Date();
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    }
+
     function onShiftRepsDetailHtml(stage) {
-      const rowsHtml = stage.categories.map((c) => `
-        <label class="action-item ${c.passed ? 'checked' : ''}">
-          <input type="checkbox" ${c.passed ? 'checked' : ''} onchange="toggleRepCategory('${c.id}')">
-          <div class="ai-title">${c.name}</div>
-        </label>
-      `).join('');
-      return `
-        <div class="module-detail">
-          ${rowsHtml}
-        </div>
-      `;
+      const canLog = isDevelopeeHereGlobal || user.isAdmin;
+      const canDeleteAny = isDeveloperHereGlobal || user.isAdmin;
+      const prefillName = (isDeveloperHereGlobal || user.isAdmin) ? escapeHtml(user.name || '') : '';
+      const today = todayDateString();
+
+      const categoriesHtml = stage.categories.map((c) => {
+        const signed = c.reps.filter((r) => r.signedOffAt).length;
+
+        const repsHtml = c.reps.map((r) => `
+          <div class="rep-entry">
+            <div class="rep-entry-top">
+              <strong>${fmtRepDate(r.completedOn)}</strong>
+              ${r.signedOffAt
+                ? `<span class="rep-signed-badge">&#10003; Signed off by ${escapeHtml(r.signedOffByName || 'a leader')} on ${new Date(r.signedOffAt).toLocaleDateString()}</span>`
+                : '<span class="rep-pending-badge">Awaiting leader signature</span>'}
+            </div>
+            <div class="rep-learned">${escapeHtml(r.learned)}</div>
+            ${r.signatureImage ? `<img class="rep-signature-img" src="${r.signatureImage}" alt="Leader signature">` : ''}
+            <div class="rep-actions">
+              ${!r.signedOffAt ? `<button onclick="openSignatureBox('${r.id}')">Leader Sign-Off</button>` : ''}
+              ${canDeleteAny || (!r.signedOffAt && canLog) ? `<button style="background:#9b1c1c;" onclick="deleteRep('${r.id}')">Delete</button>` : ''}
+            </div>
+            ${!r.signedOffAt ? `
+              <div class="rep-sign-box" id="signBox-${r.id}" style="display:none;">
+                <label for="signName-${r.id}">Leader's printed name</label>
+                <input type="text" id="signName-${r.id}" maxlength="100" value="${prefillName}" placeholder="Print your full name">
+                <label>Leader signature (sign with your finger or mouse)</label>
+                <canvas class="rep-sign-canvas" id="signCanvas-${r.id}"></canvas>
+                <div class="rep-actions">
+                  <button onclick="submitSignature('${r.id}')">Sign Off</button>
+                  <button style="background:#8a8378;" onclick="clearSignature('${r.id}')">Clear</button>
+                  <button style="background:#8a8378;" onclick="closeSignatureBox('${r.id}')">Cancel</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
+
+        const formHtml = (canLog && c.reps.length < c.requiredReps) ? `
+          <div class="rep-form">
+            <label for="repDate-${c.id}">Date completed</label>
+            <input type="date" id="repDate-${c.id}" value="${today}" max="${today}">
+            <label for="repLearned-${c.id}">What did you learn?</label>
+            <textarea id="repLearned-${c.id}" rows="3" placeholder="Write what you learned from this rep"></textarea>
+            <button onclick="logRep('${c.id}')">Log Rep</button>
+          </div>
+        ` : '';
+
+        return `
+          <div class="rep-category">
+            <div class="rep-category-head">
+              <div class="ai-title">${escapeHtml(c.name)}</div>
+              <span class="rep-progress ${c.passed ? 'done' : ''}">${signed} of ${c.requiredReps} signed off</span>
+            </div>
+            ${repsHtml}
+            ${formHtml}
+          </div>
+        `;
+      }).join('');
+
+      return `<div class="module-detail">${categoriesHtml}</div>`;
     }
 
     function assessmentQuestionBlock(q, canAnswer, hasSubmittedTest) {
@@ -890,6 +977,7 @@
         const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
         document.getElementById('whoRole').textContent =
           user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
+        isDevelopeeHereGlobal = isDevelopeeHere;
         applyDevelopeeCopyPasteBlock(isDevelopeeHere && !user.isAdmin);
 
         const openAssessment = plan.assessments.find((a) => a.openedAt);
@@ -973,9 +1061,113 @@
       }
     }
 
-    async function toggleRepCategory(categoryId) {
+    async function logRep(categoryId) {
+      const completedOn = document.getElementById('repDate-' + categoryId).value;
+      const learned = document.getElementById('repLearned-' + categoryId).value.trim();
+      if (!completedOn) { alert('Pick the date you completed this rep.'); return; }
+      if (!learned) { alert('Write what you learned from this rep.'); return; }
       try {
-        await apiCall('/post-final/on-shift-reps/categories/' + categoryId + '/toggle', { method: 'POST' });
+        await apiCall('/post-final/on-shift-reps/categories/' + categoryId + '/reps', {
+          method: 'POST',
+          body: JSON.stringify({ completedOn, learned }),
+        });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteRep(repId) {
+      if (!confirm('Delete this rep?')) return;
+      try {
+        await apiCall('/post-final/on-shift-reps/reps/' + repId, { method: 'DELETE' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // ---- Leader signature box (drawn with a finger, pen, or mouse) ----
+    const signaturePads = {};
+
+    function openSignatureBox(repId) {
+      const box = document.getElementById('signBox-' + repId);
+      if (box.style.display === 'block') return;
+      box.style.display = 'block';
+
+      // Size the drawing surface only once it's visible, and match the screen's
+      // pixel density (capped at 2) so lines stay crisp without huge images.
+      const canvas = document.getElementById('signCanvas-' + repId);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#1a1a1a';
+
+      const pad = { hasInk: false };
+      signaturePads[repId] = pad;
+      let drawing = false;
+      const point = (e) => {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      };
+
+      canvas.onpointerdown = (e) => {
+        e.preventDefault();
+        drawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        const p = point(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + 0.1, p.y + 0.1); // so a single tap still leaves a dot
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        pad.hasInk = true;
+      };
+      canvas.onpointermove = (e) => {
+        if (!drawing) return;
+        const p = point(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      };
+      const stopDrawing = () => { drawing = false; };
+      canvas.onpointerup = stopDrawing;
+      canvas.onpointercancel = stopDrawing;
+    }
+
+    function clearSignature(repId) {
+      const canvas = document.getElementById('signCanvas-' + repId);
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      if (signaturePads[repId]) signaturePads[repId].hasInk = false;
+    }
+
+    function closeSignatureBox(repId) {
+      document.getElementById('signBox-' + repId).style.display = 'none';
+    }
+
+    async function submitSignature(repId) {
+      const signerName = document.getElementById('signName-' + repId).value.trim();
+      const pad = signaturePads[repId];
+      if (!signerName) { alert("Print the leader's name first."); return; }
+      if (!pad || !pad.hasInk) { alert('The leader needs to sign in the box first.'); return; }
+      const signature = document.getElementById('signCanvas-' + repId).toDataURL('image/png');
+      try {
+        await apiCall('/post-final/on-shift-reps/reps/' + repId + '/sign-off', {
+          method: 'POST',
+          body: JSON.stringify({ signerName, signature }),
+        });
         loadPlan();
       } catch (err) {
         alert(err.message);

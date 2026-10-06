@@ -97,6 +97,18 @@
       return d ? new Date(d).toLocaleDateString() : null;
     }
 
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Reps store their date as plain "YYYY-MM-DD" text - build the Date from its parts so it can't shift a day across timezones.
+    function fmtRepDate(s) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString();
+    }
+
     function postFinalStagesHtml(plan) {
       if (!plan.skillDemo && !plan.onShiftRepsStage) return '';
 
@@ -107,12 +119,25 @@
         </div>
       ` : '';
 
-      const repsHtml = plan.onShiftRepsStage ? plan.onShiftRepsStage.categories.map((c) => `
-        <div class="module-row">
-          <div><div class="m-title">${c.name}</div></div>
-          <span class="pill ${c.passed ? 'signed-off' : 'not-started'}">${c.passed ? 'Passed' : 'Not Yet'}</span>
-        </div>
-      `).join('') : '';
+      const repsHtml = plan.onShiftRepsStage ? plan.onShiftRepsStage.categories.map((c) => {
+        const signed = c.reps.filter((r) => r.signedOffAt).length;
+        const repLines = c.reps.map((r) => `
+          <div style="margin-top:8px; padding-left:12px; border-left:3px solid ${r.signedOffAt ? '#1a7a3a' : '#e7e3dd'}; font-size:13px;">
+            <div><strong>${fmtRepDate(r.completedOn)}</strong> &middot; ${r.signedOffAt ? 'Signed off by ' + escapeHtml(r.signedOffByName || 'a leader') + ' on ' + fmtDate(r.signedOffAt) : '<span style="color:#9a6a00;">Awaiting sign-off</span>'}</div>
+            <div style="color:var(--text-muted); white-space:pre-wrap;">${escapeHtml(r.learned)}</div>
+            ${r.signatureImage ? `<img src="${r.signatureImage}" alt="Leader signature" style="display:block; height:40px; max-width:100%; margin-top:4px;">` : ''}
+          </div>
+        `).join('');
+        return `
+          <div class="module-row" style="align-items:flex-start;">
+            <div style="flex:1; padding-right:12px;">
+              <div class="m-title">${escapeHtml(c.name)}</div>
+              ${repLines}
+            </div>
+            <span class="pill ${c.passed ? 'signed-off' : 'not-started'}">${signed} of ${c.requiredReps} signed off</span>
+          </div>
+        `;
+      }).join('') : '';
 
       return `
         <div class="card">

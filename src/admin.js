@@ -180,6 +180,7 @@ router.post('/users/:id/preview-permission', requireAuth, async (req, res) => {
   res.json({ id: updated.id, canPreviewPaths: updated.canPreviewPaths });
 });
 
+
 router.get('/needs-attention', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 

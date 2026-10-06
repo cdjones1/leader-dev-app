@@ -794,6 +794,10 @@
           <div style="flex:1;">
             <input type="text" value="${c.name.replace(/"/g, '&quot;')}" onchange="renameRepCategory('${c.id}', this.value)" style="margin:0;">
           </div>
+          <div style="display:flex; align-items:center; gap:6px; margin-right:8px;">
+            <span style="font-size:12px; color:var(--text-muted); white-space:nowrap;">Reps needed</span>
+            <input type="number" min="1" max="20" value="${c.requiredReps || 1}" onchange="setRepCategoryReps('${c.id}', this.value)" style="width:64px; margin:0;">
+          </div>
           <button onclick="removeRepCategory('${c.id}')">Remove</button>
         </div>
       `).join('');
@@ -812,11 +816,13 @@
 
         <div class="module-card">
           <h2>On-Shift Rep Categories</h2>
-          <p style="color:var(--text-muted); font-size:13px;">Shown after Skill Demonstration Training completes (or right after the final assessment, if there's no Skill Demo authored). The developer marks each category as passed - once every category passes, the whole plan completes.</p>
+          <p style="color:var(--text-muted); font-size:13px;">Shown after Skill Demonstration Training completes (or right after the final assessment, if there's no Skill Demo authored). The developee logs each rep (date + what they learned) and a developer or leader signs it off. An item passes once it has its required number of signed-off reps, and once every item passes the whole plan completes.</p>
           <div id="repCategoriesList">${categoryRows}</div>
           <div class="add-section-box">
             <label>New Category</label>
             <input type="text" id="newRepCategoryName" placeholder="e.g. Greeting Guests">
+            <label>Reps needed</label>
+            <input type="number" id="newRepCategoryReps" min="1" max="20" value="1" style="width:90px;">
             <button onclick="addRepCategory()">Add Category</button>
           </div>
         </div>
@@ -847,11 +853,13 @@
 
     async function addRepCategory() {
       const name = document.getElementById('newRepCategoryName').value.trim();
+      const requiredReps = Number(document.getElementById('newRepCategoryReps').value);
       if (!name) { alert('Give the category a name.'); return; }
+      if (!Number.isInteger(requiredReps) || requiredReps < 1 || requiredReps > 20) { alert('Reps needed must be a whole number from 1 to 20.'); return; }
       try {
         await apiCall(`/post-final/templates/categories?pathId=${currentPathId}`, {
           method: 'POST',
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ name, requiredReps }),
         });
         loadPostFinalStages();
       } catch (err) {
@@ -863,6 +871,21 @@
       if (!name.trim()) { alert('Category name cannot be blank.'); loadPostFinalStages(); return; }
       try {
         await apiCall(`/post-final/templates/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name: name.trim() }) });
+      } catch (err) {
+        alert(err.message);
+        loadPostFinalStages();
+      }
+    }
+
+    async function setRepCategoryReps(id, value) {
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < 1 || n > 20) {
+        alert('Reps needed must be a whole number from 1 to 20.');
+        loadPostFinalStages();
+        return;
+      }
+      try {
+        await apiCall(`/post-final/templates/categories/${id}`, { method: 'PUT', body: JSON.stringify({ requiredReps: n }) });
       } catch (err) {
         alert(err.message);
         loadPostFinalStages();

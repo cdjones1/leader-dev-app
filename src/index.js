@@ -19,7 +19,7 @@ const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
 
 const app = express();
-app.use(express.json()); // lets the app read JSON sent in requests
+app.use(express.json({ limit: '1mb' })); // lets the app read JSON sent in requests (1mb so a drawn signature image fits - the default is only 100kb)
 app.use(express.static('public')); // serves the login page and dashboard
 
 // Public routes - no login required

@@ -279,7 +279,14 @@ router.get('/:id', requireAuth, async (req, res) => {
       },
       pairing: { include: { developer: true, developee: true } },
       skillDemo: true,
-      onShiftRepsStage: { include: { categories: { orderBy: { order: 'asc' } } } },
+      onShiftRepsStage: {
+        include: {
+          categories: {
+            orderBy: { order: 'asc' },
+            include: { reps: { orderBy: [{ completedOn: 'asc' }, { createdAt: 'asc' }] } },
+          },
+        },
+      },
     },
   });
   if (!plan) {
