@@ -10,6 +10,7 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkNoActiveAssessmentLock } = require('./access');
+const { completeModuleRecord } = require('./moduleCompletion');
 
 const router = express.Router();
 
@@ -121,7 +122,27 @@ router.post('/:sectionId/complete', requireAuth, async (req, res) => {
     data: { completed: true, completedAt: new Date() },
   });
 
-  res.json(updated);
+  // The moment a module's LAST unfinished section is completed - in
+  // whatever order the sections were done - the module completes itself
+  // (opening the next module, or the Study and Review step), so nobody
+  // has to hunt for a separate "Mark Complete" button.
+  let moduleResult = null;
+  if (section.module && section.module.status === 'OPEN') {
+    const stillOpen = await prisma.moduleSection.count({
+      where: { moduleId: section.module.id, completed: false },
+    });
+    if (stillOpen === 0) {
+      try {
+        moduleResult = await completeModuleRecord(section.module, req.user.userId);
+      } catch (err) {
+        // The section itself IS saved as complete - don't fail that over this.
+        // The plan page's "Mark Module Complete" button stays as a fallback.
+        console.error('Auto-completing the module failed:', err);
+      }
+    }
+  }
+
+  res.json({ ...updated, moduleCompleted: !!moduleResult });
 });
 
 module.exports = router;

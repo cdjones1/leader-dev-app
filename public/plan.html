@@ -419,7 +419,10 @@
 
     function moduleDetailHtml(module) {
       let canOpen = module.status === 'NOT_STARTED';
-      const canComplete = module.status === 'OPEN';
+      // Modules complete themselves when their last section is finished. This button is only
+      // a fallback, so it only shows when every section is done but the module is still open
+      // (or the module has no sections at all).
+      const showCompleteButton = module.status === 'OPEN' && (module.sections || []).every((s) => s.completed);
 
       const sectionListHtml = (module.sections && module.sections.length > 0) ? `
         <div class="task-checklist">
@@ -443,7 +446,7 @@
           ${module.description ? `<div class="item-desc" style="margin-bottom:8px;">${module.description}</div>` : ''}
           <div class="item-actions">
             <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
-            <button ${canComplete ? '' : 'disabled'} onclick="completeModule('${module.id}')">Mark Complete</button>
+            ${showCompleteButton ? `<button onclick="completeModule('${module.id}')">Mark Complete</button>` : ''}
             ${reviewButtonHtml}
           </div>
           ${sectionListHtml}

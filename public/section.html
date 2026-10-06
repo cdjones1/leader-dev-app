@@ -905,8 +905,9 @@
 
     async function completeAndAdvance() {
       const missingDiv = document.getElementById('missingList');
+      let result;
       try {
-        await apiCall('/sections/' + sectionId + '/complete', { method: 'POST' });
+        result = await apiCall('/sections/' + sectionId + '/complete', { method: 'POST' });
       } catch (err) {
         if (err.missing && missingDiv) {
           missingDiv.innerHTML = 'Still needed before you can continue: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
@@ -916,27 +917,28 @@
         return; // stop here - do not advance if the section wasn't actually ready
       }
 
-      const { isLast, nextSection, moduleId } = findSectionContext(currentSection);
+      // The server completes the whole module the moment its last unfinished
+      // section is done (in any order) - nothing more to click.
+      if (result && result.moduleCompleted) {
+        window.location.href = '/plan.html?id=' + planId;
+        return;
+      }
+
+      const { isLast, nextSection, siblings } = findSectionContext(currentSection);
 
       if (!isLast && nextSection) {
         goToSection(nextSection.id);
         return;
       }
 
-      if (isLast) {
-        // Finishing the last section also completes the whole module -
-        // no separate trip back to the plan page needed just for that.
-        try {
-          await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
-        } catch (err) {
-          if (err.missing) {
-            alert('This section is complete, but the module still has unfinished sections:\n\n' + err.missing.map((m) => '- ' + m).join('\n'));
-          } else {
-            alert('Section completed, but the module could not be marked complete: ' + err.message);
-          }
-        }
-        window.location.href = '/plan.html?id=' + planId;
+      // Finished the last section in the list, but earlier ones were skipped -
+      // take them to the first one still waiting instead of leaving them stuck.
+      const firstUnfinished = (siblings || []).find((s) => !s.completed && s.id !== currentSection.id);
+      if (firstUnfinished) {
+        goToSection(firstUnfinished.id);
+        return;
       }
+      window.location.href = '/plan.html?id=' + planId;
     }
 
     if (sectionId) loadSection();
