@@ -76,6 +76,7 @@
   <div class="module-card">
     <h2>Midterm Assessment Questions</h2>
     <p style="color:var(--text-muted); font-size:13px;">Answered by the developee, like Study Questions - locks and reveals the model answer once submitted. A fresh attempt (after a failed one) gets fresh answers.</p>
+    <div id="midtermPassword-box" class="add-section-box" style="margin-bottom:12px;"></div>
     <div id="midtermQuestions-list"></div>
     <div class="add-box" id="midterm-add-box"></div>
     <div class="add-section-box" style="margin-top:16px;">
@@ -91,6 +92,7 @@
 
   <div class="module-card">
     <h2>Final Assessment Questions</h2>
+    <div id="finalPassword-box" class="add-section-box" style="margin-bottom:12px;"></div>
     <div id="finalQuestions-list"></div>
     <div class="add-box" id="final-add-box"></div>
     <div class="add-section-box" style="margin-top:16px;">
@@ -668,12 +670,41 @@
       }
     }
 
+    async function loadAssessmentPassword(gateKey, gatePosition) {
+      const box = document.getElementById(`${gateKey}Password-box`);
+      if (!box) return;
+      try {
+        const st = await apiCall(`/assessment-questions/password-status?pathId=${currentPathId}&gatePosition=${gatePosition}`);
+        box.innerHTML = `
+          <label>Assessment password ${st.hasPassword ? '<span style="color:#1a7a3a;">(set)</span>' : '<span style="color:var(--text-muted);">(none - anyone can start)</span>'}</label>
+          <p style="color:var(--text-muted); font-size:12px; margin:4px 0 6px;">The developee must enter this before the questions open, once per attempt. Give it to them when they are ready. It cannot be viewed after saving - set a new one if you forget it.</p>
+          <input type="text" id="aqPassword-${gateKey}" autocomplete="off" placeholder="${st.hasPassword ? 'New password (replaces current)' : 'Set a password'}" style="max-width:260px;">
+          <button style="margin-top:6px;" onclick="saveAssessmentPassword('${gateKey}', '${gatePosition}')">${st.hasPassword ? 'Change Password' : 'Set Password'}</button>
+          ${st.hasPassword ? `<button style="margin-top:6px; background:#8a8378;" onclick="removeAssessmentPassword('${gateKey}', '${gatePosition}')">Remove Password</button>` : ''}`;
+      } catch (err) { box.innerHTML = ''; }
+    }
+    async function saveAssessmentPassword(gateKey, gatePosition) {
+      const password = document.getElementById(`aqPassword-${gateKey}`).value;
+      try {
+        await apiCall('/assessment-questions/password', { method: 'PUT', body: JSON.stringify({ pathId: currentPathId, gatePosition, password }) });
+        loadAssessmentPassword(gateKey, gatePosition);
+      } catch (err) { alert(err.message); }
+    }
+    async function removeAssessmentPassword(gateKey, gatePosition) {
+      if (!confirm('Remove the password? Anyone assigned will be able to start this assessment without one.')) return;
+      try {
+        await apiCall(`/assessment-questions/password?pathId=${currentPathId}&gatePosition=${gatePosition}`, { method: 'DELETE' });
+        loadAssessmentPassword(gateKey, gatePosition);
+      } catch (err) { alert(err.message); }
+    }
+
     async function loadAssessmentQuestions(gateKey, gatePosition) {
       const listDiv = document.getElementById(`${gateKey}Questions-list`);
       const addBox = document.getElementById(`${gateKey}-add-box`);
       if (!currentPathId) { listDiv.innerHTML = ''; addBox.innerHTML = ''; return; }
 
       document.getElementById(`copyAqTargetPath-${gateKey}`).innerHTML = pathOptionsHtml();
+      loadAssessmentPassword(gateKey, gatePosition);
 
       const questions = await apiCall(`/assessment-questions?pathId=${currentPathId}&gatePosition=${gatePosition}`);
       listDiv.innerHTML = questions.map((q) => assessmentQuestionRowHtml(gateKey, q)).join('');

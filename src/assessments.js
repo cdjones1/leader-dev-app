@@ -7,12 +7,36 @@
 //   attempt 3 fails -> LOCKED_FINAL (needs admin, not the developer)
 // ============================================================
 const express = require('express');
+const bcrypt = require('bcrypt');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, getParticipantRole } = require('./access');
 const { openSkillDemoOrSkip } = require('./postFinalStages');
 
 const router = express.Router();
+
+// --------------------------------------------------------------
+// ASSESSMENT PASSWORD GATE
+// A path can put a password on its Midterm/Final. The developee
+// enters it once per attempt; admins and developers are never gated.
+// An assessment already opened (openedAt set) before a password was
+// added is let through, so nobody is locked out mid-test.
+// --------------------------------------------------------------
+async function getGatePassword(assessment) {
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: assessment.planId }, select: { pathId: true } });
+  if (!plan || !plan.pathId) return null;
+  return prisma.assessmentPassword.findUnique({
+    where: { pathId_gatePosition: { pathId: plan.pathId, gatePosition: assessment.gatePosition } },
+  });
+}
+function isGateUnlocked(assessment) {
+  return assessment.unlockedAttempt === assessment.attemptCount + 1 || !!assessment.openedAt;
+}
+// Simple brute-force guard: 5 wrong tries locks that assessment's
+// password box for 5 minutes (in memory, resets on redeploy).
+const unlockFailures = new Map();
+const MAX_FAILS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
 
 // --------------------------------------------------------------
 // VIEW an assessment's questions, for the CURRENT attempt.
@@ -36,6 +60,15 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
   if (!(await checkPlanAccess(req, res, assessment.planId))) return;
 
   const role = req.user.isAdmin ? 'ADMIN' : await getParticipantRole(req.user.userId, assessment.planId);
+
+  // Password gate: a developee can't see any questions (and the
+  // assessment is NOT marked opened) until the password is entered.
+  if (role === 'DEVELOPEE' && ['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    const gate = await getGatePassword(assessment);
+    if (gate && !isGateUnlocked(assessment)) {
+      return res.json({ locked: true, passwordRequired: true, attemptNumber: assessment.attemptCount + 1, isGraded: false, questions: [] });
+    }
+  }
 
   // The developee viewing this (while it's actually gradeable, i.e.
   // an attempt is really underway) is what "opens" it - modules lock
@@ -120,6 +153,42 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
 //
 // Body: { responses: [{ questionId, answer }, { questionId, optionId }, ...] }
 // --------------------------------------------------------------
+// --------------------------------------------------------------
+// UNLOCK with the assessment password (developee only).
+// Body: { password }
+// --------------------------------------------------------------
+router.post('/:id/unlock', requireAuth, async (req, res) => {
+  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, assessment.planId, 'DEVELOPEE'))) return;
+  if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    return res.status(400).json({ error: 'This assessment is not open for an attempt right now' });
+  }
+  const gate = await getGatePassword(assessment);
+  if (!gate || isGateUnlocked(assessment)) return res.json({ unlocked: true });
+
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || !password) {
+    return res.status(400).json({ error: 'Enter the password' });
+  }
+  const rec = unlockFailures.get(assessment.id) || { count: 0, until: 0 };
+  if (rec.until > Date.now()) {
+    const mins = Math.ceil((rec.until - Date.now()) / 60000);
+    return res.status(429).json({ error: `Too many wrong tries. Try again in ${mins} minute(s).` });
+  }
+  const ok = await bcrypt.compare(password.trim(), gate.passwordHash);
+  if (!ok) {
+    rec.count += 1;
+    if (rec.count >= MAX_FAILS) { rec.until = Date.now() + LOCKOUT_MS; rec.count = 0; }
+    unlockFailures.set(assessment.id, rec);
+    return res.status(403).json({ error: 'Incorrect password' });
+  }
+  unlockFailures.delete(assessment.id);
+  await prisma.assessment.update({ where: { id: assessment.id }, data: { unlockedAttempt: assessment.attemptCount + 1 } });
+  res.json({ unlocked: true });
+});
+
 router.post('/:id/submit-test', requireAuth, async (req, res) => {
   const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
   if (!assessment) {
@@ -129,6 +198,11 @@ router.post('/:id/submit-test', requireAuth, async (req, res) => {
   if (!(await checkIsAssignedRole(req, res, assessment.planId, 'DEVELOPEE'))) return;
   if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
     return res.status(400).json({ error: `Cannot submit while the assessment status is ${assessment.status}` });
+  }
+
+  const gate = await getGatePassword(assessment);
+  if (gate && !isGateUnlocked(assessment)) {
+    return res.status(403).json({ error: 'Enter the assessment password before taking this test' });
   }
 
   const attemptNumber = assessment.attemptCount + 1;

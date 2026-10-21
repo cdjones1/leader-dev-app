@@ -299,6 +299,7 @@ model TaskChoiceOption {
 // assigned to (or none, until assigned).
 // ------------------------------------------------------------
 model DevelopmentPath {
+  assessmentPasswords AssessmentPassword[]
   id          String   @id @default(uuid())
   name        String   @unique
   description String   @default("")
@@ -592,6 +593,7 @@ model Assessment {
   status       AssessmentStatus @default(PENDING)
   attemptCount Int              @default(0)
   createdAt    DateTime         @default(now())
+  unlockedAttempt Int?          // attempt number the developee has unlocked with the assessment password (null = not unlocked). Compared with attemptCount + 1, so every new attempt needs the password again.
   openedAt     DateTime?        // set the moment the developee starts THIS attempt - all modules lock while this is set, to prevent looking up answers. Cleared the instant they submit the whole test (not when grading finishes) - a new attempt (after a retry) sets it again fresh.
 
   attempts     AssessmentAttempt[]
@@ -616,6 +618,20 @@ model Assessment {
 // questionType: 'SHORT_ANSWER' (developer grades it manually, model
 // answer never shown to the developee) or 'MULTIPLE_CHOICE' (auto-
 // graded immediately, since it's objectively checkable).
+// Optional password on a path's Midterm or Final. Only the bcrypt
+// hash is stored, so nobody (admin included) can read it back - an
+// admin who forgets it just sets a new one.
+model AssessmentPassword {
+  id           String          @id @default(uuid())
+  pathId       String
+  path         DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  gatePosition GatePosition
+  passwordHash String
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([pathId, gatePosition])
+}
+
 model AssessmentQuestionTemplate {
   id            String          @id @default(uuid())
   pathId        String

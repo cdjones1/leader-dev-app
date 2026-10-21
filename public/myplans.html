@@ -59,6 +59,7 @@
       if (user.isAdmin) {
         links.push('<a href="/dashboard.html" style="color:var(--accent); text-decoration:none; margin-right:16px;">Admin Dashboard</a>');
       }
+      links.push('<a href="/change-password.html" style="color:var(--accent); text-decoration:none; margin-right:16px;">Change Password</a>');
       navLinks.innerHTML = links.join('') + '<button onclick="logout()">Log Out</button>';
     }
     renderNav();

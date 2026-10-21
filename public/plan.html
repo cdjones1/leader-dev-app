@@ -190,6 +190,7 @@
       <a href="/myplans.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">My Plans</a>
       <a id="reportCardLink" href="#" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Report Card</a>
       <a id="adminDashLink" href="/dashboard.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Admin Dashboard</a>
+      <a href="/change-password.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Change Password</a>
       <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
       <a class="signout" href="#" onclick="signOut()">Sign out</a>
     </div>
@@ -949,6 +950,27 @@
         `;
       }
 
+      // Password-protected and not yet unlocked for this attempt.
+      if (questionData && questionData.locked) {
+        if (!isDevelopeeHere) {
+          return `
+            <div class="assessment-box" id="assessmentSection">
+              <h3>${label} - ${attemptLabel}</h3>
+              <p style="color:var(--text-muted);">This assessment is password protected. Your developee enters the password you give them to begin.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            <p style="color:var(--text-muted);">This assessment is password protected. Ask your developer or leader for the password when you are ready to begin.</p>
+            <input type="password" id="assessmentPasswordInput" autocomplete="off" placeholder="Assessment password" style="padding:9px 12px; border:1px solid var(--border); border-radius:8px; margin-right:8px;" onkeydown="if(event.key==='Enter') unlockAssessment('${assessment.id}')">
+            <button onclick="unlockAssessment('${assessment.id}')">Unlock</button>
+            <div id="assessmentPasswordMsg" style="color:#b71c23; font-size:13px; margin-top:8px;"></div>
+          </div>
+        `;
+      }
+
       // Not yet submitted - the interactive question-answering flow.
       const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
       const submitTestButtonHtml = (questions.length > 0 && canAnswer)
@@ -1220,6 +1242,19 @@
         } else {
           alert(err.message);
         }
+      }
+    }
+
+    async function unlockAssessment(assessmentId) {
+      const input = document.getElementById('assessmentPasswordInput');
+      const msg = document.getElementById('assessmentPasswordMsg');
+      if (!input.value) { msg.textContent = 'Enter the password.'; return; }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/unlock', { method: 'POST', body: JSON.stringify({ password: input.value }) });
+        loadPlan();
+      } catch (err) {
+        msg.textContent = err.message;
+        input.value = '';
       }
     }
 

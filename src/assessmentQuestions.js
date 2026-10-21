@@ -14,6 +14,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const bcrypt = require('bcrypt');
 
 const router = express.Router();
 
@@ -197,6 +198,51 @@ router.post('/path/:pathId/gate/:gatePosition', requireAuth, async (req, res) =>
   }
 
   res.status(201).json(question);
+});
+
+// --------------------------------------------------------------
+// ASSESSMENT PASSWORD (admin). Registered BEFORE the '/:questionId'
+// routes so "password" isn't mistaken for a question ID.
+// Only a bcrypt hash is stored - it can be replaced or removed, never read.
+// --------------------------------------------------------------
+router.get('/password-status', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { pathId, gatePosition } = req.query;
+  if (!pathId || !VALID_GATES.includes(gatePosition)) {
+    return res.status(400).json({ error: 'pathId and a valid gatePosition are required' });
+  }
+  const row = await prisma.assessmentPassword.findUnique({ where: { pathId_gatePosition: { pathId, gatePosition } } });
+  res.json({ hasPassword: !!row });
+});
+
+router.put('/password', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { pathId, gatePosition, password } = req.body || {};
+  if (!pathId || !VALID_GATES.includes(gatePosition)) {
+    return res.status(400).json({ error: 'pathId and a valid gatePosition are required' });
+  }
+  if (typeof password !== 'string' || password.trim().length < 4 || password.length > 100) {
+    return res.status(400).json({ error: 'Password must be 4 to 100 characters' });
+  }
+  const path = await prisma.developmentPath.findUnique({ where: { id: pathId } });
+  if (!path) return res.status(404).json({ error: 'Path not found' });
+  const passwordHash = await bcrypt.hash(password.trim(), 10);
+  await prisma.assessmentPassword.upsert({
+    where: { pathId_gatePosition: { pathId, gatePosition } },
+    update: { passwordHash },
+    create: { pathId, gatePosition, passwordHash },
+  });
+  res.json({ hasPassword: true });
+});
+
+router.delete('/password', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const { pathId, gatePosition } = req.query;
+  if (!pathId || !VALID_GATES.includes(gatePosition)) {
+    return res.status(400).json({ error: 'pathId and a valid gatePosition are required' });
+  }
+  await prisma.assessmentPassword.deleteMany({ where: { pathId, gatePosition } });
+  res.json({ hasPassword: false });
 });
 
 // Reorder questions within a path's gate. Body: { questionIds: [...] }

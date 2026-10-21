@@ -6,6 +6,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = require('./db');
+const requireAuth = require('./requireAuth');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -93,6 +94,42 @@ router.post('/login', async (req, res) => {
     token,
     user: { id: user.id, name: user.name, email: user.email, role: user.role, isAdmin: user.isAdmin },
   });
+});
+
+// --------------------------------------------------------------
+// CHANGE PASSWORD — a signed-in user changes their OWN password.
+// Requires the current password so a stranger at an unlocked
+// computer can't take over the account.
+// --------------------------------------------------------------
+router.post('/change-password', requireAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current password and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    if (newPassword.length > 200) {
+      return res.status(400).json({ error: 'New password is too long' });
+    }
+    // Always look the user up fresh from the database.
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) return res.status(403).json({ error: 'Current password is incorrect' });
+
+    if (currentPassword === newPassword) {
+      return res.status(400).json({ error: 'New password must be different from your current password' });
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    res.json({ message: 'Password changed' });
+  } catch (err) {
+    console.error('change-password error:', err);
+    res.status(500).json({ error: 'Could not change password' });
+  }
 });
 
 module.exports = router;
