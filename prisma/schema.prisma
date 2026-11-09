@@ -306,6 +306,7 @@ model DevelopmentPath {
   moduleCount Int      @default(8) // how many modules this path has - the assessment/review gates always land at the halfway point and at the end, whatever that count is
   goalDays    Int      @default(30) // how many days plans on this path get before showing a "due soon" reminder
   maxDays     Int      @default(40) // how many days before a plan on this path shows as overdue
+  holdPart2   Boolean  @default(false) // when true, modules after the midterm stay closed (not even opened after the midterm passes) until an admin releases Part 2
   createdAt   DateTime @default(now())
 
   moduleTemplates ModuleTemplate[]

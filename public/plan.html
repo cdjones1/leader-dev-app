@@ -224,6 +224,9 @@
     const token = localStorage.getItem('token');
     let lastQuestionData = null;
     let isDeveloperHereGlobal = false;
+    let part2HeldGlobal = false;
+    let part2StartsAfter = 4; // modules after this number belong to Part 2
+    function isHeldModule(m) { return part2HeldGlobal && m.status === 'NOT_STARTED' && m.sequenceOrder > part2StartsAfter; }
     let isDevelopeeHereGlobal = false;
     let copyPasteBlockAttached = false;
 
@@ -331,6 +334,7 @@
       }
       if (item.done) return { cls: 'pill-done', text: 'SIGNED OFF' };
       if (item.type === 'module') {
+        if (isHeldModule(item.data)) return { cls: 'pill-locked', text: 'NOT RELEASED YET' };
         if (item.data.status === 'LOCKED') return { cls: 'pill-locked', text: 'LOCKED' };
         if (item.data.status === 'OPEN') return { cls: 'pill-progress', text: 'IN PROGRESS' };
         return { cls: 'pill-pending', text: 'NOT STARTED' };
@@ -389,7 +393,9 @@
       const actionDiv = document.getElementById('heroAction');
       if (current.type === 'module') {
         const m = current.data;
-        if (m.status === 'NOT_STARTED') {
+        if (isHeldModule(m)) {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">Part 2 of this course has not been released yet. Your leader will open it as soon as it is ready - you will see it here.</p>`;
+        } else if (m.status === 'NOT_STARTED') {
           actionDiv.innerHTML = `<button class="cta" onclick="openModule('${m.id}')">Start: ${current.label}</button>`;
         } else if (m.status === 'OPEN') {
           const incompleteSection = (m.sections || []).find((s) => !s.completed);
@@ -419,7 +425,7 @@
     }
 
     function moduleDetailHtml(module) {
-      let canOpen = module.status === 'NOT_STARTED';
+      let canOpen = module.status === 'NOT_STARTED' && !isHeldModule(module);
       // Modules complete themselves when their last section is finished. This button is only
       // a fallback, so it only shows when every section is done but the module is still open
       // (or the module has no sections at all).
@@ -995,6 +1001,9 @@
 
         document.getElementById('brandSub').textContent =
           `${plan.pairing.developee.name}'s Plan · Developed by ${plan.pairing.developer.name}`;
+
+        part2HeldGlobal = !!plan.part2Held;
+        part2StartsAfter = Math.ceil((plan.moduleCount || plan.modules.length) / 2);
 
         const currentUserId = user.id;
         const isDeveloperHere = plan.pairing.developer.id === currentUserId;

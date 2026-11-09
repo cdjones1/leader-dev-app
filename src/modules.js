@@ -9,6 +9,7 @@ const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock, checkIsDeveloperOnPlan } = require('./access');
 const { midpointModule, gateAfterModule } = require('./gates');
 const { completeModuleRecord } = require('./moduleCompletion');
+const { isPart2Held } = require('./moduleCopy');
 
 const router = express.Router();
 
@@ -229,6 +230,9 @@ router.post('/:id/open', requireAuth, async (req, res) => {
   // has 8 modules, 6, or any other count.
   const plan = await prisma.developmentPlan.findUnique({ where: { id: module.planId } });
   const midpoint = midpointModule(plan.moduleCount);
+  if (module.sequenceOrder > midpoint && (await isPart2Held(plan))) {
+    return res.status(400).json({ error: 'Part 2 of this course has not been released yet. Your leader will open it when it is ready.' });
+  }
   if (module.sequenceOrder === midpoint + 1) {
     const midterm = await prisma.assessment.findUnique({
       where: { planId_gatePosition: { planId: module.planId, gatePosition: 'AFTER_MODULE_4' } },

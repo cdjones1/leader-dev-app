@@ -12,6 +12,7 @@ const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, getParticipantRole } = require('./access');
 const { openSkillDemoOrSkip } = require('./postFinalStages');
+const { isPart2Held } = require('./moduleCopy');
 
 const router = express.Router();
 
@@ -403,6 +404,9 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
 // --------------------------------------------------------------
 async function unlockNextStep(assessment) {
   if (assessment.gatePosition === 'AFTER_MODULE_4') {
+    // If the path is holding Part 2, Module 5 stays closed until an admin releases it.
+    const heldPlan = await prisma.developmentPlan.findUnique({ where: { id: assessment.planId } });
+    if (await isPart2Held(heldPlan)) return { action: 'part2_held' };
     const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
     const now = new Date();
     const module5 = await prisma.module.findFirst({

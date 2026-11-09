@@ -8,6 +8,7 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { checkPlanAccess } = require('./access');
+const { loadModuleTemplate, fillModuleFromTemplate, isPart2Held } = require('./moduleCopy');
 const router = express.Router();
 
 // Shared answer-hiding rule, used everywhere a task might be sent
@@ -83,27 +84,7 @@ router.post('/', requireAuth, async (req, res) => {
   // template, if one exists yet - templates might not be filled in
   // yet, and that's fine, the module just starts blank.
   for (let seq = 1; seq <= path.moduleCount; seq++) {
-    const template = await prisma.moduleTemplate.findUnique({
-      where: { pathId_sequenceOrder: { pathId, sequenceOrder: seq } },
-      include: {
-        sectionTemplates: {
-          orderBy: { order: 'asc' },
-          include: {
-            taskTemplates: {
-              orderBy: { order: 'asc' },
-              include: {
-                checklistItemTemplates: { orderBy: { order: 'asc' } },
-                choiceOptionTemplates: { orderBy: { order: 'asc' } },
-                quizQuestionTemplates: {
-                  orderBy: { order: 'asc' },
-                  include: { choiceOptionTemplates: { orderBy: { order: 'asc' } } },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
+    const template = await loadModuleTemplate(pathId, seq);
 
     const module = await prisma.module.create({
       data: {
@@ -115,73 +96,7 @@ router.post('/', requireAuth, async (req, res) => {
       },
     });
 
-    if (template) {
-      for (const sectionTemplate of template.sectionTemplates) {
-        const section = await prisma.moduleSection.create({
-          data: {
-            moduleId: module.id,
-            order: sectionTemplate.order,
-            title: sectionTemplate.title,
-          },
-        });
-
-        for (const taskTemplate of sectionTemplate.taskTemplates) {
-          const moduleTask = await prisma.moduleTask.create({
-            data: {
-              sectionId: section.id,
-              order: taskTemplate.order,
-              text: taskTemplate.text,
-              content: taskTemplate.content,
-              taskType: taskTemplate.taskType,
-              assignedTo: taskTemplate.assignedTo,
-              correctAnswer: taskTemplate.correctAnswer,
-              link: taskTemplate.link,
-              pageReference: taskTemplate.pageReference,
-              tableLeftHeader: taskTemplate.tableLeftHeader,
-              tableRightHeader: taskTemplate.tableRightHeader,
-              tableHeaderColor: taskTemplate.tableHeaderColor,
-              tableRowColorA: taskTemplate.tableRowColorA,
-              tableRowColorB: taskTemplate.tableRowColorB,
-            },
-          });
-
-          for (const item of taskTemplate.checklistItemTemplates) {
-            await prisma.taskChecklistItem.create({
-              data: {
-                moduleTaskId: moduleTask.id,
-                order: item.order,
-                text: item.text,
-                description: item.description,
-                link: item.link,
-                quoteText: item.quoteText,
-              },
-            });
-          }
-
-          for (const option of taskTemplate.choiceOptionTemplates) {
-            await prisma.taskChoiceOption.create({
-              data: {
-                moduleTaskId: moduleTask.id,
-                order: option.order,
-                text: option.text,
-                isCorrect: option.isCorrect,
-              },
-            });
-          }
-
-          for (const qt of taskTemplate.quizQuestionTemplates) {
-            const quizQuestion = await prisma.sectionQuizQuestion.create({
-              data: { moduleTaskId: moduleTask.id, order: qt.order, text: qt.text, content: qt.content },
-            });
-            for (const opt of qt.choiceOptionTemplates) {
-              await prisma.sectionQuizChoiceOption.create({
-                data: { questionId: quizQuestion.id, order: opt.order, text: opt.text, isCorrect: opt.isCorrect },
-              });
-            }
-          }
-        }
-      }
-    }
+    if (template) await fillModuleFromTemplate(module.id, template);
   }
 
   // Set up access control: the developer and developee on this
@@ -308,6 +223,7 @@ router.get('/:id', requireAuth, async (req, res) => {
     }
   }
 
+  plan.part2Held = await isPart2Held(plan);
   res.json(plan);
 });
 

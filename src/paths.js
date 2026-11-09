@@ -7,6 +7,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const { loadModuleTemplate, fillModuleFromTemplate, midpointModule } = require('./moduleCopy');
 
 const router = express.Router();
 
@@ -62,6 +63,83 @@ router.post('/', requireAuth, async (req, res) => {
   });
 
   res.status(201).json(path);
+});
+
+// --------------------------------------------------------------
+// PART 2 HOLD / RELEASE (admin).
+// Hold: developees on this path stop at the midterm - the modules
+// after it stay closed. Release: clears the hold, refreshes every
+// not-yet-started Part 2 module in existing plans from the path's
+// CURRENT content, then opens the first Part 2 module for plans
+// whose midterm already passed. Started modules are never touched.
+// --------------------------------------------------------------
+router.put('/:id/part2-hold', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const path = await prisma.developmentPath.findUnique({ where: { id: req.params.id } });
+  if (!path) return res.status(404).json({ error: 'Path not found' });
+  const updated = await prisma.developmentPath.update({ where: { id: path.id }, data: { holdPart2: true } });
+  res.json(updated);
+});
+
+router.post('/:id/release-part2', requireAuth, async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  const path = await prisma.developmentPath.findUnique({ where: { id: req.params.id } });
+  if (!path) return res.status(404).json({ error: 'Path not found' });
+
+  await prisma.developmentPath.update({ where: { id: path.id }, data: { holdPart2: false } });
+
+  const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
+  const plans = await prisma.developmentPlan.findMany({ where: { pathId: path.id, status: 'IN_PROGRESS' } });
+  let plansTouched = 0, modulesRefreshed = 0, modulesOpened = 0, failures = 0;
+
+  for (const plan of plans) {
+    const midpoint = midpointModule(plan.moduleCount);
+    const waiting = await prisma.module.findMany({
+      where: { planId: plan.id, sequenceOrder: { gt: midpoint }, status: 'NOT_STARTED' },
+      orderBy: { sequenceOrder: 'asc' },
+    });
+    let touched = false;
+    for (const mod of waiting) {
+      try {
+        const template = await loadModuleTemplate(path.id, mod.sequenceOrder);
+        // Re-check right before replacing, so a module someone just opened is never wiped.
+        const fresh = await prisma.module.findUnique({ where: { id: mod.id } });
+        if (!fresh || fresh.status !== 'NOT_STARTED') continue;
+        await prisma.moduleSection.deleteMany({ where: { moduleId: mod.id } }); // cascades its tasks
+        await prisma.module.update({
+          where: { id: mod.id },
+          data: { title: template ? template.title : null, description: template ? template.description : null },
+        });
+        if (template) await fillModuleFromTemplate(mod.id, template);
+        modulesRefreshed++; touched = true;
+      } catch (err) {
+        failures++;
+        console.error('release-part2: could not refresh module', mod.id, err);
+      }
+    }
+    if (touched) plansTouched++;
+
+    // Plans already past the midterm get the first Part 2 module opened now.
+    const midterm = await prisma.assessment.findUnique({
+      where: { planId_gatePosition: { planId: plan.id, gatePosition: 'AFTER_MODULE_4' } },
+    });
+    if (midterm && midterm.status === 'PASSED') {
+      const first = await prisma.module.findFirst({ where: { planId: plan.id, sequenceOrder: midpoint + 1 } });
+      if (first) {
+        const now = new Date();
+        const claimed = await prisma.module.updateMany({
+          where: { id: first.id, status: 'NOT_STARTED' },
+          data: { status: 'OPEN', openedAt: now, dueAt: new Date(now.getTime() + FIVE_DAYS_IN_MS) },
+        });
+        if (claimed.count === 1) {
+          await prisma.moduleEvent.create({ data: { moduleId: first.id, eventType: 'OPENED', actorId: req.user.userId } });
+          modulesOpened++;
+        }
+      }
+    }
+  }
+
+  res.json({ holdPart2: false, plansTouched, modulesRefreshed, modulesOpened, failures });
 });
 
 router.put('/:id', requireAuth, async (req, res) => {

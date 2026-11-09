@@ -62,6 +62,7 @@
       <button id="analyzeContentBtn" onclick="analyzeContent()" style="background:#8a4fd6; white-space:nowrap;">Analyze Content</button>
     </div>
     <div id="analyzeContentResults"></div>
+    <div id="releaseBox" class="add-section-box" style="margin-top:14px;"></div>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
       <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
@@ -359,12 +360,53 @@
         currentPathId = paths[0].id;
       }
       select.value = currentPathId;
+      renderReleaseBox();
       loadTemplates();
+    }
+
+    // ---------- Part 2 hold / release ----------
+    function renderReleaseBox() {
+      const box = document.getElementById('releaseBox');
+      const path = pathsById[currentPathId];
+      if (!box || !path) { if (box) box.innerHTML = ''; return; }
+      const mid = Math.ceil((path.moduleCount || 8) / 2);
+      if (path.holdPart2) {
+        box.innerHTML = `
+          <label>Course release: <span style="color:#9a5b00;">Part 2 is HELD</span></label>
+          <p style="color:var(--text-muted); font-size:13px; margin:4px 0 8px;">Developees on this path can do Modules 1-${mid}, the Study &amp; Review and the Midterm. After they pass the midterm, Modules ${mid + 1}-${path.moduleCount} stay closed. When Part 2 is finished, release it: every waiting plan is refreshed with the current content, and anyone who already passed the midterm gets Module ${mid + 1} opened.</p>
+          <button id="releasePart2Btn" onclick="releasePart2()" style="background:#1a7a3a;">Release Part 2</button>`;
+      } else {
+        box.innerHTML = `
+          <label>Course release: <span style="color:#1a7a3a;">Full course released</span></label>
+          <p style="color:var(--text-muted); font-size:13px; margin:4px 0 8px;">Developees move straight on to Module ${mid + 1} after the midterm. Turn the hold on while you are still writing Part 2, so developees can start Part 1 without reaching unfinished modules.</p>
+          <button onclick="holdPart2()" style="background:#8a8378;">Hold Part 2 (stop at the midterm)</button>`;
+      }
+    }
+
+    async function holdPart2() {
+      if (!currentPathId) return;
+      try {
+        await apiCall(`/paths/${currentPathId}/part2-hold`, { method: 'PUT' });
+        await loadPaths();
+      } catch (err) { alert(err.message); }
+    }
+
+    async function releasePart2() {
+      if (!currentPathId) return;
+      if (!confirm('Release Part 2 now? Plans that have not started Part 2 are refreshed with this path\'s current Module content, and anyone who already passed the midterm gets the next module opened. Modules people have already started are not changed.')) return;
+      const btn = document.getElementById('releasePart2Btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Releasing...'; }
+      try {
+        const r = await apiCall(`/paths/${currentPathId}/release-part2`, { method: 'POST' });
+        alert(`Part 2 released.\n\nModules refreshed: ${r.modulesRefreshed} (in ${r.plansTouched} plan(s))\nModules opened for people past the midterm: ${r.modulesOpened}` + (r.failures ? `\n\n${r.failures} module(s) could not be refreshed - check the server logs.` : ''));
+        await loadPaths();
+      } catch (err) { alert(err.message); await loadPaths(); }
     }
 
     function onPathSelected() {
       currentPathId = document.getElementById('pathSelect').value;
       document.getElementById('analyzeContentResults').innerHTML = '';
+      renderReleaseBox();
       loadTemplates();
     }
 
