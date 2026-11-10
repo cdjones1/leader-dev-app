@@ -52,6 +52,11 @@
       cursor: pointer;
     }
     button:hover { background: var(--accent-dark); }
+    #googleBox { margin-top: 20px; display: none; }
+    #googleBtn { display: flex; justify-content: center; }
+    .hint { color: var(--text-muted); font-size: 13px; margin: 14px 0 0; text-align: center; }
+    .adminLink { display: none; text-align: center; margin-top: 22px; }
+    .adminLink a { color: var(--text-muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
     #error {
       color: #9b1c1c;
       margin-top: 12px;
@@ -63,6 +68,12 @@
 <body>
   <div class="card">
     <h1>Leadership Development Tracker</h1>
+    <div id="googleBox">
+      <div id="googleBtn"></div>
+      <p class="hint">Use the Gmail address your leader added for you.</p>
+      <div id="googleError" style="color:#9b1c1c; font-size:14px; margin-top:12px; text-align:center; display:none;"></div>
+    </div>
+    <div class="adminLink" id="adminLink"><a onclick="showPasswordForm()">Administrator sign-in</a></div>
     <form id="loginForm">
       <label>Email</label>
       <input type="email" id="email" required>
@@ -74,6 +85,65 @@
   </div>
 
   <script>
+    function finishLogin(data) {
+      // Save the login token and user info so other pages can use them
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      // Admins land on the admin dashboard; everyone else goes
+      // straight to their own plans - that IS their home page.
+      window.location.href = data.user.isAdmin ? '/dashboard.html' : '/myplans.html';
+    }
+
+    function showPasswordForm() {
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('adminLink').style.display = 'none';
+    }
+
+    // Ask the server whether Google sign-in is switched on. If it is, the
+    // Google button is the main way in and the password form hides behind
+    // "Administrator sign-in". If not (or if Google fails to load), the
+    // password form stays visible so nobody is ever locked out.
+    async function setupGoogle() {
+      try {
+        const cfg = await (await fetch('/auth/config')).json();
+        try { localStorage.setItem('googleEnabled', cfg.googleEnabled ? '1' : '0'); } catch (e) {}
+        if (!cfg.googleEnabled) return;
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = 'https://accounts.google.com/gsi/client';
+          s.async = true; s.onload = resolve; s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        google.accounts.id.initialize({
+          client_id: cfg.googleClientId,
+          callback: async (resp) => {
+            const gErr = document.getElementById('googleError');
+            gErr.style.display = 'none';
+            try {
+              const res = await fetch('/auth/google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: resp.credential }),
+              });
+              const data = await res.json();
+              if (!res.ok) { gErr.textContent = data.error || 'Sign-in failed'; gErr.style.display = 'block'; return; }
+              finishLogin(data);
+            } catch (err) {
+              gErr.textContent = 'Could not reach the server. Please try again.';
+              gErr.style.display = 'block';
+            }
+          },
+        });
+        google.accounts.id.renderButton(document.getElementById('googleBtn'), { theme: 'outline', size: 'large', text: 'signin_with', width: 280 });
+        document.getElementById('googleBox').style.display = 'block';
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('adminLink').style.display = 'block';
+      } catch (err) {
+        // Google unavailable - leave the password form showing.
+      }
+    }
+    setupGoogle();
+
     const form = document.getElementById('loginForm');
     const errorDiv = document.getElementById('error');
 
@@ -98,13 +168,7 @@
           return;
         }
 
-        // Save the login token and user info so other pages can use them
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-
-        // Admins land on the admin dashboard; everyone else goes
-        // straight to their own plans - that IS their home page.
-        window.location.href = data.user.isAdmin ? '/dashboard.html' : '/myplans.html';
+        finishLogin(data);
       } catch (err) {
         errorDiv.textContent = 'Could not reach the server. Please try again.';
         errorDiv.style.display = 'block';

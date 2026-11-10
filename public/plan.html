@@ -190,7 +190,7 @@
       <a href="/myplans.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">My Plans</a>
       <a id="reportCardLink" href="#" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Report Card</a>
       <a id="adminDashLink" href="/dashboard.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Admin Dashboard</a>
-      <a href="/change-password.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Change Password</a>
+      <a id="changePwLink" href="/change-password.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Change Password</a>
       <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
       <a class="signout" href="#" onclick="signOut()">Sign out</a>
     </div>
@@ -330,7 +330,7 @@
       if (item.type === 'module' && item.data.status === 'COMPLETED') {
         return item.data.reviewedAt
           ? { cls: 'pill-done', text: 'SIGNED OFF' }
-          : { cls: 'pill-progress', text: 'AWAITING REVIEW' };
+          : { cls: 'pill-progress', text: 'AWAITING SIGN-OFF' };
       }
       if (item.done) return { cls: 'pill-done', text: 'SIGNED OFF' };
       if (item.type === 'module') {
@@ -341,7 +341,7 @@
       }
       if (item.type === 'review') {
         if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
-        return item.data.status === 'OPEN' ? { cls: 'pill-progress', text: 'AWAITING REVIEW' } : { cls: 'pill-pending', text: 'NOT STARTED' };
+        return item.data.status === 'OPEN' ? { cls: 'pill-progress', text: 'IN PROGRESS' } : { cls: 'pill-pending', text: 'NOT STARTED' };
       }
       if (item.type === 'assessment') {
         if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
@@ -409,7 +409,7 @@
         }
       } else if (current.type === 'review') {
         if (current.data) {
-          actionDiv.innerHTML = `<button class="cta" onclick="completeReviewStep('${current.data.id}')">Mark Reviewed</button>`;
+          actionDiv.innerHTML = `<button class="cta" onclick="completeReviewStep('${current.data.id}')">Finish Study &amp; Review (unlocks the assessment)</button>`;
         } else {
           actionDiv.innerHTML = `<p style="color:var(--text-muted);">This unlocks once the module before it is complete.</p>`;
         }
@@ -443,7 +443,7 @@
 
       const canReview = module.status === 'COMPLETED' && !module.reviewedAt && (isDeveloperHereGlobal || user.isAdmin);
       const reviewButtonHtml = canReview
-        ? `<button onclick="markModuleReviewed('${module.id}')">Mark Reviewed</button>`
+        ? `<button onclick="markModuleReviewed('${module.id}')">Developer Sign-Off</button>`
         : (module.status === 'COMPLETED' && module.reviewedAt
           ? `<span style="color:#1a7a3a; font-weight:600; font-size:13px;">&#10003; Reviewed</span>`
           : '');
@@ -476,7 +476,7 @@
       return `
         <div class="module-detail">
           ${sectionListHtml}
-          <button style="margin-top:10px;" onclick="completeReviewStep('${reviewStep.id}')">Mark Reviewed</button>
+          <button style="margin-top:10px;" onclick="completeReviewStep('${reviewStep.id}')">Finish Study &amp; Review (unlocks the assessment)</button>
           <div id="reviewMissingList-${reviewStep.id}" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
         </div>
       `;
@@ -1002,6 +1002,7 @@
         document.getElementById('brandSub').textContent =
           `${plan.pairing.developee.name}'s Plan · Developed by ${plan.pairing.developer.name}`;
 
+        try { if (user.isAdmin || localStorage.getItem('googleEnabled') !== '1') document.getElementById('changePwLink').style.display = 'inline'; } catch (e) {}
         part2HeldGlobal = !!plan.part2Held;
         part2StartsAfter = Math.ceil((plan.moduleCount || plan.modules.length) / 2);
 

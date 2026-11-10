@@ -43,7 +43,7 @@
     <input type="text" id="name">
     <label>Email</label>
     <input type="email" id="email">
-    <label>Temporary Password</label>
+    <label>Password (admins only - everyone else signs in with Google, so leave blank)</label>
     <input type="password" id="password">
     <label>Role</label>
     <select id="role">
@@ -101,7 +101,7 @@
           return;
         }
 
-        messageDiv.textContent = `Created ${data.name} (${data.email}). They can log in with the temporary password now.`;
+        messageDiv.textContent = `Created ${data.name} (${data.email}). They can sign in with Google using this email address (admins can also use the password).`;
         document.getElementById('name').value = '';
         document.getElementById('email').value = '';
         document.getElementById('password').value = '';

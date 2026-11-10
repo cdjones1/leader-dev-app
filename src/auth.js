@@ -7,9 +7,70 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
+
+// Google sign-in is switched on by setting GOOGLE_CLIENT_ID in Render.
+// Until it is set, everyone keeps signing in with a password, so
+// deploying this code can never lock anyone out by itself.
+const googleClientId = () => process.env.GOOGLE_CLIENT_ID || '';
+const googleClient = new OAuth2Client();
+
+function issueToken(user) {
+  const token = jwt.sign(
+    { userId: user.id, role: user.role, isAdmin: user.isAdmin },
+    JWT_SECRET,
+    { expiresIn: '8h' }
+  );
+  return { token, user: { id: user.id, name: user.name, email: user.email, role: user.role, isAdmin: user.isAdmin } };
+}
+
+// Tells the login page whether to show the Google button.
+router.get('/config', (req, res) => {
+  const id = googleClientId();
+  res.json({ googleEnabled: !!id, googleClientId: id });
+});
+
+// --------------------------------------------------------------
+// GOOGLE SIGN-IN - the browser sends the signed ID token Google gave
+// it. We verify it with Google, then sign in whichever user has that
+// (verified) Gmail address. Nobody is auto-created: an admin must
+// have added the address first.
+// --------------------------------------------------------------
+router.post('/google', async (req, res) => {
+  try {
+    const clientId = googleClientId();
+    if (!clientId) return res.status(503).json({ error: 'Google sign-in is not set up yet' });
+    const { credential } = req.body || {};
+    if (typeof credential !== 'string' || !credential) {
+      return res.status(400).json({ error: 'Missing Google credential' });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: clientId });
+      payload = ticket.getPayload();
+    } catch (err) {
+      return res.status(401).json({ error: 'Google sign-in could not be verified. Please try again.' });
+    }
+    if (!payload || !payload.email || payload.email_verified !== true) {
+      return res.status(401).json({ error: 'That Google account has no verified email address.' });
+    }
+
+    const email = payload.email.trim();
+    const user = await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+    if (!user) {
+      return res.status(403).json({ error: `${email} has not been added yet. Ask your leader to add this Gmail address.` });
+    }
+    res.json(issueToken(user));
+  } catch (err) {
+    console.error('google sign-in error:', err);
+    res.status(500).json({ error: 'Could not sign in with Google' });
+  }
+});
 
 // --------------------------------------------------------------
 // REGISTER — creates a new user.
@@ -20,11 +81,18 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // come from a logged-in admin.
 // --------------------------------------------------------------
 router.post('/register', async (req, res) => {
-  const { name, email, password, role, isAdmin } = req.body;
+  const { name, email, role, isAdmin } = req.body;
+  let { password } = req.body;
 
-  if (!name || !email || !password || !role) {
-    return res.status(400).json({ error: 'name, email, password, and role are required' });
+  if (!name || !email || !role) {
+    return res.status(400).json({ error: 'name, email, and role are required' });
   }
+  if (isAdmin && !password) {
+    return res.status(400).json({ error: 'Admins need a password (it is their backup sign-in)' });
+  }
+  // People who sign in with Google never use a password, so give them an
+  // unguessable random one instead of leaving the field empty.
+  if (!password) password = crypto.randomBytes(24).toString('hex');
 
   const userCount = await prisma.user.count();
 
@@ -45,7 +113,7 @@ router.post('/register', async (req, res) => {
   }
   // else: userCount === 0, this is the bootstrap case - allowed through freely.
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: 'insensitive' } } });
   if (existing) {
     return res.status(409).json({ error: 'A user with that email already exists' });
   }
@@ -55,7 +123,7 @@ router.post('/register', async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
 
   const user = await prisma.user.create({
-    data: { name, email, passwordHash, role, isAdmin: !!isAdmin },
+    data: { name, email: email.trim(), passwordHash, role, isAdmin: !!isAdmin },
   });
 
   // Never send the password hash back in a response.
@@ -72,9 +140,14 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'email and password are required' });
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findFirst({ where: { email: { equals: String(email).trim(), mode: 'insensitive' } } });
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password' });
+  }
+
+  // Once Google sign-in is on, passwords only work for admins (their backup).
+  if (googleClientId() && !user.isAdmin) {
+    return res.status(403).json({ error: 'Please use "Sign in with Google" with the Gmail address your leader added.' });
   }
 
   const passwordMatches = await bcrypt.compare(password, user.passwordHash);
@@ -82,18 +155,7 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  // Create a token that proves who this user is on future requests.
-  // It expires after 8 hours, so they'll need to log in again after that.
-  const token = jwt.sign(
-    { userId: user.id, role: user.role, isAdmin: user.isAdmin },
-    JWT_SECRET,
-    { expiresIn: '8h' }
-  );
-
-  res.json({
-    token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, isAdmin: user.isAdmin },
-  });
+  res.json(issueToken(user));
 });
 
 // --------------------------------------------------------------
