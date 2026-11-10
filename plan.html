@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Development Plan</title>
+  <style>
+    :root {
+      --accent: #d6222a;
+      --accent-dark: #b71c23;
+      --bg: #f7f5f2;
+      --card: #ffffff;
+      --border: #e7e3dd;
+      --text: #1a1a1a;
+      --text-muted: #6b6560;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Helvetica Neue", sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+
+    .topbar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+    }
+    .topbar .brand { font-weight: 700; font-size: 16px; }
+    .topbar .subbrand { color: var(--text-muted); font-size: 13px; }
+    .topbar .who { font-size: 14px; }
+    .topbar .who .role { color: var(--text-muted); }
+    .topbar .signout { margin-left: 20px; color: var(--text-muted); font-size: 14px; }
+
+    .page { max-width: 900px; margin: 0 auto; padding: 40px 32px 80px; }
+    .eyebrow { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+    h1.welcome { font-size: 40px; margin: 6px 0 4px; }
+    .subtitle { color: var(--text-muted); font-size: 16px; margin-bottom: 32px; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; margin-bottom: 20px; }
+    .hero-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .hero-title { font-size: 26px; font-weight: 700; margin: 6px 0 10px; }
+    .hero-desc { color: var(--text-muted); font-size: 15px; line-height: 1.5; margin-bottom: 20px; }
+
+    .tiles { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+    .tile { background: #f4f2ee; border-radius: 10px; padding: 14px 18px; flex: 1; min-width: 160px; }
+    .tile .tile-label { color: var(--text-muted); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; font-weight: 700; }
+    .tile .tile-value { font-size: 17px; font-weight: 700; margin-top: 4px; }
+
+    button.cta {
+      padding: 13px 20px; background: var(--accent); color: white; border: none;
+      border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 600;
+    }
+    button.cta:hover { background: var(--accent-dark); }
+    button { padding: 8px 14px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    button:hover { background: var(--accent-dark); }
+    button:disabled { background: #d8d3cc; color: #a39d94; cursor: not-allowed; }
+
+    .timeline-card { background: #eaf7ee; border: 1px solid #cdeed9; border-radius: 14px; padding: 18px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .timeline-card .tl-label { color: #1a7a3a; font-weight: 700; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .timeline-card .tl-day { color: #14532d; font-weight: 700; font-size: 17px; margin-top: 2px; }
+    .timeline-card .tl-dates { text-align: right; color: #1a7a3a; font-size: 13px; line-height: 1.6; }
+    .timeline-card.overdue { background: #fdecec; border-color: #f7c6c6; }
+    .timeline-card.overdue .tl-label, .timeline-card.overdue .tl-day, .timeline-card.overdue .tl-dates { color: #9b1c1c; }
+    .test-lock-banner { background: #fdecec; border: 1px solid #f7c6c6; border-radius: 10px; padding: 16px 20px; margin-bottom: 20px; color: #9b1c1c; font-weight: 600; }
+    .copy-paste-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2b2925; color: white; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+    .copy-paste-toast.show { opacity: 1; }
+
+    .grade-banner { border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid; }
+    .grade-banner.passed { background: #eefaf1; border-color: #bfe8cc; }
+    .grade-banner.failed { background: #fdecec; border-color: #f7c6c6; }
+    .grade-banner-status { font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 6px; }
+    .grade-banner.passed .grade-banner-status { color: #1a7a3a; }
+    .grade-banner.failed .grade-banner-status { color: #9b1c1c; }
+    .grade-banner-percent { font-size: 40px; font-weight: 800; line-height: 1; margin-bottom: 8px; }
+    .grade-banner-meta { color: var(--text-muted); font-size: 14px; margin-bottom: 10px; }
+    .grade-banner-note { color: var(--text-muted); font-size: 13px; }
+
+    .grade-group-header { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin: 16px 0 10px; }
+    .grade-group-title { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; }
+    .grade-group-meta { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+
+    .grade-question-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+    .grade-q-badges { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .grade-q-num { background: #2b2925; color: white; font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+    .grade-q-pts { background: #f0ede7; color: var(--text-muted); font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; }
+    .grade-q-credit { font-weight: 700; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid; }
+    .grade-q-credit.full { background: #eefaf1; border-color: #bfe8cc; color: #1a7a3a; }
+    .grade-q-credit.partial { background: #fef6e6; border-color: #f0dba3; color: #9a6a00; }
+    .grade-q-credit.none { background: #fdecec; border-color: #f7c6c6; color: #9b1c1c; }
+    .grade-q-text { font-weight: 700; font-size: 16px; margin-bottom: 14px; }
+    .grade-option-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 8px; }
+    .grade-option-row.correct { background: #eefaf1; border-color: #1a7a3a; border-width: 2px; }
+    .grade-option-row.wrong-pick { background: #fdecec; border-color: #9b1c1c; border-width: 2px; }
+    .grade-option-tags { display: flex; gap: 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .grade-option-tags .yours { color: var(--text-muted); }
+    .grade-option-tags .correct-tag { color: #1a7a3a; }
+    .grade-points-input { width: 90px; display: inline-block; margin: 0 8px; }
+
+    .section-label { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: 0.05em; text-transform: uppercase; margin: 32px 0 4px; }
+    .section-title { font-size: 22px; font-weight: 700; margin-bottom: 16px; }
+
+    .item-row { display: flex; align-items: center; gap: 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; }
+    .item-row.current { border-color: var(--accent); background: #fff7f5; }
+    .item-icon { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; }
+    .item-icon.done { background: #dcf7e3; color: #1a7a3a; }
+    .item-icon.progress { background: #dbeafe; color: #1e40af; }
+    .item-icon.pending { background: #e9e5df; color: #8a8378; }
+    .item-icon.locked { background: #f3f0eb; color: #a39d94; }
+    .item-body { flex: 1; min-width: 0; }
+    .item-title { font-weight: 700; font-size: 15px; }
+    .item-desc { color: var(--text-muted); font-size: 13px; margin-top: 2px; }
+    .pill { display: inline-block; padding: 4px 12px; border-radius: 14px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .pill-done { background: #dcf7e3; color: #1a7a3a; }
+    .pill-progress { background: #dbeafe; color: #1e40af; }
+    .pill-pending { background: #e9e5df; color: #6b6560; }
+    .pill-locked { background: #fdecec; color: #9b1c1c; }
+    .item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    .module-detail { margin-top: 10px; padding-left: 40px; }
+    .task-checklist { margin-top: 6px; }
+    .task-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; color: var(--text-muted); text-decoration: none; }
+    .task-item.done { text-decoration: line-through; color: #a39d94; }
+
+    .assessment-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 16px; }
+    .assessment-box h3 { margin-top: 0; }
+    label { display: block; margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+    input, select, textarea {
+      width: 100%; padding: 9px; margin-top: 4px; border-radius: 6px;
+      border: 1px solid var(--border); background: #fff; color: var(--text); box-sizing: border-box;
+    }
+    #message { color: var(--text-muted); margin-top: 16px; }
+
+    .question-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .question-badge { display: inline-block; background: var(--accent); color: white; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 6px 14px; border-radius: 6px; }
+    .question-pageref { color: var(--text-muted); font-size: 14px; }
+    .question-text { font-size: 16px; font-weight: 700; line-height: 1.4; margin-bottom: 10px; }
+    .answer-box { background: #f4f2ee; padding: 14px 16px; border-radius: 10px; margin-top: 8px; white-space: pre-wrap; }
+    .model-answer-box { background: #eefaf1; border: 1px solid #bfe8cc; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
+    .model-answer-label { color: #1a7a3a; display: flex; align-items: center; gap: 6px; margin-top: 12px; }
+    .model-answer-check { width: 16px; height: 16px; border-radius: 50%; background: #1a7a3a; color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+
+    .flashcard {
+      border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 10px;
+      cursor: pointer; background: var(--card);
+    }
+    .flashcard.revealed { border-color: var(--accent); border-width: 2px; }
+    .flashcard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .flashcard-badge { display: inline-block; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: #fdeaea; color: var(--accent); }
+    .flashcard-hint { color: var(--text-muted); font-size: 14px; }
+    .flashcard.revealed .flashcard-hint { color: var(--accent); }
+    .flashcard-text { font-weight: 700; font-size: 16px; }
+
+    .action-item {
+      display: flex; gap: 12px; align-items: flex-start; background: var(--card);
+      border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;
+    }
+    .action-item.checked { background: #eefaf1; border-color: #bfe8cc; }
+    .action-item input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; accent-color: #1a7a3a; flex-shrink: 0; }
+    .action-item .ai-title { font-weight: 700; font-size: 15px; }
+    .action-item .ai-desc { color: var(--text-muted); margin-top: 2px; font-size: 14px; }
+    .action-item .ai-link { display: inline-block; margin-top: 6px; color: var(--accent); font-weight: 700; text-decoration: none; font-size: 14px; }
+    .locked-note { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+    .not-yours { color: #9a5b00; }
+    .rep-category { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 10px; background: var(--card); }
+    .rep-category-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .rep-progress { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px; background: #f0ede7; color: var(--text-muted); white-space: nowrap; }
+    .rep-progress.done { background: #eefaf1; color: #1a7a3a; }
+    .rep-entry { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; font-size: 14px; }
+    .rep-entry-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .rep-learned { color: var(--text-muted); margin-top: 4px; white-space: pre-wrap; }
+    .rep-signed-badge { color: #1a7a3a; font-size: 12px; font-weight: 700; }
+    .rep-pending-badge { color: #9a6a00; font-size: 12px; font-weight: 700; }
+    .rep-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .rep-actions button { padding: 6px 12px; font-size: 13px; }
+    .rep-form { border-top: 1px dashed var(--border); margin-top: 12px; padding-top: 12px; }
+    .rep-form label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
+    .rep-form input[type=date], .rep-form textarea { width: 100%; margin-bottom: 8px; }
+    .rep-sign-box { background: #faf9f7; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 10px; }
+    .rep-sign-box label { display: block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin: 8px 0 4px; }
+    .rep-sign-box input[type=text] { width: 100%; }
+    .rep-sign-canvas { display: block; width: 100%; height: 140px; background: #fff; border: 1px dashed #b9b2a8; border-radius: 8px; touch-action: none; cursor: crosshair; }
+    .rep-signature-img { display: block; height: 48px; max-width: 100%; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <div class="brand" id="brandName">Leadership Development</div>
+      <div class="subbrand" id="brandSub"></div>
+    </div>
+    <div style="display:flex; align-items:center;">
+      <a href="/myplans.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">My Plans</a>
+      <a id="reportCardLink" href="#" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Report Card</a>
+      <a id="adminDashLink" href="/dashboard.html" style="display:none; color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Admin Dashboard</a>
+      <a href="/change-password.html" style="color:var(--accent); text-decoration:none; margin-right:16px; font-weight:600;">Change Password</a>
+      <div class="who"><span id="whoName"></span> · <span class="role" id="whoRole"></span></div>
+      <a class="signout" href="#" onclick="signOut()">Sign out</a>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="eyebrow">Welcome</div>
+    <h1 class="welcome" id="welcomeName">Hello.</h1>
+    <div class="subtitle">Here's where you are in your development path.</div>
+
+    <div class="card" id="heroCard" style="display:none;">
+      <div class="hero-label">Pick up where you left off</div>
+      <div class="hero-title" id="heroTitle"></div>
+      <div class="hero-desc" id="heroDesc"></div>
+      <div class="tiles" id="heroTiles"></div>
+      <div id="heroAction"></div>
+    </div>
+
+    <div id="timelineCard"></div>
+
+    <div class="section-label">Your Path</div>
+    <div class="section-title">All modules</div>
+    <div id="testLockBanner"></div>
+    <div id="copyPasteToast" class="copy-paste-toast">Copy/paste is disabled on this page</div>
+    <div id="modulesList"></div>
+    <div id="assessmentSection"></div>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    let lastQuestionData = null;
+    let isDeveloperHereGlobal = false;
+    let part2HeldGlobal = false;
+    let part2StartsAfter = 4; // modules after this number belong to Part 2
+    function isHeldModule(m) { return part2HeldGlobal && m.status === 'NOT_STARTED' && m.sequenceOrder > part2StartsAfter; }
+    let isDevelopeeHereGlobal = false;
+    let copyPasteBlockAttached = false;
+
+    // Blocks copy, cut, paste, and the right-click context menu
+    // across the whole page - an anti-cheating measure that applies
+    // ONLY to the developee's own view of their plan (never the
+    // developer's or admin's), matching the same spirit as the
+    // module-locking-during-tests feature.
+    function applyDevelopeeCopyPasteBlock(shouldBlock) {
+      if (!shouldBlock || copyPasteBlockAttached) return;
+      copyPasteBlockAttached = true;
+
+      const toast = document.getElementById('copyPasteToast');
+      const showToast = () => {
+        if (!toast) return;
+        toast.classList.add('show');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => toast.classList.remove('show'), 1800);
+      };
+
+      ['copy', 'cut', 'paste', 'contextmenu'].forEach((eventName) => {
+        document.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          showToast();
+        });
+      });
+    }
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/index.html';
+
+    const params = new URLSearchParams(window.location.search);
+    const planId = params.get('id');
+    if (planId) document.getElementById('reportCardLink').href = '/report-card.html?planId=' + planId;
+
+    if (!planId) {
+      document.getElementById('message').textContent = 'No plan specified. Go back to My Plans and pick a plan.';
+    }
+
+    document.getElementById('welcomeName').textContent = 'Hello, ' + (user.name ? user.name.split(' ')[0] : '') + '.';
+    document.getElementById('whoName').textContent = user.name || '';
+    if (user.isAdmin) {
+      document.getElementById('adminDashLink').style.display = 'inline';
+    }
+
+    function signOut() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/index.html';
+    }
+
+    async function apiCall(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+          ...(options.headers || {}),
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) { const err = new Error(data.error || 'Request failed'); err.missing = data.missing; throw err; }
+      return data;
+    }
+
+    function buildSequence(plan) {
+      const moduleCount = plan.moduleCount || plan.modules.length;
+      const midpoint = Math.ceil(moduleCount / 2);
+      const seq = [];
+      for (const m of plan.modules) {
+        seq.push({ type: 'module', data: m, label: `Module ${m.sequenceOrder}${m.title ? ' — ' + m.title : ''}`, done: m.status === 'COMPLETED' });
+        if (m.sequenceOrder === midpoint || m.sequenceOrder === moduleCount) {
+          const isMidpoint = m.sequenceOrder === midpoint;
+          const gate = isMidpoint ? 'AFTER_MODULE_4' : 'AFTER_MODULE_8';
+          const review = plan.reviewSteps.find((r) => r.gatePosition === gate);
+          const label = isMidpoint ? `Study & Review — Modules 1-${midpoint}` : `Study & Review — Modules ${midpoint + 1}-${moduleCount}`;
+          seq.push({ type: 'review', data: review, label, done: review ? review.status === 'COMPLETED' : false });
+          const assessment = plan.assessments.find((a) => a.gatePosition === gate);
+          const aLabel = isMidpoint ? `Assessment Part 1 — Modules 1-${midpoint}` : `Assessment Part 2 — Modules ${midpoint + 1}-${moduleCount}`;
+          seq.push({ type: 'assessment', data: assessment, label: aLabel, done: assessment ? assessment.status === 'PASSED' : false });
+
+          if (!isMidpoint) {
+            seq.push({
+              type: 'skillDemo',
+              data: plan.skillDemo,
+              label: plan.skillDemo ? plan.skillDemo.title : 'On-Shift Skill Demonstration Training',
+              done: plan.skillDemo ? plan.skillDemo.status === 'COMPLETED' : false,
+            });
+            seq.push({
+              type: 'onShiftReps',
+              data: plan.onShiftRepsStage,
+              label: 'On-Shift Reps',
+              done: plan.onShiftRepsStage ? plan.onShiftRepsStage.status === 'COMPLETED' : false,
+            });
+          }
+        }
+      }
+      return seq;
+    }
+
+    function pillFor(item) {
+      if (item.type === 'module' && item.data.status === 'COMPLETED') {
+        return item.data.reviewedAt
+          ? { cls: 'pill-done', text: 'SIGNED OFF' }
+          : { cls: 'pill-progress', text: 'AWAITING SIGN-OFF' };
+      }
+      if (item.done) return { cls: 'pill-done', text: 'SIGNED OFF' };
+      if (item.type === 'module') {
+        if (isHeldModule(item.data)) return { cls: 'pill-locked', text: 'NOT RELEASED YET' };
+        if (item.data.status === 'LOCKED') return { cls: 'pill-locked', text: 'LOCKED' };
+        if (item.data.status === 'OPEN') return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'review') {
+        if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
+        return item.data.status === 'OPEN' ? { cls: 'pill-progress', text: 'IN PROGRESS' } : { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'assessment') {
+        if (!item.data) return { cls: 'pill-pending', text: 'NOT STARTED' };
+        if (item.data.status === 'LOCKED_NEEDS_MEETING') return { cls: 'pill-locked', text: 'NEEDS MEETING' };
+        if (item.data.status === 'LOCKED_FINAL') return { cls: 'pill-locked', text: 'NEEDS ADMIN' };
+        if (['PENDING', 'IN_PROGRESS'].includes(item.data.status)) return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      if (item.type === 'skillDemo' || item.type === 'onShiftReps') {
+        if (!item.data) return { cls: 'pill-locked', text: 'LOCKED' };
+        if (item.data.status === 'OPEN') return { cls: 'pill-progress', text: 'IN PROGRESS' };
+        return { cls: 'pill-pending', text: 'NOT STARTED' };
+      }
+      return { cls: 'pill-pending', text: 'NOT STARTED' };
+    }
+
+    function iconFor(pill) {
+      if (pill.cls === 'pill-done') return { cls: 'done', glyph: '✓' };
+      if (pill.cls === 'pill-progress') return { cls: 'progress', glyph: '●' };
+      if (pill.cls === 'pill-locked') return { cls: 'locked', glyph: '🔒' };
+      return { cls: 'pending', glyph: '·' };
+    }
+
+    function renderHero(sequence, plan, isDeveloperHere, isAdmin) {
+      const current = sequence.find((item) => !item.done);
+      const heroCard = document.getElementById('heroCard');
+      if (!current) {
+        heroCard.style.display = 'block';
+        document.getElementById('heroTitle').textContent = 'All done!';
+        document.getElementById('heroDesc').textContent = 'Every module and assessment in this plan is complete.';
+        document.getElementById('heroTiles').innerHTML = '';
+        document.getElementById('heroAction').innerHTML = '';
+        return;
+      }
+      heroCard.style.display = 'block';
+      document.getElementById('heroTitle').textContent = current.label;
+      document.getElementById('heroDesc').textContent =
+        current.type === 'module' ? (current.data.description || 'Continue this module.') :
+        current.type === 'review' ? 'Review everything so far before the assessment.' :
+        'An assessment covering the modules in this block.';
+
+      const completedModules = plan.modules.filter((m) => m.status === 'COMPLETED').length;
+      document.getElementById('heroTiles').innerHTML = `
+        <div class="tile"><div class="tile-label">Modules Complete</div><div class="tile-value">${completedModules} of ${plan.modules.length}</div></div>
+        <div class="tile"><div class="tile-label">Developer</div><div class="tile-value">${plan.pairing.developer.name}</div></div>
+        <div class="tile"><div class="tile-label">Plan Status</div><div class="tile-value">${plan.status.replace('_', ' ')}</div></div>
+      `;
+
+      const actionDiv = document.getElementById('heroAction');
+      if (current.type === 'module') {
+        const m = current.data;
+        if (isHeldModule(m)) {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">Part 2 of this course has not been released yet. Your leader will open it as soon as it is ready - you will see it here.</p>`;
+        } else if (m.status === 'NOT_STARTED') {
+          actionDiv.innerHTML = `<button class="cta" onclick="openModule('${m.id}')">Start: ${current.label}</button>`;
+        } else if (m.status === 'OPEN') {
+          const incompleteSection = (m.sections || []).find((s) => !s.completed);
+          if (incompleteSection) {
+            actionDiv.innerHTML = `<a href="/section.html?id=${incompleteSection.id}&planId=${planId}"><button class="cta">Continue: ${incompleteSection.title}</button></a>`;
+          } else {
+            actionDiv.innerHTML = `<button class="cta" onclick="completeModule('${m.id}')">Mark Module Complete</button>`;
+          }
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This module is locked - see below for details.</p>`;
+        }
+      } else if (current.type === 'review') {
+        if (current.data) {
+          actionDiv.innerHTML = `<button class="cta" onclick="completeReviewStep('${current.data.id}')">Finish Study &amp; Review (unlocks the assessment)</button>`;
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This unlocks once the module before it is complete.</p>`;
+        }
+      } else if (current.type === 'assessment') {
+        if (current.data && ['PENDING', 'IN_PROGRESS'].includes(current.data.status) && !isDeveloperHere && !isAdmin) {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>`;
+        } else if (current.data) {
+          actionDiv.innerHTML = `<a href="#assessmentSection"><button class="cta">Go to Assessment</button></a>`;
+        } else {
+          actionDiv.innerHTML = `<p style="color:var(--text-muted);">This unlocks once the review before it is complete.</p>`;
+        }
+      }
+    }
+
+    function moduleDetailHtml(module) {
+      let canOpen = module.status === 'NOT_STARTED' && !isHeldModule(module);
+      // Modules complete themselves when their last section is finished. This button is only
+      // a fallback, so it only shows when every section is done but the module is still open
+      // (or the module has no sections at all).
+      const showCompleteButton = module.status === 'OPEN' && (module.sections || []).every((s) => s.completed);
+
+      const sectionListHtml = (module.sections && module.sections.length > 0) ? `
+        <div class="task-checklist">
+          ${module.sections.map((s) => `
+            <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}">
+              ${s.completed ? '✓' : '○'} ${s.title}
+            </a>
+          `).join('')}
+        </div>
+      ` : '';
+
+      const canReview = module.status === 'COMPLETED' && !module.reviewedAt && (isDeveloperHereGlobal || user.isAdmin);
+      const reviewButtonHtml = canReview
+        ? `<button onclick="markModuleReviewed('${module.id}')">Developer Sign-Off</button>`
+        : (module.status === 'COMPLETED' && module.reviewedAt
+          ? `<span style="color:#1a7a3a; font-weight:600; font-size:13px;">&#10003; Reviewed</span>`
+          : '');
+
+      return `
+        <div class="module-detail">
+          ${module.description ? `<div class="item-desc" style="margin-bottom:8px;">${module.description}</div>` : ''}
+          <div class="item-actions">
+            <button ${canOpen ? '' : 'disabled'} onclick="openModule('${module.id}')">Open</button>
+            ${showCompleteButton ? `<button onclick="completeModule('${module.id}')">Mark Complete</button>` : ''}
+            ${reviewButtonHtml}
+          </div>
+          ${sectionListHtml}
+        </div>
+      `;
+    }
+
+    function reviewStepDetailHtml(reviewStep) {
+      const sections = reviewStep.sections || [];
+      const sectionListHtml = sections.length > 0 ? `
+        <div class="task-checklist">
+          ${sections.map((s) => `
+            <a class="task-item ${s.completed ? 'done' : ''}" href="/section.html?id=${s.id}&planId=${planId}">
+              ${s.completed ? '✓' : '○'} ${s.title}
+            </a>
+          `).join('')}
+        </div>
+      ` : '<p style="color:var(--text-muted); font-size:13px;">No review content authored for this path yet.</p>';
+
+      return `
+        <div class="module-detail">
+          ${sectionListHtml}
+          <button style="margin-top:10px;" onclick="completeReviewStep('${reviewStep.id}')">Finish Study &amp; Review (unlocks the assessment)</button>
+          <div id="reviewMissingList-${reviewStep.id}" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
+        </div>
+      `;
+    }
+
+    function itemRowHtml(item, isCurrent) {
+      const pill = pillFor(item);
+      const icon = iconFor(pill);
+      let detail = '';
+      if (item.type === 'module') detail = moduleDetailHtml(item.data);
+      if (item.type === 'review' && item.data && item.data.status === 'OPEN') {
+        detail = reviewStepDetailHtml(item.data);
+      }
+      if (item.type === 'skillDemo' && item.data && item.data.status === 'OPEN') {
+        detail = skillDemoDetailHtml(item.data);
+      }
+      if (item.type === 'onShiftReps' && item.data && item.data.status === 'OPEN') {
+        detail = onShiftRepsDetailHtml(item.data);
+      }
+
+      const descriptionHtml = (item.type === 'skillDemo' && item.data && item.data.description)
+        ? `<div class="item-desc">${item.data.description}</div>`
+        : '';
+
+      return `
+        <div>
+          <div class="item-row ${isCurrent ? 'current' : ''}">
+            <div class="item-icon ${icon.cls}">${icon.glyph}</div>
+            <div class="item-body">
+              <div class="item-title">${item.label}</div>
+              ${descriptionHtml}
+            </div>
+            <span class="pill ${pill.cls}">${pill.text}</span>
+          </div>
+          ${detail}
+        </div>
+      `;
+    }
+
+    function skillDemoDetailHtml(skillDemo) {
+      return `
+        <div class="module-detail">
+          <button onclick="completeSkillDemo('${skillDemo.id}')">Mark Complete</button>
+        </div>
+      `;
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Reps store their date as plain "YYYY-MM-DD" text - build the Date from its parts so it can't shift a day across timezones.
+    function fmtRepDate(s) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString();
+    }
+
+    function todayDateString() {
+      const t = new Date();
+      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    }
+
+    function onShiftRepsDetailHtml(stage) {
+      const canLog = isDevelopeeHereGlobal || user.isAdmin;
+      const canDeleteAny = isDeveloperHereGlobal || user.isAdmin;
+      const prefillName = (isDeveloperHereGlobal || user.isAdmin) ? escapeHtml(user.name || '') : '';
+      const today = todayDateString();
+
+      const categoriesHtml = stage.categories.map((c) => {
+        const signed = c.reps.filter((r) => r.signedOffAt).length;
+
+        const repsHtml = c.reps.map((r) => `
+          <div class="rep-entry">
+            <div class="rep-entry-top">
+              <strong>${fmtRepDate(r.completedOn)}</strong>
+              ${r.signedOffAt
+                ? `<span class="rep-signed-badge">&#10003; Signed off by ${escapeHtml(r.signedOffByName || 'a leader')} on ${new Date(r.signedOffAt).toLocaleDateString()}</span>`
+                : '<span class="rep-pending-badge">Awaiting leader signature</span>'}
+            </div>
+            <div class="rep-learned">${escapeHtml(r.learned)}</div>
+            ${r.signatureImage ? `<img class="rep-signature-img" src="${r.signatureImage}" alt="Leader signature">` : ''}
+            <div class="rep-actions">
+              ${!r.signedOffAt ? `<button onclick="openSignatureBox('${r.id}')">Leader Sign-Off</button>` : ''}
+              ${canDeleteAny || (!r.signedOffAt && canLog) ? `<button style="background:#9b1c1c;" onclick="deleteRep('${r.id}')">Delete</button>` : ''}
+            </div>
+            ${!r.signedOffAt ? `
+              <div class="rep-sign-box" id="signBox-${r.id}" style="display:none;">
+                <label for="signName-${r.id}">Leader's printed name</label>
+                <input type="text" id="signName-${r.id}" maxlength="100" value="${prefillName}" placeholder="Print your full name">
+                <label>Leader signature (sign with your finger or mouse)</label>
+                <canvas class="rep-sign-canvas" id="signCanvas-${r.id}"></canvas>
+                <div class="rep-actions">
+                  <button onclick="submitSignature('${r.id}')">Sign Off</button>
+                  <button style="background:#8a8378;" onclick="clearSignature('${r.id}')">Clear</button>
+                  <button style="background:#8a8378;" onclick="closeSignatureBox('${r.id}')">Cancel</button>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `).join('');
+
+        const formHtml = (canLog && c.reps.length < c.requiredReps) ? `
+          <div class="rep-form">
+            <label for="repDate-${c.id}">Date completed</label>
+            <input type="date" id="repDate-${c.id}" value="${today}" max="${today}">
+            <label for="repLearned-${c.id}">What did you learn?</label>
+            <textarea id="repLearned-${c.id}" rows="3" placeholder="Write what you learned from this rep"></textarea>
+            <button onclick="logRep('${c.id}')">Log Rep</button>
+          </div>
+        ` : '';
+
+        return `
+          <div class="rep-category">
+            <div class="rep-category-head">
+              <div class="ai-title">${escapeHtml(c.name)}</div>
+              <span class="rep-progress ${c.passed ? 'done' : ''}">${signed} of ${c.requiredReps} signed off</span>
+            </div>
+            ${repsHtml}
+            ${formHtml}
+          </div>
+        `;
+      }).join('');
+
+      return `<div class="module-detail">${categoriesHtml}</div>`;
+    }
+
+    function assessmentQuestionBlock(q, canAnswer, hasSubmittedTest) {
+      const pageRefHtml = q.pageReference ? `<span class="question-pageref">${q.pageReference}</span>` : '';
+      const contentHtml = q.content ? `<div class="question-text">${q.content}</div>` : '';
+      const header = `<div class="question-header"><span class="question-badge">${q.text}</span>${pageRefHtml}</div>`;
+
+      if (q.questionType === 'MULTIPLE_CHOICE') {
+        if (!hasSubmittedTest) {
+          if (!canAnswer) {
+            const optsHtml = (q.choiceOptions || []).map((o) => `<div style="padding:4px 0;">${o.text}</div>`).join('');
+            return `<div style="margin-bottom:16px;">${header}${contentHtml}<div>${optsHtml}</div><p class="not-yours">Waiting on the developee to answer this.</p></div>`;
+          }
+          // Just the input - no submit button here, it's part of the whole test.
+          const optsHtml = (q.choiceOptions || []).map((o) => `
+            <label class="task-item"><input type="radio" name="aq-mc-${q.id}" value="${o.id}">${o.text}</label>
+          `).join('');
+          return `<div style="margin-bottom:16px;">${header}${contentHtml}<div>${optsHtml}</div></div>`;
+        }
+        // Submitted. Correctness only shows once the whole attempt is graded.
+        if (q.isCorrect === undefined) {
+          const pickedText = (q.choiceOptions || []).find((o) => o.id === q.selectedOptionId);
+          return `
+            <div style="margin-bottom:16px;">
+              ${header}
+              ${contentHtml}
+              <div class="label">Your Answer</div>
+              <div class="answer-box">${pickedText ? pickedText.text : '(submitted)'}</div>
+              <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Submitted - awaiting grading.</p>
+            </div>
+          `;
+        }
+        const resultHtml = (q.choiceOptions || []).map((o) => {
+          const isMine = o.id === q.selectedOptionId;
+          const style = o.isCorrect ? 'color:#1a7a3a; font-weight:600;' : (isMine ? 'color:#9b1c1c;' : 'color:var(--text-muted);');
+          return `<div style="padding:4px 0; ${style}">${isMine ? '&rarr; ' : '&nbsp;&nbsp;&nbsp;'}${o.text}${o.isCorrect ? ' (correct)' : ''}</div>`;
+        }).join('');
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <div>${resultHtml}</div>
+            <p style="margin-top:8px; font-weight:600; color:${q.isCorrect ? '#1a7a3a' : '#9b1c1c'};">${q.isCorrect ? 'Correct!' : 'Incorrect.'}</p>
+          </div>
+        `;
+      }
+
+      // SHORT_ANSWER
+      if (!hasSubmittedTest) {
+        if (!canAnswer) {
+          return `<div style="margin-bottom:16px;">${header}${contentHtml}<p class="not-yours">Waiting on the developee to answer this.</p></div>`;
+        }
+        // Just the input - no submit button here, it's part of the whole test.
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <textarea id="aq-answer-${q.id}" rows="3" placeholder="Your answer..."></textarea>
+          </div>
+        `;
+      }
+      // Submitted. The model answer only shows up here at all if the
+      // backend decided this viewer is allowed to see it (developer
+      // or admin) - the developee never gets it back, by design.
+      if (q.correctAnswer === undefined) {
+        return `
+          <div style="margin-bottom:16px;">
+            ${header}
+            ${contentHtml}
+            <div class="label">Your Answer</div>
+            <div class="answer-box">${q.submittedAnswer}</div>
+            <p style="color:var(--text-muted); font-size:13px; margin-top:8px;">Submitted - your developer will grade this.</p>
+          </div>
+        `;
+      }
+      return `
+        <div style="margin-bottom:16px;">
+          ${header}
+          ${contentHtml}
+          <div class="label">Your Answer</div>
+          <div class="answer-box">${q.submittedAnswer}</div>
+          <div class="label model-answer-label"><span class="model-answer-check">&#10003;</span>Model Answer</div>
+          <div class="answer-box model-answer-box">${q.correctAnswer}</div>
+        </div>
+      `;
+    }
+
+    // Groups consecutive questions sharing the same groupTitle - an
+    // ungrouped question (no groupTitle) becomes its own group with
+    // no header, matching how it's optional at authoring time.
+    function groupQuestions(questions) {
+      const groups = [];
+      let current = null;
+      for (const q of questions) {
+        if (q.groupTitle) {
+          if (!current || current.title !== q.groupTitle) {
+            current = { title: q.groupTitle, questions: [] };
+            groups.push(current);
+          }
+          current.questions.push(q);
+        } else {
+          groups.push({ title: null, questions: [q] });
+          current = null;
+        }
+      }
+      return groups;
+    }
+
+    function creditClass(pointsEarned, pointsPossible) {
+      if (pointsEarned >= pointsPossible) return 'full';
+      if (pointsEarned <= 0) return 'none';
+      return 'partial';
+    }
+
+    function creditLabel(pointsEarned, pointsPossible) {
+      const cls = creditClass(pointsEarned, pointsPossible);
+      const label = cls === 'full' ? 'Full Credit' : cls === 'none' ? 'No Credit' : 'Partial Credit';
+      return `<span class="grade-q-credit ${cls}">&#10003; ${label} &middot; ${pointsEarned}/${pointsPossible}</span>`;
+    }
+
+    // The graded review - matches the reference design: a pass/fail
+    // banner with the score, then every question grouped exactly as
+    // authored, each showing what was submitted, what was correct,
+    // and any notes the developer left.
+    function gradedReviewHtml(assessment, attemptData) {
+      const attempts = attemptData ? attemptData.attempts : [];
+      const attempt = attempts[attempts.length - 1];
+      if (!attempt) return '';
+
+      const percent = attempt.totalPointsPossible > 0
+        ? Math.round((attempt.totalPointsEarned / attempt.totalPointsPossible) * 100)
+        : 0;
+      const passed = attempt.overallResult === 'PASS';
+      const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm' : 'Final';
+
+      const gradesByQuestionId = {};
+      for (const g of attempt.questionGrades) gradesByQuestionId[g.questionId] = g;
+      const questions = attempt.questionGrades.map((g) => g.question);
+      // Preserve authored order, not grade-creation order.
+      questions.sort((a, b) => a.order - b.order);
+
+      const groups = groupQuestions(questions);
+      let qNumber = 0;
+      const groupsHtml = groups.map((g) => {
+        const groupHeaderHtml = g.title ? `
+          <div class="grade-group-header">
+            <div class="grade-group-title">${g.title}</div>
+            <div class="grade-group-meta">${g.questions.reduce((s, q) => s + q.points, 0)} points &middot; ${g.questions.length} question(s)</div>
+          </div>
+        ` : '';
+        const questionsHtml = g.questions.map((q) => {
+          qNumber++;
+          const grade = gradesByQuestionId[q.id];
+          const response = grade.response;
+          let bodyHtml;
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            bodyHtml = q.choiceOptions.map((o) => {
+              const isYours = response && response.selectedOptionId === o.id;
+              const rowClass = o.isCorrect ? 'correct' : (isYours ? 'wrong-pick' : '');
+              const tags = [];
+              if (isYours) tags.push('<span class="yours">Your Answer</span>');
+              if (o.isCorrect) tags.push('<span class="correct-tag">Correct</span>');
+              return `
+                <div class="grade-option-row ${rowClass}">
+                  <span>${o.text}</span>
+                  ${tags.length > 0 ? `<span class="grade-option-tags">${tags.join('')}</span>` : ''}
+                </div>
+              `;
+            }).join('');
+          } else {
+            bodyHtml = `
+              <div class="label">Submitted Answer</div>
+              <div class="answer-box">${response ? response.submittedAnswer : '(no answer)'}</div>
+              ${grade.comments ? `<div class="label" style="margin-top:12px;">Developer Notes</div><div class="answer-box">${grade.comments}</div>` : ''}
+            `;
+          }
+          return `
+            <div class="grade-question-card">
+              <div class="grade-q-badges">
+                <span class="grade-q-num">Q${qNumber}</span>
+                <span class="grade-q-pts">${q.points} PTS</span>
+                ${creditLabel(grade.pointsEarned, q.points)}
+              </div>
+              <div class="grade-q-text">${q.text}</div>
+              ${q.content ? `<div class="content-box">${q.content}</div>` : ''}
+              ${bodyHtml}
+            </div>
+          `;
+        }).join('');
+        return groupHeaderHtml + questionsHtml;
+      }).join('');
+
+      return `
+        <div class="grade-banner ${passed ? 'passed' : 'failed'}">
+          <div class="grade-banner-status">${passed ? '&#10003; Passed' : '&#10007; Not Passed'}</div>
+          <div class="grade-banner-percent">${percent}%</div>
+          <div class="grade-banner-meta">${attempt.totalPointsEarned} / ${attempt.totalPointsPossible} points &middot; graded ${new Date(attempt.gradedAt).toLocaleDateString()}</div>
+          <div class="grade-banner-note">This is your graded ${label.toLowerCase()} review. Read through each question to see what you got right, what you missed, and any notes your developer left.</div>
+        </div>
+        ${groupsHtml}
+      `;
+    }
+
+    // The developer's grading form - grouped exactly like the review
+    // above. Multiple Choice auto-grades itself (objectively
+    // checkable) and needs no input; Short Answer needs the
+    // developer's own point entry plus optional notes.
+    function gradingFormHtml(assessment, questions) {
+      const groups = groupQuestions(questions);
+      const groupsHtml = groups.map((g) => {
+        const groupHeaderHtml = g.title ? `
+          <div class="grade-group-header">
+            <div class="grade-group-title">${g.title}</div>
+            <div class="grade-group-meta">${g.questions.reduce((s, q) => s + q.points, 0)} points &middot; ${g.questions.length} question(s)</div>
+          </div>
+        ` : '';
+        const questionsHtml = g.questions.map((q, idx) => {
+          if (q.questionType === 'MULTIPLE_CHOICE') {
+            const picked = (q.choiceOptions || []).find((o) => o.id === q.selectedOptionId);
+            return `
+              <div class="grade-question-card">
+                <div class="grade-q-badges">
+                  <span class="grade-q-pts">${q.points} PTS</span>
+                  <span class="grade-q-credit full">Auto-graded</span>
+                </div>
+                <div class="grade-q-text">${q.text}</div>
+                <div class="label">Submitted Answer</div>
+                <div class="answer-box">${picked ? picked.text : '(no answer)'}</div>
+              </div>
+            `;
+          }
+          return `
+            <div class="grade-question-card">
+              <div class="grade-q-badges"><span class="grade-q-pts">${q.points} PTS</span></div>
+              <div class="grade-q-text">${q.text}</div>
+              <div class="label">Submitted Answer</div>
+              <div class="answer-box">${q.submittedAnswer || '(no answer)'}</div>
+              ${q.correctAnswer !== undefined ? `<div class="label model-answer-label" style="margin-top:10px;"><span class="model-answer-check">&#10003;</span>Model Answer</div><div class="answer-box model-answer-box">${q.correctAnswer}</div>` : ''}
+              <label style="margin-top:12px;">Points Earned (0 - ${q.points})</label>
+              <input type="number" class="grade-points-input" id="gradePoints-${q.id}" min="0" max="${q.points}" step="0.5" value="${q.points}">
+              <label>Notes (optional, shown to the developee)</label>
+              <textarea id="gradeComments-${q.id}" rows="2"></textarea>
+            </div>
+          `;
+        }).join('');
+        return groupHeaderHtml + questionsHtml;
+      }).join('');
+
+      return `
+        ${groupsHtml}
+        <button id="submitGradeBtn" style="margin-top:8px;" onclick="gradeAssessment('${assessment.id}')">Submit Grade</button>
+        <div id="gradeMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
+      `;
+    }
+
+
+    function assessmentBoxHtml(assessment, isDeveloperHere, isDevelopeeHere, questionData, attemptData) {
+      if (!assessment) return '';
+      const gradeable = ['PENDING', 'IN_PROGRESS'].includes(assessment.status);
+      const label = assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm Assessment' : 'Final Assessment';
+      const isAdmin = user.isAdmin;
+
+      // A graded review for the most recent attempt, whenever one
+      // exists - shown regardless of current status, so both a pass
+      // AND a failed-but-graded attempt can be reviewed afterward.
+      const gradedReview = (attemptData && attemptData.attempts && attemptData.attempts.length > 0)
+        ? gradedReviewHtml(assessment, attemptData)
+        : '';
+
+      if (assessment.status === 'LOCKED_NEEDS_MEETING') {
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label}</h3>
+            ${gradedReview}
+            <p>Status: <strong>Locked - Needs Developer Meeting</strong></p>
+            <p>Two attempts have failed. A follow-up meeting between developer and developee is required before a third attempt is allowed.</p>
+            ${isDeveloperHere || isAdmin
+              ? `<button onclick="reopenAfterMeeting('${assessment.id}')">I've held the meeting - Reopen for attempt 3</button>`
+              : `<p style="color:var(--text-muted);">Your developer needs to confirm the meeting happened before this can continue.</p>`}
+          </div>
+        `;
+      }
+
+      if (assessment.status === 'LOCKED_FINAL') {
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label}</h3>
+            ${gradedReview}
+            <p>Status: <strong>Locked - Needs Admin</strong></p>
+            <p>All attempts have failed. This requires admin resolution.</p>
+            ${isAdmin
+              ? `<button onclick="adminReopenForRetry('${assessment.id}')">Grant One More Attempt</button>
+                 <button style="margin-left:8px; background:#9b1c1c;" onclick="adminOverridePass('${assessment.id}')">Override to Pass</button>`
+              : `<p style="color:var(--text-muted);">Only an admin can resolve this.</p>`}
+          </div>
+        `;
+      }
+
+      if (!gradeable) {
+        // PASSED (or any other terminal state) - just the graded review.
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label}</h3>
+            ${gradedReview || `<p>Status: <strong>${assessment.status.replace(/_/g, ' ')}</strong></p>`}
+          </div>
+        `;
+      }
+
+      const attemptLabel = assessment.attemptCount < 3
+        ? `Attempt ${assessment.attemptCount + 1} of 3`
+        : `Extra Attempt ${assessment.attemptCount + 1} (admin-granted)`;
+
+      // The questions (if this assessment has any) come first - the
+      // developee answers ALL of them, then submits the whole test
+      // together in one action. If there are no questions at all (an
+      // older plan, or a path with none authored), this section is
+      // simply empty and grading works exactly as it always has.
+      const questions = questionData ? questionData.questions : [];
+      const hasSubmittedTest = questions.some((q) => q.submittedAnswer !== undefined || q.selectedOptionId !== undefined);
+      const isGraded = questionData ? questionData.isGraded : false;
+      const canAnswer = isDevelopeeHere || isAdmin;
+
+      // Already submitted AND already graded this attempt, but the
+      // assessment is still "gradeable" status-wise (this shouldn't
+      // normally linger, but fail safe) - just show the review.
+      if (hasSubmittedTest && isGraded) {
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            ${gradedReview}
+          </div>
+        `;
+      }
+
+      // Submitted, not yet graded - developer/admin sees the grading
+      // form, developee sees a waiting message.
+      if (hasSubmittedTest && !isGraded) {
+        if (!isDeveloperHere && !isAdmin) {
+          return `
+            <div class="assessment-box" id="assessmentSection">
+              <h3>${label} - ${attemptLabel}</h3>
+              <p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            ${gradingFormHtml(assessment, questions)}
+          </div>
+        `;
+      }
+
+      // Password-protected and not yet unlocked for this attempt.
+      if (questionData && questionData.locked) {
+        if (!isDevelopeeHere) {
+          return `
+            <div class="assessment-box" id="assessmentSection">
+              <h3>${label} - ${attemptLabel}</h3>
+              <p style="color:var(--text-muted);">This assessment is password protected. Your developee enters the password you give them to begin.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            <p style="color:var(--text-muted);">This assessment is password protected. Ask your developer or leader for the password when you are ready to begin.</p>
+            <input type="password" id="assessmentPasswordInput" autocomplete="off" placeholder="Assessment password" style="padding:9px 12px; border:1px solid var(--border); border-radius:8px; margin-right:8px;" onkeydown="if(event.key==='Enter') unlockAssessment('${assessment.id}')">
+            <button onclick="unlockAssessment('${assessment.id}')">Unlock</button>
+            <div id="assessmentPasswordMsg" style="color:#b71c23; font-size:13px; margin-top:8px;"></div>
+          </div>
+        `;
+      }
+
+      // Not yet submitted - the interactive question-answering flow.
+      const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
+      const submitTestButtonHtml = (questions.length > 0 && canAnswer)
+        ? `<button style="margin-top:8px;" onclick="submitAssessmentTest('${assessment.id}')">Submit Test</button>
+           <div id="testMissingList" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>`
+        : '';
+
+      return `
+        <div class="assessment-box" id="assessmentSection">
+          <h3>${label} - ${attemptLabel}</h3>
+          ${questionsHtml}
+          ${submitTestButtonHtml}
+          ${questions.length === 0 && !isDeveloperHere && !isAdmin ? '<p style="color:var(--text-muted);">Waiting on your developer to grade this.</p>' : ''}
+        </div>
+      `;
+    }
+
+
+    async function loadPlan() {
+      try {
+        const plan = await apiCall('/plans/' + planId);
+
+        document.getElementById('brandSub').textContent =
+          `${plan.pairing.developee.name}'s Plan · Developed by ${plan.pairing.developer.name}`;
+
+        part2HeldGlobal = !!plan.part2Held;
+        part2StartsAfter = Math.ceil((plan.moduleCount || plan.modules.length) / 2);
+
+        const currentUserId = user.id;
+        const isDeveloperHere = plan.pairing.developer.id === currentUserId;
+        isDeveloperHereGlobal = isDeveloperHere;
+        const isDevelopeeHere = plan.pairing.developee.id === currentUserId;
+        document.getElementById('whoRole').textContent =
+          user.isAdmin ? 'admin' : (isDeveloperHere ? 'developer' : (isDevelopeeHere ? 'trainee' : ''));
+        isDevelopeeHereGlobal = isDevelopeeHere;
+        applyDevelopeeCopyPasteBlock(isDevelopeeHere && !user.isAdmin);
+
+        const openAssessment = plan.assessments.find((a) => a.openedAt);
+        const lockBanner = document.getElementById('testLockBanner');
+        if (openAssessment && !user.isAdmin) {
+          const label = openAssessment.gatePosition === 'AFTER_MODULE_4' ? 'midterm' : 'final';
+          lockBanner.innerHTML = `<div class="test-lock-banner">🔒 Modules are locked while the ${label} is in progress. Submit the test below to unlock them again.</div>`;
+        } else {
+          lockBanner.innerHTML = '';
+        }
+
+        const sequence = buildSequence(plan);
+        renderHero(sequence, plan, isDeveloperHere, user.isAdmin);
+
+        const timelineDiv = document.getElementById('timelineCard');
+        const goalDays = plan.goalDays || 30;
+        const maxDays = plan.maxDays || 40;
+        if (!plan.startedAt) {
+          timelineDiv.innerHTML = `
+            <div class="timeline-card">
+              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Not started yet</div></div>
+              <div class="tl-dates">The ${maxDays}-day clock begins once Module 1 is opened.</div>
+            </div>
+          `;
+        } else {
+          const startDate = new Date(plan.startedAt);
+          const goalDate = new Date(startDate.getTime() + goalDays * 24 * 60 * 60 * 1000);
+          const maxDate = new Date(startDate.getTime() + maxDays * 24 * 60 * 60 * 1000);
+          const daysElapsed = Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24));
+          const overdue = plan.status === 'IN_PROGRESS' && daysElapsed >= maxDays;
+          timelineDiv.innerHTML = `
+            <div class="timeline-card ${overdue ? 'overdue' : ''}">
+              <div><div class="tl-label">Your Plan Timeline</div><div class="tl-day">Day ${daysElapsed} of ${goalDays}${overdue ? ` — past the ${maxDays}-day max` : ''}</div></div>
+              <div class="tl-dates">
+                <div><strong>${goalDays}-day goal:</strong> ${goalDate.toLocaleDateString()}</div>
+                <div><strong>${maxDays}-day max:</strong> ${maxDate.toLocaleDateString()}</div>
+              </div>
+            </div>
+          `;
+        }
+
+        const currentItem = sequence.find((item) => !item.done);
+        document.getElementById('modulesList').innerHTML = sequence.map((item) =>
+          itemRowHtml(item, item === currentItem)
+        ).join('');
+
+        // Prefer whichever assessment still needs attention; once
+        // everything's passed, fall back to showing the last one so
+        // its graded review remains visible instead of just vanishing.
+        const activeAssessment = plan.assessments.find((a) => a.status !== 'PASSED')
+          || plan.assessments[plan.assessments.length - 1];
+        let questionData = null;
+        if (activeAssessment && ['PENDING', 'IN_PROGRESS'].includes(activeAssessment.status)) {
+          try {
+            questionData = await apiCall('/assessments/' + activeAssessment.id + '/questions');
+          } catch (e) {
+            questionData = null; // fail open - grading still works even if this fetch fails
+          }
+        }
+        let attemptData = null;
+        if (activeAssessment && activeAssessment.attemptCount > 0) {
+          try {
+            attemptData = await apiCall('/assessments/' + activeAssessment.id);
+          } catch (e) {
+            attemptData = null; // fail open - the rest of the box still renders
+          }
+        }
+        document.getElementById('assessmentSection').innerHTML = assessmentBoxHtml(activeAssessment, isDeveloperHere, isDevelopeeHere, questionData, attemptData);
+        lastQuestionData = questionData;
+      } catch (err) {
+        document.getElementById('message').textContent = err.message;
+      }
+    }
+
+    async function completeSkillDemo(skillDemoId) {
+      try {
+        await apiCall('/post-final/skill-demo/' + skillDemoId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function logRep(categoryId) {
+      const completedOn = document.getElementById('repDate-' + categoryId).value;
+      const learned = document.getElementById('repLearned-' + categoryId).value.trim();
+      if (!completedOn) { alert('Pick the date you completed this rep.'); return; }
+      if (!learned) { alert('Write what you learned from this rep.'); return; }
+      try {
+        await apiCall('/post-final/on-shift-reps/categories/' + categoryId + '/reps', {
+          method: 'POST',
+          body: JSON.stringify({ completedOn, learned }),
+        });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function deleteRep(repId) {
+      if (!confirm('Delete this rep?')) return;
+      try {
+        await apiCall('/post-final/on-shift-reps/reps/' + repId, { method: 'DELETE' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // ---- Leader signature box (drawn with a finger, pen, or mouse) ----
+    const signaturePads = {};
+
+    function openSignatureBox(repId) {
+      const box = document.getElementById('signBox-' + repId);
+      if (box.style.display === 'block') return;
+      box.style.display = 'block';
+
+      // Size the drawing surface only once it's visible, and match the screen's
+      // pixel density (capped at 2) so lines stay crisp without huge images.
+      const canvas = document.getElementById('signCanvas-' + repId);
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#1a1a1a';
+
+      const pad = { hasInk: false };
+      signaturePads[repId] = pad;
+      let drawing = false;
+      const point = (e) => {
+        const r = canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+      };
+
+      canvas.onpointerdown = (e) => {
+        e.preventDefault();
+        drawing = true;
+        canvas.setPointerCapture(e.pointerId);
+        const p = point(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + 0.1, p.y + 0.1); // so a single tap still leaves a dot
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        pad.hasInk = true;
+      };
+      canvas.onpointermove = (e) => {
+        if (!drawing) return;
+        const p = point(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      };
+      const stopDrawing = () => { drawing = false; };
+      canvas.onpointerup = stopDrawing;
+      canvas.onpointercancel = stopDrawing;
+    }
+
+    function clearSignature(repId) {
+      const canvas = document.getElementById('signCanvas-' + repId);
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.restore();
+      if (signaturePads[repId]) signaturePads[repId].hasInk = false;
+    }
+
+    function closeSignatureBox(repId) {
+      document.getElementById('signBox-' + repId).style.display = 'none';
+    }
+
+    async function submitSignature(repId) {
+      const signerName = document.getElementById('signName-' + repId).value.trim();
+      const pad = signaturePads[repId];
+      if (!signerName) { alert("Print the leader's name first."); return; }
+      if (!pad || !pad.hasInk) { alert('The leader needs to sign in the box first.'); return; }
+      const signature = document.getElementById('signCanvas-' + repId).toDataURL('image/png');
+      try {
+        await apiCall('/post-final/on-shift-reps/reps/' + repId + '/sign-off', {
+          method: 'POST',
+          body: JSON.stringify({ signerName, signature }),
+        });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function completeReviewStep(reviewStepId) {
+      const missingDiv = document.getElementById('reviewMissingList-' + reviewStepId);
+      if (missingDiv) missingDiv.innerHTML = '';
+      try {
+        await apiCall('/review-steps/' + reviewStepId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
+    async function openModule(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/open', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function markModuleReviewed(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/mark-reviewed', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function completeModule(moduleId) {
+      try {
+        await apiCall('/modules/' + moduleId + '/complete', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        if (err.missing) {
+          alert('Not every section in this module is complete yet:\n\n' + err.missing.map((m) => '- ' + m).join('\n'));
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
+    async function unlockAssessment(assessmentId) {
+      const input = document.getElementById('assessmentPasswordInput');
+      const msg = document.getElementById('assessmentPasswordMsg');
+      if (!input.value) { msg.textContent = 'Enter the password.'; return; }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/unlock', { method: 'POST', body: JSON.stringify({ password: input.value }) });
+        loadPlan();
+      } catch (err) {
+        msg.textContent = err.message;
+        input.value = '';
+      }
+    }
+
+    async function submitAssessmentTest(assessmentId) {
+      const questionData = lastQuestionData;
+      if (!questionData) return;
+
+      const responses = questionData.questions.map((q) => {
+        if (q.questionType === 'MULTIPLE_CHOICE') {
+          const selected = document.querySelector(`input[name="aq-mc-${q.id}"]:checked`);
+          return { questionId: q.id, optionId: selected ? selected.value : null };
+        }
+        const el = document.getElementById('aq-answer-' + q.id);
+        return { questionId: q.id, answer: el ? el.value : '' };
+      });
+
+      const missingDiv = document.getElementById('testMissingList');
+      if (missingDiv) missingDiv.innerHTML = '';
+
+      if (!confirm('This locks in every answer permanently for this attempt. Continue?')) return;
+
+      try {
+        await apiCall('/assessments/' + assessmentId + '/submit-test', {
+          method: 'POST',
+          body: JSON.stringify({ responses }),
+        });
+        loadPlan();
+      } catch (err) {
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+      }
+    }
+
+    async function gradeAssessment(assessmentId) {
+      const submitBtn = document.getElementById('submitGradeBtn');
+      const missingDiv = document.getElementById('gradeMissingList');
+      if (missingDiv) missingDiv.innerHTML = '';
+      if (submitBtn) {
+        if (submitBtn.disabled) return; // already submitting - ignore a second click entirely
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting...';
+      }
+
+      const questions = lastQuestionData ? lastQuestionData.questions : [];
+      const questionGrades = questions
+        .filter((q) => q.questionType === 'SHORT_ANSWER')
+        .map((q) => {
+          const pointsEl = document.getElementById('gradePoints-' + q.id);
+          const commentsEl = document.getElementById('gradeComments-' + q.id);
+          return {
+            questionId: q.id,
+            pointsEarned: pointsEl ? pointsEl.value : 0,
+            comments: commentsEl ? commentsEl.value : '',
+          };
+        });
+
+      try {
+        await apiCall('/assessments/' + assessmentId + '/grade', {
+          method: 'POST',
+          body: JSON.stringify({ questionGrades }),
+        });
+        loadPlan();
+      } catch (err) {
+        // If it turns out this was already graded (e.g. a duplicate
+        // submission that arrived a moment after the first one succeeded),
+        // that's not really a failure from the user's point of view -
+        // just refresh to show the real, already-graded state instead of
+        // a confusing error.
+        if (err.message && err.message.toLowerCase().includes('cannot grade an assessment with status')) {
+          loadPlan();
+          return;
+        }
+        if (err.missing && missingDiv) {
+          missingDiv.innerHTML = 'Still needed before this can be graded: <ul>' + err.missing.map((m) => `<li>${m}</li>`).join('') + '</ul>';
+        } else {
+          alert(err.message);
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Grade';
+        }
+      }
+    }
+
+    async function reopenAfterMeeting(assessmentId) {
+      try {
+        await apiCall('/assessments/' + assessmentId + '/reopen-after-meeting', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminOverridePass(assessmentId) {
+      if (!confirm('This will mark the assessment as PASSED and unlock the next step, bypassing normal grading. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/admin-override-pass', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function adminReopenForRetry(assessmentId) {
+      if (!confirm('This will allow one more real attempt - they will need to actually pass it. Continue?')) {
+        return;
+      }
+      try {
+        await apiCall('/assessments/' + assessmentId + '/admin-reopen-for-retry', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    if (planId) loadPlan();
+  </script>
+</body>
+</html>
