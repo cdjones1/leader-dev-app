@@ -79,4 +79,44 @@ async function checkNoActiveAssessmentLock(req, res, planId) {
   return true;
 }
 
-module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, checkNoActiveAssessmentLock };
+// --------------------------------------------------------------
+// Checks that the module (or Study & Review step) a section lives in
+// is actually OPEN, so nobody can skip ahead or keep working inside a
+// stalled module.
+//   mode 'write' - doing work (answering, ticking, finishing a section):
+//                  only allowed while the module/step is OPEN.
+//   mode 'read'  - viewing: a developee can't look at a module that has
+//                  not opened yet; locked and completed ones stay readable.
+// Admins keep their usual override. `section` must be loaded with
+// { module: true, reviewStep: true }. Sends the response itself on denial.
+// --------------------------------------------------------------
+async function checkSectionAvailable(req, res, section, mode) {
+  if (req.user.isAdmin) return true;
+  const container = section.module || section.reviewStep;
+  if (!container) return true;
+  const status = container.status;
+  if (status === 'OPEN') return true;
+
+  const isModule = !!section.module;
+  const what = isModule ? 'module' : 'Study & Review';
+
+  if (mode === 'read') {
+    if (status !== 'NOT_STARTED') return true; // locked / completed can still be read
+    const planId = isModule ? section.module.planId : section.reviewStep.planId;
+    const role = await getParticipantRole(req.user.userId, planId);
+    if (role !== 'DEVELOPEE') return true; // developers can look ahead
+  }
+
+  let error;
+  if (status === 'LOCKED') {
+    error = 'This module is locked because it went past its due date. Ask your developer to reopen it before continuing.';
+  } else if (status === 'NOT_STARTED') {
+    error = `This ${what} has not opened yet. Finish the earlier steps first.`;
+  } else {
+    error = `This ${what} is already complete, so it can't be changed.`;
+  }
+  res.status(423).json({ error });
+  return false;
+}
+
+module.exports = { getParticipantRole, checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, checkNoActiveAssessmentLock, checkSectionAvailable };

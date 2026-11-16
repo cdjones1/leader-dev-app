@@ -6,7 +6,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock, checkIsDeveloperOnPlan } = require('./access');
+const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock, checkIsDeveloperOnPlan, checkSectionAvailable } = require('./access');
 const { midpointModule, gateAfterModule } = require('./gates');
 const { completeModuleRecord } = require('./moduleCompletion');
 const { isPart2Held } = require('./moduleCopy');
@@ -57,6 +57,7 @@ router.get('/tasks/:taskId', requireAuth, async (req, res) => {
   }
   if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'read'))) return;
 
   res.json(stripHiddenAnswers(task));
 });
@@ -74,6 +75,7 @@ router.post('/tasks/:taskId/submit-answer', requireAuth, async (req, res) => {
   }
   if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'write'))) return;
   if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'QUESTION') {
     return res.status(400).json({ error: 'Only question tasks accept a submitted answer' });
@@ -110,6 +112,7 @@ router.post('/tasks/checklist-items/:itemId/toggle', requireAuth, async (req, re
   const planId = getSectionPlanId(item.moduleTask.section);
   if (!(await checkPlanAccess(req, res, planId))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, planId))) return;
+  if (!(await checkSectionAvailable(req, res, item.moduleTask.section, 'write'))) return;
   if (!(await checkIsAssignedRole(req, res, planId, item.moduleTask.assignedTo))) return;
 
   const now = new Date();
@@ -135,6 +138,7 @@ router.post('/tasks/:taskId/submit-choice', requireAuth, async (req, res) => {
   }
   if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'write'))) return;
   if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'MULTIPLE_CHOICE') {
     return res.status(400).json({ error: 'Only multiple-choice tasks accept a submitted choice' });
@@ -176,6 +180,7 @@ router.post('/tasks/:taskId/toggle', requireAuth, async (req, res) => {
   }
   if (!(await checkPlanAccess(req, res, getSectionPlanId(task.section)))) return;
   if (!(await checkNoActiveAssessmentLock(req, res, getSectionPlanId(task.section)))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'write'))) return;
   if (!(await checkIsAssignedRole(req, res, getSectionPlanId(task.section), task.assignedTo))) return;
   if (task.taskType !== 'ACTION_ITEM') {
     return res.status(400).json({ error: 'Only action-item tasks can be toggled directly' });

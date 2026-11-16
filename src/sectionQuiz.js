@@ -14,7 +14,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole } = require('./access');
+const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, checkSectionAvailable } = require('./access');
 
 const router = express.Router();
 
@@ -38,6 +38,7 @@ router.get('/tasks/:taskId/quiz', requireAuth, async (req, res) => {
   if (!found) return res.status(404).json({ error: 'Task not found' });
   const { task, planId } = found;
   if (!(await checkPlanAccess(req, res, planId))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'read'))) return;
   if (task.taskType !== 'SECTION_QUIZ') {
     return res.status(400).json({ error: 'This task is not a SECTION_QUIZ' });
   }
@@ -82,6 +83,7 @@ router.post('/tasks/:taskId/submit-quiz', requireAuth, async (req, res) => {
   if (!found) return res.status(404).json({ error: 'Task not found' });
   const { task, planId } = found;
   if (!(await checkPlanAccess(req, res, planId))) return;
+  if (!(await checkSectionAvailable(req, res, task.section, 'write'))) return;
   if (!(await checkIsAssignedRole(req, res, planId, 'DEVELOPEE'))) return;
   if (task.taskType !== 'SECTION_QUIZ') {
     return res.status(400).json({ error: 'This task is not a SECTION_QUIZ' });
