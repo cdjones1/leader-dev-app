@@ -14,6 +14,7 @@ const assessmentQuestionRoutes = require('./assessmentQuestions');
 const reviewGateRoutes = require('./reviewGates');
 const sectionQuizRoutes = require('./sectionQuiz');
 const postFinalStageRoutes = require('./postFinalStages');
+const essayRoutes = require('./essay');
 const sectionRoutes = require('./sections');
 const requireAuth = require('./requireAuth');
 const { startScheduler } = require('./scheduler');
@@ -38,6 +39,7 @@ app.use('/assessment-questions', assessmentQuestionRoutes);
 app.use('/review-gates', reviewGateRoutes);
 app.use('/section-quiz', sectionQuizRoutes);
 app.use('/post-final', postFinalStageRoutes);
+app.use('/essay', essayRoutes);
 app.use('/sections', sectionRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

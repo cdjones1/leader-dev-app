@@ -13,6 +13,7 @@ const requireAuth = require('./requireAuth');
 const { checkPlanAccess, checkIsDeveloperOnPlan, checkIsAssignedRole, getParticipantRole } = require('./access');
 const { openSkillDemoOrSkip } = require('./postFinalStages');
 const { isPart2Held } = require('./moduleCopy');
+const { openEssayIfConfigured } = require('./essay');
 
 const router = express.Router();
 
@@ -420,6 +421,7 @@ async function unlockNextStep(assessment) {
       await prisma.moduleEvent.create({
         data: { moduleId: module5.id, eventType: 'OPENED', actorId: null },
       });
+      await openEssayIfConfigured(heldPlan); // Part 2 has begun - open the optional essay if this path has one
       return { action: 'opened_module_5', moduleId: module5.id };
     }
   } else if (assessment.gatePosition === 'AFTER_MODULE_8') {

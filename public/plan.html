@@ -210,6 +210,7 @@
     </div>
 
     <div id="timelineCard"></div>
+    <div id="essayCard"></div>
 
     <div class="section-label">Your Path</div>
     <div class="section-title">All modules</div>
@@ -1054,6 +1055,8 @@
           `;
         }
 
+        renderEssayCard(plan, isDeveloperHere, isDevelopeeHere, !!user.isAdmin);
+
         const currentItem = sequence.find((item) => !item.done);
         document.getElementById('modulesList').innerHTML = sequence.map((item) =>
           itemRowHtml(item, item === currentItem)
@@ -1253,6 +1256,111 @@
           alert(err.message);
         }
       }
+    }
+
+    // ---------- Optional essay ----------
+    let essayAutosaveTimer = null;
+    function essayWordCount(t) { return (t || '').trim().split(/\s+/).filter(Boolean).length; }
+
+    function renderEssayCard(plan, isDeveloperHere, isDevelopeeHere, isAdmin) {
+      const el = document.getElementById('essayCard');
+      if (!el) return;
+      const e = plan.essay;
+      const optionalPill = '<span class="pill pill-pending" style="margin-left:8px;">OPTIONAL</span>';
+      const box = 'width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-family:inherit; font-size:15px;';
+
+      if (!e) {
+        const part2Begun = plan.modules.some((m) => m.sequenceOrder === part2StartsAfter + 1 && m.status !== 'NOT_STARTED');
+        if (plan.essayAvailable && part2Begun && plan.status === 'IN_PROGRESS' && (isDeveloperHere || isAdmin)) {
+          el.innerHTML = `<div class="card"><h3 style="margin-top:0;">Optional Essay</h3>
+            <p style="color:var(--text-muted);">This course has an optional essay, but it was not added to this plan because Part 2 had already started. Add it now?</p>
+            <button onclick="addEssayToPlan()">Add Essay To This Plan</button></div>`;
+        } else { el.innerHTML = ''; }
+        return;
+      }
+
+      const head = `<h3 style="margin-top:0;">${escapeHtml(e.title)}${optionalPill}</h3>
+        <p style="white-space:pre-wrap; color:var(--text);">${escapeHtml(e.prompt)}</p>`;
+      const feedbackBlock = e.feedback ? `
+        <div style="margin-top:16px; padding:14px; background:#f1f8ff; border-radius:8px;">
+          <strong>Comment from ${escapeHtml(e.feedbackByName || 'your developer')}</strong>
+          <span style="color:var(--text-muted); font-size:12px;"> &middot; ${new Date(e.feedbackAt).toLocaleDateString()}</span>
+          <p style="white-space:pre-wrap; margin:8px 0 0;">${escapeHtml(e.feedback)}</p>
+        </div>` : '';
+
+      if (!e.submittedAt) {
+        if (isDevelopeeHere && !isAdmin) {
+          el.innerHTML = `<div class="card">${head}
+            <p style="color:var(--text-muted); font-size:13px;">This essay is optional - it will never hold up your modules, the Final or your plan. ${e.minWords ? 'It needs at least ' + e.minWords + ' words.' : ''} Your draft saves automatically.</p>
+            <textarea id="essayText" rows="14" style="${box}" oninput="onEssayInput()">${escapeHtml(e.draft || '')}</textarea>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:13px; color:var(--text-muted);">
+              <span id="essayCount"></span><span id="essayStatus"></span>
+            </div>
+            <button style="margin-top:12px;" onclick="submitEssay()">Submit Essay</button>
+            <div id="essayError" style="color:#b71c23; font-size:13px; margin-top:8px;"></div></div>`;
+          onEssayInput(true);
+        } else {
+          const draftWords = isAdmin && e.draft ? essayWordCount(e.draft) : 0;
+          el.innerHTML = `<div class="card">${head}<p style="color:var(--text-muted);">${draftWords ? 'Draft in progress (' + draftWords + ' words). ' : ''}Not submitted yet.</p></div>`;
+        }
+        return;
+      }
+
+      const words = essayWordCount(e.submittedText);
+      const commentForm = (isDeveloperHere || isAdmin) ? `
+        <div style="margin-top:16px;">
+          <label style="font-size:13px; font-weight:600;">${e.feedback ? 'Update your comment' : 'Leave a comment for ' + escapeHtml(plan.pairing.developee.name)}</label>
+          <textarea id="essayFeedback" rows="4" style="${box} margin-top:6px;">${escapeHtml(e.feedback || '')}</textarea>
+          <button style="margin-top:8px;" onclick="saveEssayFeedback()">Save Comment</button>
+          <div id="essayFeedbackError" style="color:#b71c23; font-size:13px; margin-top:8px;"></div>
+        </div>` : '';
+      el.innerHTML = `<div class="card">${head}
+        <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">Submitted ${new Date(e.submittedAt).toLocaleDateString()} &middot; ${words} words</div>
+        <div style="white-space:pre-wrap; padding:14px; background:var(--bg); border-radius:8px; max-height:420px; overflow:auto;">${escapeHtml(e.submittedText)}</div>
+        ${isDevelopeeHere && !isAdmin ? feedbackBlock : (feedbackBlock ? '' : '')}${commentForm}</div>`;
+    }
+
+    function onEssayInput(initial) {
+      const ta = document.getElementById('essayText');
+      if (!ta) return;
+      const count = document.getElementById('essayCount');
+      if (count) count.textContent = essayWordCount(ta.value) + ' words';
+      if (initial) return;
+      const status = document.getElementById('essayStatus');
+      if (status) status.textContent = 'Saving...';
+      clearTimeout(essayAutosaveTimer);
+      essayAutosaveTimer = setTimeout(async () => {
+        try {
+          await apiCall('/essay/plan/' + planId + '/draft', { method: 'PUT', body: JSON.stringify({ text: ta.value }) });
+          if (status) status.textContent = 'Draft saved';
+        } catch (err) { if (status) status.textContent = 'Could not save: ' + err.message; }
+      }, 1500);
+    }
+
+    async function submitEssay() {
+      const ta = document.getElementById('essayText');
+      const err = document.getElementById('essayError');
+      err.textContent = '';
+      if (!confirm('Submit your essay? Once submitted it is locked and cannot be edited.')) return;
+      clearTimeout(essayAutosaveTimer);
+      try {
+        await apiCall('/essay/plan/' + planId + '/submit', { method: 'POST', body: JSON.stringify({ text: ta.value }) });
+        loadPlan();
+      } catch (e) { err.textContent = e.message; }
+    }
+
+    async function saveEssayFeedback() {
+      const err = document.getElementById('essayFeedbackError');
+      err.textContent = '';
+      try {
+        await apiCall('/essay/plan/' + planId + '/feedback', { method: 'POST', body: JSON.stringify({ feedback: document.getElementById('essayFeedback').value }) });
+        loadPlan();
+      } catch (e) { err.textContent = e.message; }
+    }
+
+    async function addEssayToPlan() {
+      try { await apiCall('/essay/plan/' + planId + '/add', { method: 'POST' }); loadPlan(); }
+      catch (e) { alert(e.message); }
     }
 
     async function unlockAssessment(assessmentId) {

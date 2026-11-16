@@ -109,6 +109,21 @@
       return new Date(y, m - 1, d).toLocaleDateString();
     }
 
+    function essayHtml(plan) {
+      const e = plan.essay;
+      if (!e) return '';
+      const words = e.submittedText ? e.submittedText.trim().split(/\s+/).filter(Boolean).length : 0;
+      return `
+        <div class="card">
+          <h2 style="margin-top:0;">${escapeHtml(e.title)} <span style="font-size:12px; color:#6b6560; font-weight:600;">(optional essay)</span></h2>
+          ${e.submittedAt ? `
+            <div class="assessment-meta">Submitted ${fmtDate(e.submittedAt)} &middot; ${words} words</div>
+            <div style="white-space:pre-wrap; margin-top:10px;">${escapeHtml(e.submittedText)}</div>
+            ${e.feedback ? `<div style="margin-top:14px; padding:12px; background:#f1f8ff; border-radius:8px;"><strong>Comment from ${escapeHtml(e.feedbackByName || 'developer')}</strong><div style="white-space:pre-wrap; margin-top:6px;">${escapeHtml(e.feedback)}</div></div>` : ''}
+          ` : '<div class="assessment-meta">Not submitted.</div>'}
+        </div>`;
+    }
+
     function postFinalStagesHtml(plan) {
       if (!plan.skillDemo && !plan.onShiftRepsStage) return '';
 
@@ -235,6 +250,7 @@
           </div>
 
           ${postFinalStagesHtml(plan)}
+          ${essayHtml(plan)}
         `;
       } catch (err) {
         document.getElementById('message').className = 'error';

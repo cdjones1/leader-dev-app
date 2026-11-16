@@ -8,6 +8,7 @@ const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
 const { loadModuleTemplate, fillModuleFromTemplate, midpointModule } = require('./moduleCopy');
+const { openEssayIfConfigured } = require('./essay');
 
 const router = express.Router();
 
@@ -134,6 +135,7 @@ router.post('/:id/release-part2', requireAuth, async (req, res) => {
         if (claimed.count === 1) {
           await prisma.moduleEvent.create({ data: { moduleId: first.id, eventType: 'OPENED', actorId: req.user.userId } });
           modulesOpened++;
+          await openEssayIfConfigured(plan);
         }
       }
     }

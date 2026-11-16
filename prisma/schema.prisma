@@ -78,6 +78,7 @@ enum PlanStatus {
 }
 
 model DevelopmentPlan {
+  essay PlanEssay?
   id        String     @id @default(uuid())
   pairingId String
   pairing   DeveloperPairing @relation(fields: [pairingId], references: [id])
@@ -299,6 +300,7 @@ model TaskChoiceOption {
 // assigned to (or none, until assigned).
 // ------------------------------------------------------------
 model DevelopmentPath {
+  essayTemplate EssayTemplate?
   assessmentPasswords AssessmentPassword[]
   id          String   @id @default(uuid())
   name        String   @unique
@@ -729,3 +731,34 @@ model AssessmentAttempt {
   questionGrades AssessmentQuestionGrade[]
 }
 
+
+
+// ------------------------------------------------------------
+// OPTIONAL ESSAY - one per path (template), copied onto a plan
+// when Part 2 begins. Never blocks anything.
+// ------------------------------------------------------------
+model EssayTemplate {
+  id        String          @id @default(uuid())
+  pathId    String          @unique
+  path      DevelopmentPath @relation(fields: [pathId], references: [id], onDelete: Cascade)
+  title     String
+  prompt    String
+  minWords  Int             @default(0)
+  updatedAt DateTime        @updatedAt
+}
+
+model PlanEssay {
+  id             String          @id @default(uuid())
+  planId         String          @unique
+  plan           DevelopmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  title          String
+  prompt         String
+  minWords       Int             @default(0)
+  draft          String?
+  submittedText  String?
+  submittedAt    DateTime?
+  feedback       String?
+  feedbackAt     DateTime?
+  feedbackByName String?
+  openedAt       DateTime        @default(now())
+}

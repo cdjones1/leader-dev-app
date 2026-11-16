@@ -10,6 +10,7 @@ const { checkPlanAccess, checkIsAssignedRole, checkNoActiveAssessmentLock, check
 const { midpointModule, gateAfterModule } = require('./gates');
 const { completeModuleRecord } = require('./moduleCompletion');
 const { isPart2Held } = require('./moduleCopy');
+const { openEssayIfConfigured } = require('./essay');
 
 const router = express.Router();
 
@@ -261,6 +262,9 @@ router.post('/:id/open', requireAuth, async (req, res) => {
   await prisma.moduleEvent.create({
     data: { moduleId, eventType: 'OPENED', actorId: req.user.userId },
   });
+
+  // First module of Part 2 opening is when the optional essay (if the path has one) appears.
+  if (module.sequenceOrder === midpoint + 1) await openEssayIfConfigured(plan);
 
   // Module 1 opening is what actually starts the plan's real clock -
   // this is the moment the 40-day window begins, distinct from

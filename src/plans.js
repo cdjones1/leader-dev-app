@@ -7,7 +7,7 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess } = require('./access');
+const { checkPlanAccess, getParticipantRole } = require('./access');
 const { loadModuleTemplate, fillModuleFromTemplate, isPart2Held } = require('./moduleCopy');
 const router = express.Router();
 
@@ -194,6 +194,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       },
       pairing: { include: { developer: true, developee: true } },
       skillDemo: true,
+      essay: true,
       onShiftRepsStage: {
         include: {
           categories: {
@@ -224,6 +225,18 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 
   plan.part2Held = await isPart2Held(plan);
+
+  // A developee's unfinished draft is private - the developer only sees
+  // the essay once it has been submitted. Admins and the developee see all.
+  if (plan.essay && !plan.essay.submittedAt && !req.user.isAdmin) {
+    const viewerRole = await getParticipantRole(req.user.userId, plan.id);
+    if (viewerRole !== 'DEVELOPEE') plan.essay = { ...plan.essay, draft: null };
+  }
+  // Lets the page offer "Add essay" on a plan that is already in Part 2.
+  plan.essayAvailable = false;
+  if (!plan.essay && plan.pathId) {
+    plan.essayAvailable = !!(await prisma.essayTemplate.findUnique({ where: { pathId: plan.pathId } }));
+  }
   res.json(plan);
 });
 

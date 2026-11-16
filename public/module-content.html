@@ -63,6 +63,7 @@
     </div>
     <div id="analyzeContentResults"></div>
     <div id="releaseBox" class="add-section-box" style="margin-top:14px;"></div>
+    <div id="essayBox" class="add-section-box" style="margin-top:14px;"></div>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
       <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
@@ -361,7 +362,41 @@
       }
       select.value = currentPathId;
       renderReleaseBox();
+      renderEssayBox();
       loadTemplates();
+    }
+
+    // ---------- Optional essay (opens when Part 2 begins) ----------
+    async function renderEssayBox() {
+      const box = document.getElementById('essayBox');
+      if (!box) return;
+      if (!currentPathId) { box.innerHTML = ''; return; }
+      let t = null;
+      try { t = (await apiCall('/essay/template?pathId=' + currentPathId)).template; } catch (err) { box.innerHTML = ''; return; }
+      const esc = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      box.innerHTML = `
+        <label>Optional essay: ${t ? '<span style="color:#1a7a3a;">ON for this path</span>' : '<span style="color:var(--text-muted);">off (no essay on this path)</span>'}</label>
+        <p style="color:var(--text-muted); font-size:13px; margin:4px 0 8px;">When on, an optional essay appears on each plan when Part 2 begins (after the midterm is passed). It never blocks a module, the Final, or finishing the plan. The developer reads it and can leave a comment. Plans already in Part 2 can have it added from their plan page.</p>
+        <input type="text" id="essayTitle" placeholder="Essay title, e.g. My Leadership Story" value="${t ? esc(t.title) : ''}" style="margin-bottom:8px;">
+        <textarea id="essayPrompt" rows="5" placeholder="The essay prompt the developee will see" style="width:100%; margin-bottom:8px;">${t ? esc(t.prompt) : ''}</textarea>
+        <input type="number" id="essayMinWords" min="0" max="5000" placeholder="Minimum words (optional)" value="${t && t.minWords ? t.minWords : ''}" style="max-width:240px; margin-bottom:8px;">
+        <div><button onclick="saveEssayTemplate()">${t ? 'Save Essay' : 'Turn On Essay'}</button>
+        ${t ? '<button style="background:#8a8378;" onclick="removeEssayTemplate()">Remove Essay</button>' : ''}</div>`;
+    }
+    async function saveEssayTemplate() {
+      try {
+        await apiCall('/essay/template?pathId=' + currentPathId, { method: 'PUT', body: JSON.stringify({
+          title: document.getElementById('essayTitle').value,
+          prompt: document.getElementById('essayPrompt').value,
+          minWords: document.getElementById('essayMinWords').value,
+        }) });
+        renderEssayBox();
+      } catch (err) { alert(err.message); }
+    }
+    async function removeEssayTemplate() {
+      if (!confirm('Turn off the essay for this path? Essays already on existing plans stay as they are; new plans will not get one.')) return;
+      try { await apiCall('/essay/template?pathId=' + currentPathId, { method: 'DELETE' }); renderEssayBox(); }
+      catch (err) { alert(err.message); }
     }
 
     // ---------- Part 2 hold / release ----------
@@ -407,6 +442,7 @@
       currentPathId = document.getElementById('pathSelect').value;
       document.getElementById('analyzeContentResults').innerHTML = '';
       renderReleaseBox();
+      renderEssayBox();
       loadTemplates();
     }
 
