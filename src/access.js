@@ -67,14 +67,31 @@ async function checkIsAssignedRole(req, res, planId, assignedTo) {
 async function checkNoActiveAssessmentLock(req, res, planId) {
   if (req.user.isAdmin) return true; // admin keeps the same override it has everywhere else
 
-  const openAssessment = await prisma.assessment.findFirst({
-    where: { planId, openedAt: { not: null } },
-  });
-  if (openAssessment) {
-    res.status(423).json({
-      error: `Modules are locked while the ${openAssessment.gatePosition === 'AFTER_MODULE_4' ? 'midterm' : 'final'} is in progress - submit the test to unlock them again`,
-    });
-    return false;
+  // Only a test that is genuinely being taken right now locks the modules:
+  // started (openedAt set), still gradeable, has questions, and the current
+  // attempt has NOT been submitted yet. Anything else with a leftover mark
+  // (already submitted, graded, passed, no questions) is stale - clear it
+  // so a developee can never be left locked out after the test is done.
+  const opened = await prisma.assessment.findMany({ where: { planId, openedAt: { not: null } } });
+  for (const a of opened) {
+    let stillTaking = ['PENDING', 'IN_PROGRESS'].includes(a.status);
+    if (stillTaking) {
+      const questionCount = await prisma.assessmentQuestion.count({ where: { assessmentId: a.id } });
+      if (questionCount === 0) stillTaking = false;
+    }
+    if (stillTaking) {
+      const submitted = await prisma.assessmentQuestionResponse.findFirst({
+        where: { attemptNumber: a.attemptCount + 1, question: { assessmentId: a.id } },
+      });
+      if (submitted) stillTaking = false;
+    }
+    if (stillTaking) {
+      res.status(423).json({
+        error: `Modules are locked while the ${a.gatePosition === 'AFTER_MODULE_4' ? 'midterm' : 'final'} is in progress - submit the test to unlock them again`,
+      });
+      return false;
+    }
+    await prisma.assessment.update({ where: { id: a.id }, data: { openedAt: null } });
   }
   return true;
 }

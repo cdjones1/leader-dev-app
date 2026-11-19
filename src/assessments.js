@@ -72,14 +72,21 @@ router.get('/:id/questions', requireAuth, async (req, res) => {
     }
   }
 
-  // The developee viewing this (while it's actually gradeable, i.e.
-  // an attempt is really underway) is what "opens" it - modules lock
-  // from this moment until the whole test is submitted.
-  if (role === 'DEVELOPEE' && !assessment.openedAt && ['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
-    assessment = await prisma.assessment.update({ where: { id: assessment.id }, data: { openedAt: new Date() } });
-  }
-
   const attemptNumber = assessment.attemptCount + 1;
+
+  // A developee has to deliberately press "Begin" (POST /:id/start) before
+  // the questions show - merely loading the plan page must never start a
+  // test or lock their modules. Until then they can study freely. Once the
+  // current attempt is already submitted there is nothing left to start.
+  if (role === 'DEVELOPEE' && !assessment.openedAt && ['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    const questionCount = await prisma.assessmentQuestion.count({ where: { assessmentId: assessment.id } });
+    const alreadySubmittedThisAttempt = await prisma.assessmentQuestionResponse.findFirst({
+      where: { attemptNumber, question: { assessmentId: assessment.id } },
+    });
+    if (questionCount > 0 && !alreadySubmittedThisAttempt) {
+      return res.json({ notStarted: true, attemptNumber, isGraded: false, questions: [] });
+    }
+  }
 
   // "Graded" means an attempt row already exists for this attempt
   // number - attempts are only ever created at grading time, so this
@@ -189,6 +196,33 @@ router.post('/:id/unlock', requireAuth, async (req, res) => {
   unlockFailures.delete(assessment.id);
   await prisma.assessment.update({ where: { id: assessment.id }, data: { unlockedAttempt: assessment.attemptCount + 1 } });
   res.json({ unlocked: true });
+});
+
+// --------------------------------------------------------------
+// BEGIN an attempt (developee only). This - not just viewing the page -
+// is what starts the test: the questions appear and the modules lock
+// until the whole test is submitted.
+// --------------------------------------------------------------
+router.post('/:id/start', requireAuth, async (req, res) => {
+  const assessment = await prisma.assessment.findUnique({ where: { id: req.params.id } });
+  if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+  if (!(await checkPlanAccess(req, res, assessment.planId))) return;
+  if (!(await checkIsAssignedRole(req, res, assessment.planId, 'DEVELOPEE'))) return;
+  if (!['PENDING', 'IN_PROGRESS'].includes(assessment.status)) {
+    return res.status(400).json({ error: 'This assessment is not open for an attempt right now' });
+  }
+  const gate = await getGatePassword(assessment);
+  if (gate && !isGateUnlocked(assessment)) {
+    return res.status(403).json({ error: 'Enter the assessment password first' });
+  }
+  const submitted = await prisma.assessmentQuestionResponse.findFirst({
+    where: { attemptNumber: assessment.attemptCount + 1, question: { assessmentId: assessment.id } },
+  });
+  if (submitted) return res.status(400).json({ error: 'This attempt was already submitted' });
+  if (!assessment.openedAt) {
+    await prisma.assessment.update({ where: { id: assessment.id }, data: { openedAt: new Date() } });
+  }
+  res.json({ started: true });
 });
 
 router.post('/:id/submit-test', requireAuth, async (req, res) => {
@@ -386,7 +420,7 @@ router.post('/:id/grade', requireAuth, async (req, res) => {
 
   const updatedAssessment = await prisma.assessment.update({
     where: { id: assessmentId },
-    data: { status: newStatus, attemptCount: attemptNumber },
+    data: { status: newStatus, attemptCount: attemptNumber, openedAt: null },
   });
 
   // If this passed, unlock what comes next: module 5 (for the midterm)

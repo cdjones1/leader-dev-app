@@ -218,6 +218,7 @@
     <div id="copyPasteToast" class="copy-paste-toast">Copy/paste is disabled on this page</div>
     <div id="modulesList"></div>
     <div id="assessmentSection"></div>
+    <div id="testToolsCard"></div>
     <div id="message"></div>
   </div>
 
@@ -979,6 +980,29 @@
         `;
       }
 
+      // Attempt available but not begun - nothing is locked until they choose to start.
+      if (questionData && questionData.notStarted) {
+        if (!isDevelopeeHere) {
+          return `
+            <div class="assessment-box" id="assessmentSection">
+              <h3>${label} - ${attemptLabel}</h3>
+              ${gradedReview}
+              <p style="color:var(--text-muted);">Waiting for your developee to begin this attempt.</p>
+            </div>
+          `;
+        }
+        return `
+          <div class="assessment-box" id="assessmentSection">
+            <h3>${label} - ${attemptLabel}</h3>
+            ${gradedReview}
+            <p>Take your time to study first - your modules and Study &amp; Review stay open until you begin.</p>
+            <p style="color:var(--text-muted);">When you press Begin, the questions appear and your modules lock until you submit the whole test.</p>
+            <button onclick="beginAssessment('${assessment.id}')">Begin ${assessment.gatePosition === 'AFTER_MODULE_4' ? 'Midterm' : 'Final'} - ${attemptLabel}</button>
+            <div id="beginAssessmentMsg" style="color:#b71c23; font-size:13px; margin-top:8px;"></div>
+          </div>
+        `;
+      }
+
       // Not yet submitted - the interactive question-answering flow.
       const questionsHtml = questions.map((q) => assessmentQuestionBlock(q, canAnswer, hasSubmittedTest)).join('');
       const submitTestButtonHtml = (questions.length > 0 && canAnswer)
@@ -1057,6 +1081,7 @@
         }
 
         renderEssayCard(plan, isDeveloperHere, isDevelopeeHere, !!user.isAdmin);
+        renderTestToolsCard(plan, !!user.isAdmin);
 
         const currentItem = sequence.find((item) => !item.done);
         document.getElementById('modulesList').innerHTML = sequence.map((item) =>
@@ -1268,6 +1293,30 @@
       }
     }
 
+    // ---------- Test shortcuts (admin, self-paired test plans only) ----------
+    function renderTestToolsCard(plan, isAdmin) {
+      const el = document.getElementById('testToolsCard');
+      if (!el) return;
+      if (!isAdmin || plan.status !== 'IN_PROGRESS' || plan.pairing.developerId !== plan.pairing.developeeId) { el.innerHTML = ''; return; }
+      const hasMid = (plan.reviewSteps || []).some((r) => r.gatePosition === 'AFTER_MODULE_4');
+      const hasFinal = (plan.reviewSteps || []).some((r) => r.gatePosition === 'AFTER_MODULE_8');
+      el.innerHTML = `<div class="card" style="border:2px dashed #c9a227;">
+        <h3 style="margin-top:0;">Test shortcuts <span class="pill pill-pending">ADMIN - TEST PLAN</span></h3>
+        <p style="color:var(--text-muted); font-size:13px;">This plan has you as both developer and developee, so it is a test plan. These buttons skip the modules and take you straight to a Study &amp; Review to check its content and flashcards. They are hidden on real developees' plans. Delete this plan from Admin Setup when you are done.</p>
+        <button ${hasMid ? 'disabled' : ''} onclick="fastForward('MIDTERM_REVIEW')">Jump to Midterm Study &amp; Review</button>
+        <button ${hasFinal ? 'disabled' : ''} style="margin-left:8px;" onclick="fastForward('FINAL_REVIEW')">Jump to Final Study &amp; Review</button>
+      </div>`;
+    }
+    async function fastForward(target) {
+      if (!confirm('Skip ahead on this TEST plan? It marks the earlier modules complete (and, for the Final, records a passed midterm). This cannot be undone - delete the plan when you are finished testing.')) return;
+      try {
+        const r = await apiCall('/test-tools/plans/' + planId + '/fast-forward', { method: 'POST', body: JSON.stringify({ target }) });
+        alert('You are now at the ' + (target === 'MIDTERM_REVIEW' ? 'Midterm' : 'Final') + ' Study & Review.\n\n' +
+          (r.reviewStepId ? r.sections + ' section(s) and ' + r.flashcards + ' flashcard(s) were built.' : 'No Study & Review was created.'));
+        loadPlan();
+      } catch (err) { alert(err.message); }
+    }
+
     // ---------- Optional essay ----------
     let essayAutosaveTimer = null;
     function essayWordCount(t) { return (t || '').trim().split(/\s+/).filter(Boolean).length; }
@@ -1371,6 +1420,17 @@
     async function addEssayToPlan() {
       try { await apiCall('/essay/plan/' + planId + '/add', { method: 'POST' }); loadPlan(); }
       catch (e) { alert(e.message); }
+    }
+
+    async function beginAssessment(assessmentId) {
+      if (!confirm('Begin now? Your modules will lock until you submit the whole test.')) return;
+      try {
+        await apiCall('/assessments/' + assessmentId + '/start', { method: 'POST' });
+        loadPlan();
+      } catch (err) {
+        const el = document.getElementById('beginAssessmentMsg');
+        if (el) el.textContent = err.message; else alert(err.message);
+      }
     }
 
     async function unlockAssessment(assessmentId) {
