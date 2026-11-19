@@ -8,9 +8,42 @@
 const express = require('express');
 const prisma = require('./db');
 const requireAuth = require('./requireAuth');
-const { checkPlanAccess } = require('./access');
+const { checkPlanAccess, checkIsDeveloperOnPlan } = require('./access');
+const { fillReviewStepFromGate } = require('./moduleCompletion');
 
 const router = express.Router();
+
+// --------------------------------------------------------------
+// REBUILD a Study & Review step's content (developer or admin).
+// For a step that opened before its content existed (it was empty or
+// missing flashcards). Re-copies the path's CURRENT Study & Review
+// content and re-pulls the flashcards from the plan's earlier modules.
+// Refused once anyone has finished a section in it, so it can never
+// wipe real progress.
+// --------------------------------------------------------------
+router.post('/:id/rebuild', requireAuth, async (req, res) => {
+  const reviewStep = await prisma.reviewStep.findUnique({ where: { id: req.params.id } });
+  if (!reviewStep) return res.status(404).json({ error: 'Review step not found' });
+  if (!(await checkPlanAccess(req, res, reviewStep.planId))) return;
+  if (!(await checkIsDeveloperOnPlan(req, res, reviewStep.planId))) return;
+  if (reviewStep.status !== 'OPEN') {
+    return res.status(400).json({ error: 'Only a Study & Review that is still open can be rebuilt' });
+  }
+  const progress = await prisma.moduleSection.count({ where: { reviewStepId: reviewStep.id, completed: true } });
+  if (progress > 0) {
+    return res.status(400).json({ error: 'Someone has already finished a section here, so it cannot be rebuilt without losing their progress' });
+  }
+
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: reviewStep.planId } });
+  await prisma.moduleSection.deleteMany({ where: { reviewStepId: reviewStep.id } }); // cascades its tasks
+  await fillReviewStepFromGate(plan, reviewStep, reviewStep.gatePosition);
+
+  const sections = await prisma.moduleSection.count({ where: { reviewStepId: reviewStep.id } });
+  const flashcards = await prisma.taskChecklistItem.count({
+    where: { moduleTask: { taskType: 'FLASHCARD', section: { reviewStepId: reviewStep.id } } },
+  });
+  res.json({ sections, flashcards });
+});
 
 router.post('/:id/complete', requireAuth, async (req, res) => {
   const reviewStep = await prisma.reviewStep.findUnique({ where: { id: req.params.id } });

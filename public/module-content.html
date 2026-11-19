@@ -64,6 +64,11 @@
     <div id="analyzeContentResults"></div>
     <div id="releaseBox" class="add-section-box" style="margin-top:14px;"></div>
     <div id="essayBox" class="add-section-box" style="margin-top:14px;"></div>
+    <div class="add-section-box" style="margin-top:14px;">
+      <label>Study &amp; Review repair</label>
+      <p style="color:var(--text-muted); font-size:13px; margin:4px 0 8px;">A plan copies the Study &amp; Review content at the moment a developee finishes Module 4 or 8. If you added flashcards or content after that, the developee's copy is empty. This refreshes every Study &amp; Review on this path that is currently open, using the latest content and flashcards. Any one where a section has already been finished is left alone.</p>
+      <button id="rebuildReviewsBtn" onclick="rebuildOpenReviews()">Refresh Open Study &amp; Reviews</button>
+    </div>
     <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
       <input type="text" id="newPathName" placeholder="New path name (e.g. Back of House Team Leader)" style="flex:2; min-width:220px;">
       <input type="number" id="newPathModuleCount" placeholder="# modules" value="8" min="1" style="flex:0 0 90px;">
@@ -364,6 +369,21 @@
       renderReleaseBox();
       renderEssayBox();
       loadTemplates();
+    }
+
+    async function rebuildOpenReviews() {
+      if (!currentPathId) return;
+      if (!confirm('Refresh every open Study & Review on this path with the latest content and flashcards? Ones where a developee has already finished a section are skipped.')) return;
+      const btn = document.getElementById('rebuildReviewsBtn');
+      btn.disabled = true; btn.textContent = 'Refreshing...';
+      try {
+        const r = await apiCall('/paths/' + currentPathId + '/rebuild-review-steps', { method: 'POST' });
+        alert('Refreshed ' + r.rebuilt + ' Study & Review(s) with ' + r.flashcards + ' flashcard(s) in total.' +
+          (r.skipped ? '\n\nSkipped ' + r.skipped + ' because a section was already finished.' : '') +
+          (r.failures ? '\n\n' + r.failures + ' could not be refreshed - check the server logs.' : '') +
+          (r.rebuilt === 0 && !r.skipped ? '\n\nNo open Study & Reviews were found on this path.' : ''));
+      } catch (err) { alert(err.message); }
+      btn.disabled = false; btn.textContent = 'Refresh Open Study & Reviews';
     }
 
     // ---------- Optional essay (opens when Part 2 begins) ----------

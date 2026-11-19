@@ -478,6 +478,7 @@
         <div class="module-detail">
           ${sectionListHtml}
           <button style="margin-top:10px;" onclick="completeReviewStep('${reviewStep.id}')">Finish Study &amp; Review (unlocks the assessment)</button>
+          ${(isDeveloperHereGlobal || (JSON.parse(localStorage.getItem('user') || '{}').isAdmin)) && reviewStep.status === 'OPEN' ? `<div style="margin-top:12px;"><a href="#" style="font-size:13px; color:var(--text-muted);" onclick="event.preventDefault(); rebuildReviewStep('${reviewStep.id}')">Missing flashcards or content? Rebuild this Study &amp; Review</a></div>` : ''}
           <div id="reviewMissingList-${reviewStep.id}" style="color:#9a5b00; font-size:13px; margin-top:8px;"></div>
         </div>
       `;
@@ -1210,6 +1211,15 @@
       } catch (err) {
         alert(err.message);
       }
+    }
+
+    async function rebuildReviewStep(reviewStepId) {
+      if (!confirm('Rebuild this Study & Review from the latest course content and flashcards? This only works while nobody has finished a section in it.')) return;
+      try {
+        const r = await apiCall('/review-steps/' + reviewStepId + '/rebuild', { method: 'POST' });
+        alert('Rebuilt: ' + r.sections + ' section(s) and ' + r.flashcards + ' flashcard(s).' + (r.flashcards === 0 ? '\n\nStill no flashcards. Check that this path\'s Study & Review has a "Flashcard Set" task and that Modules have flashcards.' : ''));
+        loadPlan();
+      } catch (err) { alert(err.message); }
     }
 
     async function completeReviewStep(reviewStepId) {

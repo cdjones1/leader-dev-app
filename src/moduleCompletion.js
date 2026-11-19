@@ -12,45 +12,11 @@ const { midpointModule, gateAfterModule } = require('./gates');
 
 const FIVE_DAYS_IN_MS = 5 * 24 * 60 * 60 * 1000;
 
-// Returns { completedModule, reviewStepOpened } or
-// { completedModule, nextModuleOpened }, or null if the module was no
-// longer OPEN by the time this ran (someone else just completed it).
-async function completeModuleRecord(module, actorId) {
-  const moduleId = module.id;
-
-  const now = new Date();
-
-  // Claim the completion atomically: only one caller can flip OPEN -> COMPLETED,
-  // so a double click (or two people finishing the last sections at the same
-  // instant) can never open the next module or the review step twice.
-  const claimed = await prisma.module.updateMany({
-    where: { id: moduleId, status: 'OPEN' },
-    data: { status: 'COMPLETED', completedAt: now },
-  });
-  if (claimed.count === 0) return null;
-  const updated = await prisma.module.findUnique({ where: { id: moduleId } });
-
-  await prisma.moduleEvent.create({
-    data: { moduleId, eventType: 'COMPLETED', actorId },
-  });
-
-  // The midpoint and final modules lead into a "Study and Review"
-  // step before the assessment - not straight to the assessment
-  // itself. Uses this plan's OWN moduleCount, so this correctly finds
-  // the right gate regardless of how many modules the plan has.
-  const plan = await prisma.developmentPlan.findUnique({ where: { id: module.planId } });
-  const gatePosition = gateAfterModule(module.sequenceOrder, plan.moduleCount);
-  if (gatePosition) {
-    const reviewStep = await prisma.reviewStep.create({
-      data: { planId: module.planId, gatePosition, status: 'OPEN', openedAt: new Date() },
-    });
-
-    // Copy this path's review-gate content (if any) into real
-    // sections/tasks for this specific review step - same nested
-    // copy pattern plans.js uses for a regular module's sections,
-    // just attaching via reviewStepId instead of moduleId. Older
-    // plans, or a path with nothing authored yet, just get an empty
-    // review step, same as before this feature existed.
+// Copies this path's Study & Review content (sections, tasks, flashcards)
+// into a review step, then pulls in the flashcards from the plan's
+// earlier modules. Used when the step opens AND by the "rebuild" fix
+// for a step that was opened before its content existed.
+async function fillReviewStepFromGate(plan, reviewStep, gatePosition) {
     if (plan.pathId) {
       const gate = await prisma.reviewGateTemplate.findUnique({
         where: { pathId_gatePosition: { pathId: plan.pathId, gatePosition } },
@@ -201,6 +167,48 @@ async function completeModuleRecord(module, actorId) {
         }
       }
     }
+}
+
+// Returns { completedModule, reviewStepOpened } or
+// { completedModule, nextModuleOpened }, or null if the module was no
+// longer OPEN by the time this ran (someone else just completed it).
+async function completeModuleRecord(module, actorId) {
+  const moduleId = module.id;
+
+  const now = new Date();
+
+  // Claim the completion atomically: only one caller can flip OPEN -> COMPLETED,
+  // so a double click (or two people finishing the last sections at the same
+  // instant) can never open the next module or the review step twice.
+  const claimed = await prisma.module.updateMany({
+    where: { id: moduleId, status: 'OPEN' },
+    data: { status: 'COMPLETED', completedAt: now },
+  });
+  if (claimed.count === 0) return null;
+  const updated = await prisma.module.findUnique({ where: { id: moduleId } });
+
+  await prisma.moduleEvent.create({
+    data: { moduleId, eventType: 'COMPLETED', actorId },
+  });
+
+  // The midpoint and final modules lead into a "Study and Review"
+  // step before the assessment - not straight to the assessment
+  // itself. Uses this plan's OWN moduleCount, so this correctly finds
+  // the right gate regardless of how many modules the plan has.
+  const plan = await prisma.developmentPlan.findUnique({ where: { id: module.planId } });
+  const gatePosition = gateAfterModule(module.sequenceOrder, plan.moduleCount);
+  if (gatePosition) {
+    const reviewStep = await prisma.reviewStep.create({
+      data: { planId: module.planId, gatePosition, status: 'OPEN', openedAt: new Date() },
+    });
+
+    // Copy this path's review-gate content (if any) into real
+    // sections/tasks for this specific review step - same nested
+    // copy pattern plans.js uses for a regular module's sections,
+    // just attaching via reviewStepId instead of moduleId. Older
+    // plans, or a path with nothing authored yet, just get an empty
+    // review step, same as before this feature existed.
+    await fillReviewStepFromGate(plan, reviewStep, gatePosition);
 
     return { completedModule: updated, reviewStepOpened: reviewStep };
   }
@@ -224,4 +232,4 @@ async function completeModuleRecord(module, actorId) {
   return { completedModule: updated, nextModuleOpened: !!nextModule };
 }
 
-module.exports = { completeModuleRecord };
+module.exports = { completeModuleRecord, fillReviewStepFromGate };
