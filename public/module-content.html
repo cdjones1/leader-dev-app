@@ -1402,8 +1402,8 @@
       document.getElementById(`checklistFieldLabel-${sectionId}`).textContent = type === 'FLASHCARD' ? 'Flashcards' : type === 'COMPARISON_TABLE' ? 'Table Rows' : type === 'NUMBERED_STEPS' ? 'Steps' : 'Checklist Items';
       document.getElementById(`tableHeadersField-${sectionId}`).style.display = type === 'COMPARISON_TABLE' ? 'block' : 'none';
       document.getElementById(`choicesField-${sectionId}`).style.display = type === 'MULTIPLE_CHOICE' ? 'block' : 'none';
-      document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO') ? 'block' : 'none';
-      document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : 'Link (optional)';
+      document.getElementById(`linkField-${sectionId}`).style.display = (type === 'ACTION_ITEM' || type === 'VIDEO' || type === 'READING') ? 'block' : 'none';
+      document.getElementById(`linkFieldLabel-${sectionId}`).textContent = type === 'VIDEO' ? 'Video URL (required)' : type === 'READING' ? 'Link (optional - shows as an "Open link" button under the reading, nothing to check off)' : 'Link (optional)';
       if ((type === 'CHECKLIST' || type === 'FLASHCARD' || type === 'COMPARISON_TABLE' || type === 'NUMBERED_STEPS') && document.getElementById(`checklistItems-${sectionId}`).children.length === 0) {
         addChecklistRow(sectionId); addChecklistRow(sectionId);
       }

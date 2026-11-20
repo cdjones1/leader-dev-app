@@ -239,7 +239,9 @@
     }
 
     function readingBlock(task) {
-      return `<div class="task-block"><h3>${task.text}</h3><div class="content-box">${task.content || '(No content written yet.)'}</div></div>`;
+      const linkHtml = task.link && /^https?:\/\//i.test(task.link)
+        ? `<a class="ai-link" href="${task.link.replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="display:inline-block; margin-top:10px; color:var(--accent); font-weight:700; text-decoration:none;">Open link &#8599;</a>` : '';
+      return `<div class="task-block"><h3>${task.text}</h3><div class="content-box">${task.content || '(No content written yet.)'}</div>${linkHtml}</div>`;
     }
 
     // Turns a plain YouTube/Vimeo URL into an embeddable player URL.

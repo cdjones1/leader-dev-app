@@ -408,7 +408,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       content: content || '',
       taskType: taskType || 'READING',
       assignedTo: assignedTo || 'DEVELOPEE',
-      link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
+      link: ['ACTION_ITEM', 'VIDEO', 'READING'].includes(taskType) ? (link || null) : null,
       correctAnswer: taskType === 'QUESTION' ? correctAnswer : null,
       pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
       tableLeftHeader: taskType === 'COMPARISON_TABLE' ? (tableLeftHeader || null) : null,
@@ -505,7 +505,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       tableHeaderColor: taskType === 'COMPARISON_TABLE' ? (tableHeaderColor || null) : null,
       tableRowColorA: taskType === 'COMPARISON_TABLE' ? (tableRowColorA || null) : null,
       tableRowColorB: taskType === 'COMPARISON_TABLE' ? (tableRowColorB || null) : null,
-      link: ['ACTION_ITEM', 'VIDEO'].includes(taskType) ? (link || null) : null,
+      link: ['ACTION_ITEM', 'VIDEO', 'READING'].includes(taskType) ? (link || null) : null,
     },
   });
 
