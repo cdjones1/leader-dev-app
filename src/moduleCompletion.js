@@ -61,6 +61,7 @@ async function fillReviewStepFromGate(plan, reviewStep, gatePosition) {
                 pageReference: taskTemplate.pageReference,
                 tableLeftHeader: taskTemplate.tableLeftHeader,
                 tableRightHeader: taskTemplate.tableRightHeader,
+                tableMiddleHeader: taskTemplate.tableMiddleHeader,
                 tableHeaderColor: taskTemplate.tableHeaderColor,
                 tableRowColorA: taskTemplate.tableRowColorA,
                 tableRowColorB: taskTemplate.tableRowColorB,
@@ -76,6 +77,7 @@ async function fillReviewStepFromGate(plan, reviewStep, gatePosition) {
                   description: item.description,
                   link: item.link,
                   quoteText: item.quoteText,
+                  middleText: item.middleText,
                 },
               });
             }

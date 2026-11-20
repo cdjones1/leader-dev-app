@@ -210,14 +210,14 @@
         const leftColColor = t.tableRowColorA || '#f7f5f2';
         const rightColColor = t.tableRowColorB || '#ffffff';
         const rowsHtml = (t.checklistItemTemplates || []).map((r) => `
-          <tr><td style="background:${leftColColor};">${r.text}</td><td style="background:${rightColColor};">${r.description || ''}</td></tr>
+          <tr><td style="background:${leftColColor};">${r.text}</td>${t.tableMiddleHeader ? `<td style="background:${rightColColor};">${r.middleText || ''}</td>` : ''}<td style="background:${rightColColor};">${r.description || ''}</td></tr>
         `).join('');
         return `
           <div class="task-block">
             ${title}${t.content ? `<div class="content-box">${t.content}</div>` : ''}
             <div class="comparison-table-wrap">
               <table class="comparison-table">
-                <thead><tr style="background:${headerColor};"><th>${t.tableLeftHeader || ''}</th><th>${t.tableRightHeader || ''}</th></tr></thead>
+                <thead><tr style="background:${headerColor};"><th>${t.tableLeftHeader || ''}</th>${t.tableMiddleHeader ? `<th>${t.tableMiddleHeader}</th>` : ''}<th>${t.tableRightHeader || ''}</th></tr></thead>
                 <tbody>${rowsHtml}</tbody>
               </table>
             </div>

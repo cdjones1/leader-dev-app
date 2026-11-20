@@ -373,6 +373,7 @@
       const rowsHtml = rows.map((r) => `
         <tr>
           <td style="background:${leftColColor};">${r.text}</td>
+          ${task.tableMiddleHeader ? `<td style="background:${rightColColor};">${r.middleText || ''}</td>` : ''}
           <td style="background:${rightColColor};">${r.description || ''}</td>
         </tr>
       `).join('');
@@ -385,6 +386,7 @@
               <thead>
                 <tr style="background:${headerColor};">
                   <th>${task.tableLeftHeader || ''}</th>
+                  ${task.tableMiddleHeader ? `<th>${task.tableMiddleHeader}</th>` : ''}
                   <th>${task.tableRightHeader || ''}</th>
                 </tr>
               </thead>

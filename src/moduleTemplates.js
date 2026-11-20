@@ -218,6 +218,7 @@ router.post('/copy', requireAuth, async (req, res) => {
           pageReference: taskTemplate.pageReference,
           tableLeftHeader: taskTemplate.tableLeftHeader,
           tableRightHeader: taskTemplate.tableRightHeader,
+          tableMiddleHeader: taskTemplate.tableMiddleHeader,
           tableHeaderColor: taskTemplate.tableHeaderColor,
           tableRowColorA: taskTemplate.tableRowColorA,
           tableRowColorB: taskTemplate.tableRowColorB,
@@ -226,7 +227,7 @@ router.post('/copy', requireAuth, async (req, res) => {
 
       for (const item of taskTemplate.checklistItemTemplates) {
         await prisma.checklistItemTemplate.create({
-          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link, quoteText: item.quoteText },
+          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link, quoteText: item.quoteText, middleText: item.middleText },
         });
       }
 
@@ -382,7 +383,7 @@ router.delete('/sections/:sectionId', requireAuth, async (req, res) => {
 router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableMiddleHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
   const resolvedText = (resolveTaskTitle(text, taskType) || '').toUpperCase() || null;
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -412,6 +413,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
       pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
       tableLeftHeader: taskType === 'COMPARISON_TABLE' ? (tableLeftHeader || null) : null,
       tableRightHeader: taskType === 'COMPARISON_TABLE' ? (tableRightHeader || null) : null,
+      tableMiddleHeader: taskType === 'COMPARISON_TABLE' ? (tableMiddleHeader || null) : null,
       tableHeaderColor: taskType === 'COMPARISON_TABLE' ? (tableHeaderColor || null) : null,
       tableRowColorA: taskType === 'COMPARISON_TABLE' ? (tableRowColorA || null) : null,
       tableRowColorB: taskType === 'COMPARISON_TABLE' ? (tableRowColorB || null) : null,
@@ -428,6 +430,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
           description: checklistItems[i].description || null,
           link: checklistItems[i].link || null,
           quoteText: checklistItems[i].quoteText || null,
+          middleText: taskType === 'COMPARISON_TABLE' ? (checklistItems[i].middleText || null) : null,
         },
       });
     }
@@ -472,7 +475,7 @@ router.post('/sections/:sectionId/tasks', requireAuth, async (req, res) => {
 router.put('/tasks/:taskId', requireAuth, async (req, res) => {
   if (!requireAdmin(req, res)) return;
 
-  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
+  const { text, content, taskType, assignedTo, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableMiddleHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB } = req.body;
   const resolvedText = (resolveTaskTitle(text, taskType) || '').toUpperCase() || null;
   if (!resolvedText) {
     return res.status(400).json({ error: 'text is required' });
@@ -498,6 +501,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
       pageReference: taskType === 'QUESTION' ? (pageReference || null) : null,
       tableLeftHeader: taskType === 'COMPARISON_TABLE' ? (tableLeftHeader || null) : null,
       tableRightHeader: taskType === 'COMPARISON_TABLE' ? (tableRightHeader || null) : null,
+      tableMiddleHeader: taskType === 'COMPARISON_TABLE' ? (tableMiddleHeader || null) : null,
       tableHeaderColor: taskType === 'COMPARISON_TABLE' ? (tableHeaderColor || null) : null,
       tableRowColorA: taskType === 'COMPARISON_TABLE' ? (tableRowColorA || null) : null,
       tableRowColorB: taskType === 'COMPARISON_TABLE' ? (tableRowColorB || null) : null,
@@ -519,6 +523,7 @@ router.put('/tasks/:taskId', requireAuth, async (req, res) => {
           description: checklistItems[i].description || null,
           link: checklistItems[i].link || null,
           quoteText: checklistItems[i].quoteText || null,
+          middleText: taskType === 'COMPARISON_TABLE' ? (checklistItems[i].middleText || null) : null,
         },
       });
     }

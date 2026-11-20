@@ -249,6 +249,7 @@ model ModuleTask {
   quizAttemptCount Int       @default(0)         // SECTION_QUIZ only
   tableLeftHeader  String?   // COMPARISON_TABLE only
   tableRightHeader String?   // COMPARISON_TABLE only
+  tableMiddleHeader String?  // COMPARISON_TABLE only - optional third (middle) column; blank = two-column table
   tableHeaderColor String?   // COMPARISON_TABLE only - hex color, defaults to the site accent red if unset
   tableRowColorA   String?   // COMPARISON_TABLE only - odd row background, defaults to the site's --bg shade if unset
   tableRowColorB   String?   // COMPARISON_TABLE only - even row background, defaults to the site's --card (white) shade if unset
@@ -271,6 +272,7 @@ model TaskChecklistItem {
   completedAt DateTime?
   sourceLabel String?   // FLASHCARD only - set when auto-pulled from an earlier module's own flashcards during a review step's creation (e.g. "Module 3 — Heart of Leadership"); null for manually-authored cards
   quoteText   String?   // NUMBERED_STEPS only - the italicized example line under the step's title
+  middleText  String?   // COMPARISON_TABLE only - middle column text (only used when the task has a middle header)
 }
 
 // MULTIPLE_CHOICE options - isCorrect must NEVER be sent to the
@@ -455,6 +457,7 @@ model ModuleTaskTemplate {
   pageReference    String?
   tableLeftHeader  String?  // COMPARISON_TABLE only - e.g. "Instead of..."
   tableRightHeader String?  // COMPARISON_TABLE only - e.g. "Try..."
+  tableMiddleHeader String? // COMPARISON_TABLE only - optional third (middle) column; blank = two-column table
   tableHeaderColor String?  // COMPARISON_TABLE only - hex color for the header row background; defaults to the site's accent red if unset
   tableRowColorA   String?  // COMPARISON_TABLE only - odd row background
   tableRowColorB   String?  // COMPARISON_TABLE only - even row background
@@ -539,6 +542,7 @@ model ChecklistItemTemplate {
   description      String?
   link             String?
   quoteText        String?  // NUMBERED_STEPS only
+  middleText       String?  // COMPARISON_TABLE only - middle column text
 }
 
 model ChoiceOptionTemplate {

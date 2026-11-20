@@ -159,7 +159,7 @@
             ${t.taskType === 'QUESTION' ? `<div class="task-meta">Correct answer: ${t.correctAnswer}</div>` : ''}
             ${t.taskType === 'CHECKLIST' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} checklist item(s)</div>` : ''}
             ${t.taskType === 'FLASHCARD' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} flashcard(s)</div>` : ''}
-            ${t.taskType === 'COMPARISON_TABLE' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} row(s) - "${t.tableLeftHeader || ''}" / "${t.tableRightHeader || ''}"</div>` : ''}
+            ${t.taskType === 'COMPARISON_TABLE' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} row(s) - "${t.tableLeftHeader || ''}"${t.tableMiddleHeader ? ` / "${t.tableMiddleHeader}"` : ''} / "${t.tableRightHeader || ''}"</div>` : ''}
             ${t.taskType === 'NUMBERED_STEPS' ? `<div class="task-meta">${(t.checklistItemTemplates || []).length} step(s)</div>` : ''}
             ${t.taskType === 'SECTION_QUIZ' ? `<div class="task-meta">${(t.quizQuestionTemplates || []).length} question(s) - 90% to pass</div>` : ''}
             ${t.taskType === 'MULTIPLE_CHOICE' ? `<div class="task-meta">${(t.choiceOptionTemplates || []).length} option(s)</div>` : ''}
@@ -206,7 +206,7 @@
               <option value="VIDEO">Video (YouTube, Vimeo, or direct file link)</option>
               <option value="FLASHCARD">Flashcard Set (tap to reveal, for memorization)</option>
               <option value="SECTION_QUIZ">Section Quiz (multiple choice, 90% to pass)</option>
-              <option value="COMPARISON_TABLE">Comparison Table (two-column, e.g. "Instead of / Try")</option>
+              <option value="COMPARISON_TABLE">Comparison Table (two or three columns, e.g. "Instead of / Try")</option>
               <option value="NUMBERED_STEPS">Numbered Steps (title + example quote + description)</option>
             </select>
             <label>Content (description shown under the title)</label>
@@ -224,6 +224,8 @@
             <div id="tableHeadersField-${section.id}" style="display:none;">
               <label>Left Column Header (e.g. "Instead of...")</label>
               <input type="text" id="newTaskTableLeft-${section.id}" placeholder="Instead of...">
+              <label>Middle Column Header (optional - leave blank for a two-column table)</label>
+              <input type="text" id="newTaskTableMiddle-${section.id}" placeholder="Leave blank for two columns">
               <label>Right Column Header (e.g. "Try...")</label>
               <input type="text" id="newTaskTableRight-${section.id}" placeholder="Try...">
               <label>Header Color (optional - defaults to the site's red accent)</label>
@@ -1414,7 +1416,7 @@
       }
     }
 
-    function addChecklistRow(sectionId, text = '', description = '', link = '', quoteText = '') {
+    function addChecklistRow(sectionId, text = '', description = '', link = '', quoteText = '', middleText = '') {
       const typeSelect = document.getElementById(`newTaskType-${sectionId}`);
       const isFlashcard = typeSelect && typeSelect.value === 'FLASHCARD';
       const isTable = typeSelect && typeSelect.value === 'COMPARISON_TABLE';
@@ -1430,6 +1432,7 @@
           <input type="text" class="ci-text" value="${text.replace(/"/g, '&quot;')}" style="flex:1;" placeholder="${textPlaceholder}">
           <button type="button" style="background:#9b1c1c; margin:0;" onclick="this.closest('.checklist-item-row').remove()">✕</button>
         </div>
+        ${isTable ? `<input type="text" class="ci-middle" value="${middleText.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Middle column text (only used if you set a middle header)">` : ''}
         ${isSteps ? `<input type="text" class="ci-quote" value="${quoteText.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder='Example quote (e.g. "Let\\'s get ahead on sauces.")'>` : ''}
         <input type="text" class="ci-desc" value="${description.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="${descPlaceholder}">
         ${(isFlashcard || isTable || isSteps) ? '' : `<input type="text" class="ci-link" value="${link.replace(/"/g, '&quot;')}" style="margin-top:6px;" placeholder="Link (optional)">`}
@@ -1507,11 +1510,13 @@
         .map((row) => {
           const linkEl = row.querySelector('.ci-link');
           const quoteEl = row.querySelector('.ci-quote');
+          const middleEl = row.querySelector('.ci-middle');
           return {
             text: row.querySelector('.ci-text').value.trim(),
             description: row.querySelector('.ci-desc').value.trim(),
             link: linkEl ? linkEl.value.trim() : '',
             quoteText: quoteEl ? quoteEl.value.trim() : '',
+            middleText: middleEl ? middleEl.value.trim() : '',
           };
         })
         .filter((item) => item.text);
@@ -1536,6 +1541,7 @@
       document.getElementById(`newTaskPageRef-${sectionId}`).value = task.pageReference || '';
       document.getElementById(`newTaskLink-${sectionId}`).value = task.link || '';
       document.getElementById(`newTaskTableLeft-${sectionId}`).value = task.tableLeftHeader || '';
+      document.getElementById(`newTaskTableMiddle-${sectionId}`).value = task.tableMiddleHeader || '';
       document.getElementById(`newTaskTableRight-${sectionId}`).value = task.tableRightHeader || '';
       document.getElementById(`newTaskTableColor-${sectionId}`).value = task.tableHeaderColor || '#d6222a';
       document.getElementById(`newTaskTableRowA-${sectionId}`).value = task.tableRowColorA || '#f7f5f2';
@@ -1543,7 +1549,7 @@
       document.getElementById(`checklistItems-${sectionId}`).innerHTML = '';
       document.getElementById(`choiceOptions-${sectionId}`).innerHTML = '';
       document.getElementById(`quizQuestions-${sectionId}`).innerHTML = '';
-      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || '', item.quoteText || ''));
+      (task.checklistItemTemplates || []).forEach((item) => addChecklistRow(sectionId, item.text, item.description || '', item.link || '', item.quoteText || '', item.middleText || ''));
       (task.choiceOptionTemplates || []).forEach((opt) => addChoiceRow(sectionId, opt.text, opt.isCorrect));
       (task.quizQuestionTemplates || []).forEach((q) => addQuizQuestionBlock(sectionId, q.text, q.content || '', q.choiceOptionTemplates || []));
 
@@ -1563,6 +1569,7 @@
       document.getElementById(`newTaskPageRef-${sectionId}`).value = '';
       document.getElementById(`newTaskLink-${sectionId}`).value = '';
       document.getElementById(`newTaskTableLeft-${sectionId}`).value = '';
+      document.getElementById(`newTaskTableMiddle-${sectionId}`).value = '';
       document.getElementById(`newTaskTableRight-${sectionId}`).value = '';
       document.getElementById(`newTaskTableColor-${sectionId}`).value = '#d6222a';
       document.getElementById(`newTaskTableRowA-${sectionId}`).value = '#f7f5f2';
@@ -1586,6 +1593,7 @@
       const pageReference = document.getElementById(`newTaskPageRef-${sectionId}`).value.trim();
       const link = document.getElementById(`newTaskLink-${sectionId}`).value.trim();
       const tableLeftHeader = document.getElementById(`newTaskTableLeft-${sectionId}`).value.trim();
+      const tableMiddleHeader = document.getElementById(`newTaskTableMiddle-${sectionId}`).value.trim();
       const tableRightHeader = document.getElementById(`newTaskTableRight-${sectionId}`).value.trim();
       const tableHeaderColor = document.getElementById(`newTaskTableColor-${sectionId}`).value;
       const tableRowColorA = document.getElementById(`newTaskTableRowA-${sectionId}`).value;
@@ -1617,7 +1625,7 @@
       }
 
       const editingId = editingTaskId[sectionId];
-      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB };
+      const body = { text, assignedTo, content, taskType, correctAnswer, checklistItems, choiceOptions, link, pageReference, quizQuestions, tableLeftHeader, tableMiddleHeader, tableRightHeader, tableHeaderColor, tableRowColorA, tableRowColorB };
 
       try {
         if (editingId) {

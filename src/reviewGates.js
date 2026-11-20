@@ -153,6 +153,7 @@ router.post('/copy', requireAuth, async (req, res) => {
           pageReference: taskTemplate.pageReference,
           tableLeftHeader: taskTemplate.tableLeftHeader,
           tableRightHeader: taskTemplate.tableRightHeader,
+          tableMiddleHeader: taskTemplate.tableMiddleHeader,
           tableHeaderColor: taskTemplate.tableHeaderColor,
           tableRowColorA: taskTemplate.tableRowColorA,
           tableRowColorB: taskTemplate.tableRowColorB,
@@ -161,7 +162,7 @@ router.post('/copy', requireAuth, async (req, res) => {
 
       for (const item of taskTemplate.checklistItemTemplates) {
         await prisma.checklistItemTemplate.create({
-          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link, quoteText: item.quoteText },
+          data: { taskTemplateId: newTask.id, order: item.order, text: item.text, description: item.description, link: item.link, quoteText: item.quoteText, middleText: item.middleText },
         });
       }
 
