@@ -84,6 +84,7 @@
     <h2>Midterm Assessment Questions</h2>
     <p style="color:var(--text-muted); font-size:13px;">Answered by the developee, like Study Questions - locks and reveals the model answer once submitted. A fresh attempt (after a failed one) gets fresh answers.</p>
     <div id="midtermPassword-box" class="add-section-box" style="margin-bottom:12px;"></div>
+    <div id="midtermQuestions-toggle"></div>
     <div id="midtermQuestions-list"></div>
     <div class="add-box" id="midterm-add-box"></div>
     <div class="add-section-box" style="margin-top:16px;">
@@ -100,6 +101,7 @@
   <div class="module-card">
     <h2>Final Assessment Questions</h2>
     <div id="finalPassword-box" class="add-section-box" style="margin-bottom:12px;"></div>
+    <div id="finalQuestions-toggle"></div>
     <div id="finalQuestions-list"></div>
     <div class="add-box" id="final-add-box"></div>
     <div class="add-section-box" style="margin-top:16px;">
@@ -660,6 +662,8 @@
       if (!currentPathId) {
         document.getElementById('templatesContainer').innerHTML = '';
         document.getElementById('midtermQuestions-list').innerHTML = '';
+        document.getElementById('midtermQuestions-toggle').innerHTML = '';
+        document.getElementById('finalQuestions-toggle').innerHTML = '';
         document.getElementById('midterm-add-box').innerHTML = '';
         document.getElementById('finalQuestions-list').innerHTML = '';
         document.getElementById('final-add-box').innerHTML = '';
@@ -712,6 +716,7 @@
     function assessmentQuestionRowHtml(gateKey, q) {
       return `
         <div class="task-row" data-id="${q.id}">
+          <span class="drag-handle" title="Drag to reorder">⠿</span>
           <div style="flex:1;">
             <strong>${q.text}</strong>
             <span class="task-meta"> - ${q.points} pt${q.points === 1 ? '' : 's'}${q.groupTitle ? ` - Group: ${q.groupTitle}` : ''}</span>
@@ -809,11 +814,34 @@
       const questions = await apiCall(`/assessment-questions?pathId=${currentPathId}&gatePosition=${gatePosition}`);
       listDiv.innerHTML = questions.map((q) => assessmentQuestionRowHtml(gateKey, q)).join('');
       addBox.innerHTML = assessmentQuestionFormHtml(gateKey);
+      renderAssessmentListToggle(gateKey, questions.length);
 
       makeSortable(listDiv, '.task-row', (orderedIds) => {
         apiCall('/assessment-questions/reorder', { method: 'PUT', body: JSON.stringify({ questionIds: orderedIds }) })
           .catch((err) => { alert(err.message); loadAssessmentQuestions(gateKey, gatePosition); });
       });
+    }
+
+    // Collapse / expand the whole question list for one assessment
+    // (remembered per path in this browser only).
+    function aqCollapsedKey(gateKey) { return `collapsedAssessmentList-${currentPathId}-${gateKey}`; }
+    function isAqCollapsed(gateKey) {
+      try { return localStorage.getItem(aqCollapsedKey(gateKey)) === '1'; } catch (e) { return false; }
+    }
+    function renderAssessmentListToggle(gateKey, count) {
+      const toggle = document.getElementById(`${gateKey}Questions-toggle`);
+      const listDiv = document.getElementById(`${gateKey}Questions-list`);
+      if (!toggle || !listDiv) return;
+      const collapsed = isAqCollapsed(gateKey);
+      listDiv.style.display = collapsed ? 'none' : 'block';
+      toggle.innerHTML = count > 0
+        ? `<button type="button" style="background:#8a8378; margin:6px 0;" onclick="toggleAssessmentList('${gateKey}', ${count})">${collapsed ? '▼ Expand' : '▲ Collapse'} ${count} question${count === 1 ? '' : 's'}</button>
+           <span class="task-meta"> Drag the ⠿ handle to reorder.</span>`
+        : '';
+    }
+    function toggleAssessmentList(gateKey, count) {
+      try { localStorage.setItem(aqCollapsedKey(gateKey), isAqCollapsed(gateKey) ? '0' : '1'); } catch (e) {}
+      renderAssessmentListToggle(gateKey, count);
     }
 
     async function saveAssessmentQuestion(gateKey) {
